@@ -1,0 +1,111 @@
+"""Persistence, Mongolian text preparation and strict subtitle parsing."""
+from contextlib import contextmanager
+import hashlib
+import hmac
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import sqlite3
+import time
+import unicodedata
+
+DATA = Path(os.getenv('DATA_DIR', './data')).resolve()
+
+@contextmanager
+def db():
+    DATA.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(DATA / 'studio.db', timeout=20)
+    con.row_factory = sqlite3.Row
+    con.execute('PRAGMA foreign_keys=ON')
+    try:
+        with con:
+            yield con
+    finally:
+        con.close()
+
+def init():
+    for directory in ('voices', 'outputs', 'tmp'):
+        (DATA / directory).mkdir(parents=True, exist_ok=True)
+    with db() as c:
+        c.executescript('''
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL,created REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),csrf TEXT NOT NULL,expires REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),name TEXT NOT NULL,transcript TEXT NOT NULL,created REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),voice_id TEXT NOT NULL,title TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL,progress INTEGER DEFAULT 0,error TEXT,created REAL NOT NULL,result TEXT);
+        CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status,created);
+        ''')
+
+def uid():
+    return secrets.token_hex(16)
+
+def hash_password(password):
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
+    return salt.hex() + ':' + digest.hex()
+
+def verify_password(password, stored):
+    salt, expected = stored.split(':')
+    actual = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1)
+    return hmac.compare_digest(actual.hex(), expected)
+
+DIGITS = ['тэг', 'нэг', 'хоёр', 'гурав', 'дөрөв', 'тав', 'зургаа', 'долоо', 'найм', 'ес']
+
+def prepare_text(text, glossary=None):
+    text = unicodedata.normalize('NFC', text).strip()
+    if not text or len(text) > 12000:
+        raise ValueError('Текст 1–12000 тэмдэгттэй байна.')
+    for source, target in sorted((glossary or {}).items(), key=lambda x: -len(x[0])):
+        if not source or not target or len(source) > 100 or len(target) > 200:
+            raise ValueError('Дуудлагын толь буруу байна.')
+        text = re.sub(re.escape(source), lambda _: target, text, flags=re.I)
+    if re.search('[A-Za-z]', text):
+        raise ValueError('Латин нэр, үгсийг дуудлагын тольд кириллээр оруулна уу.')
+    # Do not silently guess Mongolian number morphology. User reviews explicit expansion.
+    if re.search(r'\d|[₮$€%]', text):
+        raise ValueError('Тоо, үнэ, хувийг үгээр бичнэ үү. Жишээ: дөчин таван мянган төгрөг.')
+    if re.search(r'[^А-Яа-яӨөҮүЁё\s.,!?…:;\-—«»“”"()\u2019\u0027]', text):
+        raise ValueError('Дэмжигдээгүй тэмдэгт байна. Монгол кирилл текст ашиглана уу.')
+    return re.sub(r'\s+', ' ', text)
+
+def chunks(text, limit=240):
+    words = text.split()
+    result, current = [], ''
+    for word in words:
+        if len(word) > limit:
+            raise ValueError('Хэт урт тасралтгүй үг байна.')
+        if current and len(current) + len(word) + 1 > limit:
+            result.append(current)
+            current = ''
+        current = (current + ' ' + word).strip()
+    if current:
+        result.append(current)
+    return result
+
+def parse_srt(raw):
+    def timestamp(value):
+        match = re.fullmatch(r'(\d{2}):(\d{2}):(\d{2})[,.](\d{3})', value)
+        if not match:
+            raise ValueError('SRT хугацааны формат буруу байна.')
+        h, m, s, ms = map(int, match.groups())
+        if m > 59 or s > 59:
+            raise ValueError('SRT хугацаа буруу байна.')
+        return h * 3600 + m * 60 + s + ms / 1000
+    cues, previous = [], 0
+    for block in re.split(r'\n\s*\n', raw.lstrip('\ufeff').strip().replace('\r', '')):
+        lines = block.splitlines()
+        if len(lines) < 3 or not lines[0].isdigit() or ' --> ' not in lines[1]:
+            raise ValueError('SRT бүтэц буруу байна.')
+        start, end = map(timestamp, lines[1].split(' --> '))
+        if start < previous or end <= start or end > 3600:
+            raise ValueError('Давхцсан эсвэл нэг цагаас урт SRT дэмжихгүй.')
+        cues.append({'start': start, 'end': end, 'text': ' '.join(lines[2:])})
+        previous = end
+    if not cues or len(cues) > 200:
+        raise ValueError('SRT нь 1–200 репликтэй байна.')
+    return cues
+
+def public_job(row):
+    return {k: row[k] for k in ('id','title','status','progress','error','created','result')}

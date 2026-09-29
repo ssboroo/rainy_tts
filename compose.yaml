@@ -1,0 +1,36 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      MODEL_DIR: /models/oron
+    volumes:
+      - studio-data:/data
+      - model-data:/models
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      MODEL_DIR: /models/oron
+      OMP_NUM_THREADS: "4"
+    volumes:
+      - studio-data:/data
+      - model-data:/models
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  studio-data:
+  model-data:

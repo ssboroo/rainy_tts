@@ -1,0 +1,9 @@
+{
+  "engine": "Oron/F5-TTS",
+  "device": "cpu",
+  "python": "3.12.14",
+  "generation_seconds": 175.398,
+  "audio_seconds": 2.731,
+  "real_time_factor": 64.233,
+  "human_quality_review": "not performed"
+}

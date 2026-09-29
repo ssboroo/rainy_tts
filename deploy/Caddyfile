@@ -1,0 +1,13 @@
+# Replace with your NEW domain. Run Caddy on the same host as Docker.
+voice.example.com {
+    encode zstd gzip
+    request_body {
+        max_size 12MB
+    }
+    reverse_proxy 127.0.0.1:8080 {
+        transport http {
+            read_timeout 60s
+            write_timeout 60s
+        }
+    }
+}
