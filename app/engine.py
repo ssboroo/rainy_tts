@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import wave
+from urllib.parse import urlparse
 
 class OronEngine:
     def __init__(self):
@@ -15,10 +16,13 @@ class OronEngine:
     def readiness(self):
         required = ['model.safetensors', 'vocab.txt', 'voices/male.wav', 'voices/male.txt', 'voices/female.wav', 'voices/female.txt', 'vocos/config.yaml', 'vocos/pytorch_model.bin']
         missing = [name for name in required if not (self.root / name).is_file()]
-        if os.getenv('MODEL_LICENSE_APPROVED') != 'true':
-            return False, 'Загварын арилжааны лицензийн шалгалт дуусаагүй.'
+        purpose = os.getenv('TTS_USAGE_MODE', 'commercial')
+        local_evaluation = (purpose == 'local-evaluation' and
+                            urlparse(os.getenv('PUBLIC_ORIGIN', '')).hostname in ('localhost', '127.0.0.1', '::1'))
+        if os.getenv('MODEL_LICENSE_APPROVED') != 'true' and not local_evaluation:
+            return False, 'Арилжааны горим нээгдээгүй. Хувийн туршилтад scripts/run-local.ps1 ашиглана уу.'
         if missing:
-            return False, 'Дууны загвар серверт хараахан суулгагдаагүй.'
+            return False, 'Дууны загвар суулгагдаагүй. scripts/run-local.ps1 -InstallModel ажиллуулна уу.'
         try:
             import importlib.util
             if not all(importlib.util.find_spec(m) for m in ('f5_tts', 'oron_tts', 'soundfile')):

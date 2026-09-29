@@ -43,3 +43,16 @@ Back up the SQLite database with SQLite's online backup API and copy voice/outpu
 ## What is intentionally absent
 
 No domain has been purchased, no hosted endpoint provisioned, no external provider keys stored. New voice design, automatic acting and multi-character SRT assignment are roadmap items. Current SRT jobs use one chosen voice per file; split by character until a speaker-track editor is added.
+
+## Windows local evaluation launcher
+
+The commercial release flag must not be set merely to dismiss a message. Local evaluation has a separate mode which only works when `PUBLIC_ORIGIN` is loopback. Install Python 3.12, Git and FFmpeg, then:
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1 -InstallModel
+```
+
+This process-specific policy applies only to this checked-in launcher; it does not change the machine's execution policy. Review the script before running it. The first run installs the CPU environment and downloads model weights; it can take time and several GB of disk. Afterwards run the same command without `-InstallModel`. The launcher runs both web and worker; Ctrl+C stops the web and its worker. First stop any older web/worker instances. The Windows launcher has not been executed on Windows in this Linux development environment.
+
+`TTS_USAGE_MODE=local-evaluation` is not commercial rights clearance. Public deployments still require the commercial review flag. Merely enabling evaluation does not install the model or start a worker.
