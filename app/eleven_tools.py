@@ -60,7 +60,7 @@ class ElevenTools:
         return response.json()
 
     async def dialogue(self, inputs, language_code="mn"):
-        payload={"inputs":inputs,"model_id":"eleven_v3","language_code":language_code or None}
+        payload={"inputs":inputs,"model_id":"eleven_v4","language_code":language_code or None}
         response=await self._request(
             "POST","/v1/text-to-dialogue",
             params={"output_format":"mp3_44100_128"},
