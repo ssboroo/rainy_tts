@@ -123,11 +123,17 @@ class APITests(unittest.TestCase):
         with patch.object(server.tools,'realtime_token',new=AsyncMock(return_value={'token':'sutkn_test'})):
             response=self.client.post('/api/tools/realtime-token',json={},headers=self.headers)
         self.assertEqual(response.json()['token'],'sutkn_test')
+        saved=self.client.post('/api/tools/realtime-save',json={'title':'Live Notes','text':'Сайн байна уу. Шууд бичвэр.'},headers=self.headers)
+        self.assertEqual(saved.status_code,200,saved.text)
+        history=self.client.get('/api/history').json()['items']
+        realtime=[item for item in history if item['tool_type']=='realtime_stt']
+        self.assertTrue(realtime)
+        self.assertTrue(realtime[0]['artifacts'])
 
     def test_dubbing_create_and_completed_output(self):
         create={'project_id':'proj_test','status':'queued','language_ids':['lang_test']}
         with patch.object(server.tools,'create_dubbing',new=AsyncMock(return_value=create)):
-            response=self.client.post('/api/tools/dubbing',data={'reference':'Movie','target_language':'mn','source_language':'en'},files={'file':('movie.mp4',b'fake-video','video/mp4')},headers=self.headers)
+            response=self.client.post('/api/tools/dubbing',data={'reference':'Movie','target_language':'mn','source_language':'en','source_url':'https://example.test/movie.mp4'},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
         job_id=response.json()['job_id']
         project={'project_id':'proj_test','status':'ready','language_ids':['lang_test']}
@@ -166,6 +172,20 @@ class AudioTests(unittest.TestCase):
                     convert.assert_called_once()
             with wave.open(str(output)) as audio:
                 self.assertEqual(audio.getframerate(),24000)
+
+    def test_mux_dubbed_video_command(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'source.mp4';source.write_bytes(b'video')
+            audio=Path(folder)/'dub.flac';audio.write_bytes(b'audio')
+            output=Path(folder)/'output.mp4'
+            def fake_run(command,**kwargs):
+                self.assertIn('-map',command)
+                self.assertIn('0:v:0',command)
+                self.assertIn('1:a:0',command)
+                output.write_bytes(b'muxed')
+            with patch('app.server.subprocess.run',side_effect=fake_run):
+                server.mux_dubbed_video(source,audio,output)
+            self.assertEqual(output.read_bytes(),b'muxed')
 
     def test_srt_timing_and_overrun(self):
         with tempfile.TemporaryDirectory() as folder:
