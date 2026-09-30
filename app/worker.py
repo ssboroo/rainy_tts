@@ -6,10 +6,11 @@ import subprocess
 import threading
 import time
 from . import core
-from .engine import OronEngine, assemble
+from .engine import ElevenLabsEngine, OronEngine, assemble
 
 log = logging.getLogger(__name__)
 engine = OronEngine()
+eleven_engine = ElevenLabsEngine()
 stop = threading.Event()
 
 def run_job(job):
@@ -18,9 +19,13 @@ def run_job(job):
     folder.mkdir(exist_ok=True)
     output = core.DATA / 'outputs' / (job['id'] + '.wav')
     try:
-        if job['voice_id'].startswith('builtin-'):
+        if job['voice_id'] == ElevenLabsEngine.builtin_id:
+            selected_engine, reference, transcript = eleven_engine, None, None
+        elif job['voice_id'].startswith('builtin-'):
+            selected_engine = engine
             reference, transcript = engine.builtin(job['voice_id'])
         else:
+            selected_engine = engine
             with core.db() as c:
                 voice = c.execute('SELECT * FROM voices WHERE id=? AND user_id=?', (job['voice_id'],job['user_id'])).fetchone()
             if not voice:
@@ -31,7 +36,7 @@ def run_job(job):
         parts = []
         for i, text in enumerate(texts):
             part = folder / f'{i}.wav'
-            engine.synthesize(text, reference, transcript, part, payload['speed'])
+            selected_engine.synthesize(text, reference, transcript, part, payload['speed'])
             parts.append(part)
             with core.db() as c:
                 c.execute('UPDATE jobs SET progress=? WHERE id=?', (round((i+1)/len(texts)*90),job['id']))
