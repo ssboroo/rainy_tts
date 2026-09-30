@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 import wave
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode, urlparse
+from urllib.request import Request, urlopen
 
 class OronEngine:
     def __init__(self):
@@ -63,6 +65,80 @@ class OronEngine:
         if name not in ('male', 'female'):
             raise ValueError('Хоолой олдсонгүй.')
         return self.root / f'voices/{name}.wav', (self.root / f'voices/{name}.txt').read_text().strip()
+
+class ElevenLabsEngine:
+    """Server-side ElevenLabs Eleven v4 adapter for Mongolian speech."""
+
+    model_id = 'eleven_v4'
+    builtin_id = 'builtin-eleven-v4'
+
+    def __init__(self):
+        self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
+        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', '').strip()
+        self.language_code = os.getenv('ELEVENLABS_LANGUAGE_CODE', 'mn').strip() or 'mn'
+
+    def readiness(self):
+        if not self.api_key or not self.voice_id:
+            return False, 'Eleven v4 тохируулаагүй.'
+        return True, 'Eleven v4 бэлэн'
+
+    def _setting(self, name, default):
+        try:
+            value = float(os.getenv(name, str(default)))
+        except ValueError:
+            value = default
+        return max(0.0, min(1.0, value))
+
+    def synthesize(self, text, voice_path, transcript, output, speed=1.0):
+        ready, reason = self.readiness()
+        if not ready:
+            raise RuntimeError(reason)
+        payload = {
+            'text': text,
+            'model_id': self.model_id,
+            'language_code': self.language_code,
+            'voice_settings': {
+                'stability': self._setting('ELEVENLABS_STABILITY', 0.5),
+                'similarity_boost': self._setting('ELEVENLABS_SIMILARITY_BOOST', 0.8),
+            },
+        }
+        endpoint = 'https://api.elevenlabs.io/v1/text-to-speech/' + quote(self.voice_id, safe='')
+        endpoint += '?' + urlencode({'output_format': 'pcm_24000'})
+        request = Request(
+            endpoint,
+            data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+            headers={
+                'xi-api-key': self.api_key,
+                'Content-Type': 'application/json',
+                'Accept': 'audio/pcm',
+            },
+            method='POST',
+        )
+        try:
+            with urlopen(request, timeout=90) as response:
+                pcm = response.read(20 * 1024 * 1024 + 1)
+        except HTTPError as exc:
+            raise RuntimeError(f'ElevenLabs API алдаа ({exc.code}).') from exc
+        except (URLError, TimeoutError) as exc:
+            raise RuntimeError('ElevenLabs API-д холбогдож чадсангүй.') from exc
+        if not pcm or len(pcm) > 20 * 1024 * 1024 or len(pcm) % 2:
+            raise RuntimeError('ElevenLabs-аас буруу аудио хариу ирлээ.')
+        with wave.open(str(output), 'wb') as target:
+            target.setnchannels(1)
+            target.setsampwidth(2)
+            target.setframerate(24000)
+            target.writeframes(pcm)
+        speed = float(speed)
+        if abs(speed - 1.0) > .001:
+            adjusted = output.with_name(output.stem + '.tempo.wav')
+            try:
+                subprocess.run(
+                    ['ffmpeg','-nostdin','-v','error','-y','-i',str(output),'-filter:a',f'atempo={speed:.3f}',str(adjusted)],
+                    check=True, timeout=90, capture_output=True,
+                )
+                adjusted.replace(output)
+            finally:
+                adjusted.unlink(missing_ok=True)
 
 def convert_reference(source, destination):
     subprocess.run(['ffmpeg','-nostdin','-v','error','-y','-i',str(source),'-t','13','-vn','-ac','1','-ar','24000','-c:a','pcm_s16le',str(destination)], check=True, timeout=45, capture_output=True)
