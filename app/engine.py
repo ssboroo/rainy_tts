@@ -9,6 +9,32 @@ from elevenlabs.client import ElevenLabs
 
 load_dotenv()
 
+def friendly_elevenlabs_error(exc):
+    raw=str(exc or "").strip()
+    low=raw.lower()
+    mappings=[
+        (("invalid_api_key","authentication_error","unauthorized"),"ElevenLabs API key буруу эсвэл хүчингүй байна."),
+        (("insufficient_credits","quota_exceeded","payment_required"),"ElevenLabs credit/quota хүрэлцэхгүй байна."),
+        (("voice_not_found",),"Сонгосон voice ID ElevenLabs дээр олдсонгүй."),
+        (("voice_access_denied","forbidden"),"Энэ voice-д таны ElevenLabs account/API key хандах эрхгүй байна. Voice Library-оос account-даа Add/Use хийж байгааг шалгана уу."),
+        (("model_access_denied",),"Eleven v4 model ашиглах эрх энэ account-д байхгүй байна."),
+        (("subscription_required","feature_not_available"),"Энэ ElevenLabs боломж таны одоогийн plan-д нээлтгүй байна."),
+        (("rate_limit","429"),"ElevenLabs rate limit хүрсэн байна. Түр хүлээгээд дахин оролдоно уу."),
+    ]
+    for needles,message in mappings:
+        if any(needle in low for needle in needles):
+            return message
+    status=getattr(exc,"status_code",None)
+    if status==401:
+        return "ElevenLabs API key буруу эсвэл хүчингүй байна."
+    if status==402:
+        return "ElevenLabs credit/quota хүрэлцэхгүй байна."
+    if status==403:
+        return "ElevenLabs access permission хүрэлцэхгүй байна."
+    if status==404:
+        return "ElevenLabs voice/model resource олдсонгүй."
+    return "ElevenLabs TTS хүсэлт амжилтгүй боллоо. Worker terminal дээрх дэлгэрэнгүй log-ийг шалгана уу."
+
 class ElevenLabsEngine:
     """Server-side ElevenLabs Eleven v4 adapter for Mongolian speech."""
 
@@ -114,7 +140,7 @@ class ElevenLabsEngine:
             )
             pcm = self._audio_bytes(audio)
         except Exception as exc:
-            raise RuntimeError('ElevenLabs SDK хүсэлт амжилтгүй боллоо.') from exc
+            raise RuntimeError(friendly_elevenlabs_error(exc)) from exc
 
         if not pcm or len(pcm) > 20 * 1024 * 1024 or len(pcm) % 2:
             raise RuntimeError('ElevenLabs-аас буруу аудио хариу ирлээ.')
