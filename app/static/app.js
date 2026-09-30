@@ -12,20 +12,13 @@ async function api(path, options={}) {
   return data;
 }
 function element(tag,text,cls) {const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el;}
-function page(name) {state.page=name;for(const section of document.querySelectorAll('.page'))section.hidden=section.id!==name;for(const button of document.querySelectorAll('.nav'))button.classList.toggle('active',button.dataset.page===name);$('breadcrumb').textContent='Ажлын талбар / '+({studio:'Дуу үүсгэх',voices:'Миний хоолой',history:'Миний бүтээлүүд'}[name]);}
+function page(name) {state.page=name;for(const section of document.querySelectorAll('.page'))section.hidden=section.id!==name;for(const button of document.querySelectorAll('.nav'))button.classList.toggle('active',button.dataset.page===name);$('breadcrumb').textContent='Ажлын талбар / '+({studio:'Дуу үүсгэх',history:'Миний бүтээлүүд'}[name]);}
 function auth() {$('auth-dialog').showModal();$('email').focus();}
 function renderAccount() {$('account').textContent=state.user?state.user.email:'Нэвтрэх';$('logout').hidden=!state.user;$('generate').disabled=!state.health?.engine_ready;}
 function renderVoices() {
-  const selected=$('voice').value;$('voice').replaceChildren();$('voice-list').replaceChildren();
-  for(const voice of state.voices) {
-    if(voice.builtin||state.health?.capabilities.voice_cloning){const option=element('option',voice.name);option.value=voice.id;$('voice').append(option);}
-    if(voice.builtin) continue;
-    const card=element('article',undefined,'card voice-card');card.append(element('h2',voice.name),element('p','Хувийн хоолой','hint'));
-    const audio=element('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+voice.id+'/audio';card.append(audio);
-    const remove=element('button','Устгах','quiet danger');remove.onclick=async()=>{if(!confirm('Энэ хоолойн бичлэгийг устгах уу?'))return;try{await api('/voices/'+voice.id,{method:'DELETE'});await refresh();}catch(e){notice(e.message);}};card.append(remove);$('voice-list').append(card);
-  }
+  const selected=$('voice').value;$('voice').replaceChildren();
+  for(const voice of state.voices) {const option=element('option',voice.name);option.value=voice.id;$('voice').append(option);}
   if([...$('voice').options].some(o=>o.value===selected))$('voice').value=selected;
-  if(!$('voice-list').children.length)$('voice-list').append(element('div',state.user?'Хадгалсан хувийн хоолой хараахан байхгүй.':'Хоолойгоо хадгалахын тулд нэвтэрнэ үү.','empty'));
 }
 const labels={queued:'Дараалалд',running:'Үүсгэж байна',done:'Бэлэн',failed:'Алдаа гарсан'};
 function jobCard(job) {
@@ -42,7 +35,7 @@ function jobCard(job) {
   return card;
 }
 function renderJobs() {for(const [id,limit] of [['recent-jobs',3],['history-jobs',50]]) {const root=$(id);root.replaceChildren();const jobs=state.jobs.slice(0,limit);if(!jobs.length)root.append(element('div',state.user?'Таны анхны бүтээл энд харагдана.':'Нэвтэрч бүтээлүүдээ хадгалаарай.','empty'));for(const job of jobs)root.append(jobCard(job));}}
-async function refresh() {if(!state.user){state.jobs=[];state.voices=[{id:'builtin-female',name:'Эмэгтэй · Oron',builtin:true},{id:'builtin-male',name:'Эрэгтэй · Oron',builtin:true}];}else{const [voices,jobs]=await Promise.all([api('/voices'),api('/jobs')]);state.voices=voices.voices;state.jobs=jobs.jobs;}renderVoices();renderJobs();}
+async function refresh() {if(!state.user){state.jobs=[];state.voices=[{id:'builtin-eleven-v4',name:'Монгол · Eleven v4',builtin:true}];}else{const [voices,jobs]=await Promise.all([api('/voices'),api('/jobs')]);state.voices=voices.voices;state.jobs=jobs.jobs;}renderVoices();renderJobs();}
 for(const button of document.querySelectorAll('.nav'))button.onclick=()=>page(button.dataset.page);
 $('account').onclick=()=>{if(!state.user)auth();else notice('Та '+state.user.email+' хаягаар нэвтэрсэн байна.');};$('close-auth').onclick=()=>$('auth-dialog').close();
 $('logout').onclick=async()=>{try{await api('/logout',{method:'POST',body:'{}'});state.user=null;renderAccount();await refresh();}catch(e){notice(e.message);}};
@@ -54,7 +47,7 @@ $('speed').oninput=()=>$('speed-value').textContent=Number($('speed').value).toF
 function mode(value){state.mode=value;$('text').hidden=value!=='text';$('srt-panel').hidden=value!=='srt';$('text-tab').classList.toggle('selected',value==='text');$('srt-tab').classList.toggle('selected',value==='srt');$('example').hidden=value!=='text';$('counter').hidden=value!=='text';}
 $('text-tab').onclick=()=>mode('text');$('srt-tab').onclick=()=>mode('srt');
 $('srt-file').onchange=async()=>{const file=$('srt-file').files[0];if(!file)return;if(file.size>40000){notice('SRT файл хэт том байна.');return;}$('srt-text').value=await file.text();};
-$('add-voice-link').onclick=()=>page('voices');$('all-jobs').onclick=()=>page('history');$('refresh').onclick=()=>refresh().catch(e=>notice(e.message));
+$('all-jobs').onclick=()=>page('history');$('refresh').onclick=()=>refresh().catch(e=>notice(e.message));
 $('generate').onclick=async()=>{
   if(!state.user){auth();return;}
   const glossary={};for(const line of $('glossary').value.split('\n').filter(x=>x.trim())){const i=line.indexOf('=');if(i<1||!line.slice(i+1).trim()){notice('Дуудлагын толь: нэр = дуудлага гэсэн хэлбэртэй байна.');return;}glossary[line.slice(0,i).trim()]=line.slice(i+1).trim();}
@@ -62,12 +55,6 @@ $('generate').onclick=async()=>{
   $('generate').disabled=true;
   try{await api('/jobs',{method:'POST',body:JSON.stringify(data)});notice('Ажил дараалалд орлоо. Хуудас хаасан ч үргэлжилнэ.');await refresh();}catch(e){notice(e.message);}finally{renderAccount();}
 };
-$('voice-form').onsubmit=async event=>{
-  event.preventDefault();if(!state.user){auth();return;}
-  const file=$('voice-file').files[0];if(!file||file.size>8*1024*1024){notice('8 MB хүртэл аудио сонгоно уу.');return;}
-  const button=event.target.querySelector('button[type=submit]');button.disabled=true;
-  try{const audio=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});await api('/voices',{method:'POST',body:JSON.stringify({name:$('voice-name').value,transcript:$('transcript').value,consent:$('consent').checked,audio})});event.target.reset();notice('Хоолойн бичлэг хадгалагдлаа.');await refresh();}catch(e){notice(e.message||'Файл уншиж чадсангүй.');}finally{button.disabled=false;}
-};
-async function init(){try{const [health,me]=await Promise.all([api('/health'),api('/me')]);state.health=health;state.user=me.user;$('engine-message').textContent=health.engine_message;$('auth-toggle').hidden=!health.registration_open;if(health.capabilities.voice_cloning)$('clone-note').textContent='Хоолой дуурайлт туршилтын горимд нээлттэй. Төстэй байдал, дуудлагыг реплик бүрээр сонсож шалгаарай.';renderAccount();await refresh();}catch(e){$('engine-message').textContent='Сервертэй холбогдож чадсангүй.';notice(e.message);}}
+async function init(){try{const [health,me]=await Promise.all([api('/health'),api('/me')]);state.health=health;state.user=me.user;$('engine-message').textContent=health.engine_message;$('auth-toggle').hidden=!health.registration_open;renderAccount();await refresh();}catch(e){$('engine-message').textContent='Сервертэй холбогдож чадсангүй.';notice(e.message);}}
 init();
 setInterval(async()=>{if(document.hidden||!state.user||!state.jobs.some(j=>['queued','running'].includes(j.status)))return;try{const next=(await api('/jobs')).jobs;if(JSON.stringify(next)!==JSON.stringify(state.jobs)){state.jobs=next;renderJobs();}}catch{}},4000);
