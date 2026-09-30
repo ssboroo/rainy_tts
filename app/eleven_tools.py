@@ -42,7 +42,7 @@ class ElevenTools:
         files=[]
         for upload in uploads:
             await upload.seek(0)
-            files.append(("files[]",(upload.filename,await upload.read(),upload.content_type or "audio/mpeg")))
+            files.append(("files[]",(upload.filename,upload.file,upload.content_type or "audio/mpeg")))
         data={
             "name":name[:100],
             "description":description[:500],
@@ -87,7 +87,7 @@ class ElevenTools:
 
     async def speech_to_text(self, upload, language_code=None):
         await upload.seek(0)
-        files={"file":(upload.filename,await upload.read(),upload.content_type or "application/octet-stream")}
+        files={"file":(upload.filename,upload.file,upload.content_type or "application/octet-stream")}
         data={"model_id":"scribe_v2","diarize":"true","tag_audio_events":"true"}
         if language_code:
             data["language_code"]=language_code
@@ -96,7 +96,7 @@ class ElevenTools:
 
     async def voice_changer(self, upload, voice_id, remove_background_noise=False):
         await upload.seek(0)
-        files={"audio":(upload.filename,await upload.read(),upload.content_type or "audio/mpeg")}
+        files={"audio":(upload.filename,upload.file,upload.content_type or "audio/mpeg")}
         data={
             "model_id":"eleven_multilingual_sts_v2",
             "remove_background_noise":"true" if remove_background_noise else "false",
@@ -121,7 +121,7 @@ class ElevenTools:
         files=None
         if upload is not None:
             await upload.seek(0)
-            files={"file":(upload.filename,await upload.read(),upload.content_type or "application/octet-stream")}
+            files={"file":(upload.filename,upload.file,upload.content_type or "application/octet-stream")}
         elif source_url:
             data["source_url"]=source_url
         else:
