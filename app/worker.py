@@ -44,7 +44,14 @@ def run_job(job):
         log.exception('Job %s failed',job['id'])
         output.unlink(missing_ok=True)
         output.with_suffix('.mp3').unlink(missing_ok=True)
-        message = str(exc) if isinstance(exc, ValueError) else 'Дуу үүсгэж чадсангүй. Серверийн админд ажлын дугаарыг өгнө үү.'
+        if isinstance(exc,(ValueError,RuntimeError)):
+            message=str(exc)[:500]
+        elif isinstance(exc,FileNotFoundError):
+            message='FFmpeg олдсонгүй. FFmpeg суулгаж worker-ээ restart хийнэ үү.'
+        elif isinstance(exc,subprocess.CalledProcessError):
+            message='FFmpeg аудио боловсруулах үед алдаа гарлаа.'
+        else:
+            message='Дуу үүсгэж чадсангүй. Worker terminal дээрх log-ийг шалгана уу.'
         with core.db() as c:
             c.execute("UPDATE jobs SET status='failed',error=? WHERE id=?", (message,job['id']))
     finally:
