@@ -16,7 +16,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from . import core
-from .engine import OronEngine, convert_reference
+from .engine import ElevenLabsEngine, OronEngine, convert_reference
 
 STATIC = Path(__file__).parent / 'static'
 ORIGIN = os.getenv('PUBLIC_ORIGIN', 'http://localhost:8080').rstrip('/')
@@ -142,8 +142,18 @@ class Handler(BaseHTTPRequestHandler):
             mime = {'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css; charset=utf-8','svg':'image/svg+xml'}[name.split('.')[-1]]
             return self.file(STATIC / name,mime)
         if method == 'GET' and path == '/api/health':
-            ready, reason = OronEngine().readiness()
-            return self.send(data={'ok':True,'engine_ready':ready,'engine_message':reason,'capabilities':{'voice_cloning':os.getenv('ENABLE_EXPERIMENTAL_CLONING')=='true','emotion':False,'voice_design':False},'registration_open':os.getenv('ALLOW_REGISTRATION','false')=='true'})
+            oron_ready, oron_reason = OronEngine().readiness()
+            eleven_ready, eleven_reason = ElevenLabsEngine().readiness()
+            ready = oron_ready or eleven_ready
+            if oron_ready and eleven_ready:
+                reason = 'Oron + Eleven v4 бэлэн'
+            elif eleven_ready:
+                reason = eleven_reason
+            elif oron_ready:
+                reason = oron_reason
+            else:
+                reason = f'Oron: {oron_reason} Eleven v4: {eleven_reason}'
+            return self.send(data={'ok':True,'engine_ready':ready,'engine_message':reason,'providers':{'oron':{'ready':oron_ready,'message':oron_reason},'eleven_v4':{'ready':eleven_ready,'message':eleven_reason}},'capabilities':{'voice_cloning':os.getenv('ENABLE_EXPERIMENTAL_CLONING')=='true','emotion':False,'voice_design':False},'registration_open':os.getenv('ALLOW_REGISTRATION','false')=='true'})
         if method == 'GET' and path == '/api/me':
             session = self.session(False)
             return self.send(data={'user':{'email':session['email'],'csrf':session['csrf']} if session else None})
@@ -183,7 +193,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/voices' and method == 'GET':
             with core.db() as c:
                 rows = [dict(r) for r in c.execute('SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC',(user,))]
-            return self.send(data={'voices':[{'id':'builtin-female','name':'Эмэгтэй · Oron','builtin':True},{'id':'builtin-male','name':'Эрэгтэй · Oron','builtin':True}]+rows})
+            builtins = [{'id':'builtin-female','name':'Эмэгтэй · Oron','builtin':True},{'id':'builtin-male','name':'Эрэгтэй · Oron','builtin':True}]
+            if ElevenLabsEngine().readiness()[0]:
+                label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
+                builtins.insert(0, {'id':ElevenLabsEngine.builtin_id,'name':label,'builtin':True})
+            return self.send(data={'voices':builtins+rows})
         if path == '/api/voices' and method == 'POST':
             self.throttle('upload:'+user,20)
             data = self.body()
@@ -239,10 +253,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(data={'jobs':rows})
         if path == '/api/jobs' and method == 'POST':
             self.throttle('job:'+user,30)
-            ready, reason = OronEngine().readiness()
+            data = self.body(); voice_id = str(data.get('voice_id',''))
+            selected_engine = ElevenLabsEngine() if voice_id == ElevenLabsEngine.builtin_id else OronEngine()
+            ready, reason = selected_engine.readiness()
             if not ready:
                 raise HTTPError(503,reason)
-            data = self.body(); voice_id = str(data.get('voice_id',''))
             title = str(data.get('title','Шинэ бүтээл')).strip()[:100] or 'Шинэ бүтээл'
             speed = float(data.get('speed',1))
             if not .8 <= speed <= 1.2:
@@ -268,7 +283,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise HTTPError(422,'Нэг ажил 12000 тэмдэгтээс хэтрэхгүй байна.')
             with core.db() as c:
                 c.execute('BEGIN IMMEDIATE')
-                if voice_id not in ('builtin-male','builtin-female'):
+                if voice_id not in ('builtin-male','builtin-female',ElevenLabsEngine.builtin_id):
                     if os.getenv('ENABLE_EXPERIMENTAL_CLONING') != 'true':
                         raise HTTPError(409,'Хоолой дуурайлтын чанарын туршилт хараахан нээгдээгүй.')
                     if not c.execute('SELECT 1 FROM voices WHERE id=? AND user_id=?',(voice_id,user)).fetchone():
