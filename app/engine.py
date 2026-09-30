@@ -62,12 +62,7 @@ class ElevenLabsEngine:
                 seen.add(voice_id)
 
         if not voices:
-            legacy_voice_id = os.getenv('ELEVENLABS_VOICE_ID', '').strip()
-            if legacy_voice_id:
-                label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
-                voices.append({'id':legacy_voice_id,'name':label,'builtin':True})
-            else:
-                voices = [dict(voice) for voice in cls.default_voice_catalog]
+            voices = [dict(voice) for voice in cls.default_voice_catalog]
 
         return voices
 
