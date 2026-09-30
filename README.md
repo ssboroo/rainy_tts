@@ -1,50 +1,73 @@
-# RAINY Voice · Монгол TTS студи
+# RAINY Voice Studio
 
-RAINY Voice is a browser-based Mongolian text-to-speech studio. The current runtime uses **ElevenLabs Eleven v4 only**.
+RAINY is a Mongolian-first creative audio studio built on ElevenLabs APIs.
 
-## Current architecture
+## Tools
 
-Browser → same-origin Python API → SQLite queue → worker → ElevenLabs Eleven v4 → WAV/MP3
+- **Text to Speech** — Eleven v4, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3.
+- **Voice Clone** — Instant Voice Clone from 1–10 consented audio samples.
+- **Podcast / Dialogue** — multi-speaker Text to Dialogue with up to 10 unique voices per generation.
+- **Music** — prompt-to-music, 3 seconds to 10 minutes.
+- **Sound Effects** — prompt-to-SFX generation.
+- **Speech to Text** — Scribe v2 batch transcription with TXT, JSON and SRT artifacts.
+- **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token.
+- **Voice Changer** — uploaded speech transformed to a selected ElevenLabs voice.
+- **Dubbing / Movie** — Dubbing v2 project creation from audio/video upload or public URL, status polling and output download.
+- **Voice Library** — 12 Mongolian voices plus user-created clones with preview.
+- **Analytics** — ElevenLabs subscription/usage plus local RAINY 30-day usage.
+- **History** — unified outputs from TTS and every creative tool.
 
-There is no local speech model, no Oron/F5 runtime, and no GPU requirement in the current setup.
+## Architecture
 
-## Features
+Browser → FastAPI → ElevenLabs APIs
 
-- Монгол интерфэйс.
-- Text and SRT input, including mixed Mongolian/Latin names, brands and numbers.
-- Server-side official ElevenLabs Python SDK integration.
-- API key never exposed to browser JavaScript.
-- Multiple configured ElevenLabs voices exposed in the RAINY voice selector.
-- Speed control, pronunciation glossary and long-text chunking.
-- Durable job queue and progress.
-- WAV/MP3 export.
-- Login, HttpOnly session, CSRF/origin checks and per-user history.
+TTS also uses the durable SQLite worker queue:
 
-## Configure
+Browser → FastAPI → SQLite TTS queue → worker → ElevenLabs Eleven v4 → WAV/MP3
 
-Copy `.env.example` to `.env` and set:
+Creative tool outputs are stored in:
+
+- `tool_jobs`
+- `artifacts`
+
+The ElevenLabs API key stays server-side and is never sent to normal browser JavaScript. Realtime STT receives a short-lived single-use token instead.
+
+## Setup
+
+Python 3.12+ and FFmpeg are required.
+
+```bash
+git pull origin main
+python -m venv .venv
+# Windows
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# macOS/Linux
+# .venv/bin/python -m pip install -r requirements.txt
+```
+
+Copy `.env.example` to `.env`:
 
 ```env
 PUBLIC_ORIGIN=http://localhost:8080
 ALLOW_REGISTRATION=true
-
 ELEVENLABS_API_KEY=your_server_side_key
-# Optional: ELEVENLABS_VOICES_JSON can override the built-in 12 Mongolian voices.
+ELEVENLABS_VOICES_JSON=
 ELEVENLABS_LANGUAGE_CODE=mn
-ELEVENLABS_STABILITY=0.5
-ELEVENLABS_SIMILARITY_BOOST=0.8
+MAX_AUDIO_UPLOAD_MB=100
+MAX_DUB_UPLOAD_MB=500
 ```
 
-Never commit a real API key.
+Do not commit a real API key.
 
-## Run locally
-
-Python 3.12+ and FFmpeg are required. RAINY uses the official ElevenLabs Python SDK.
+Start the web app:
 
 ```bash
-pip install -r requirements.txt
 python -m app.server
-# second terminal
+```
+
+Start the TTS worker in a second terminal:
+
+```bash
 python -m app.worker
 ```
 
@@ -55,42 +78,6 @@ Open http://localhost:8080.
 ```bash
 docker compose up -d --build
 ```
-
-The current Docker image contains only the web/worker runtime and FFmpeg. Model weights and model volumes are not required.
-
-## Notes
-
-RAINY includes 12 Mongolian ElevenLabs voices by default and sends TTS jobs to `eleven_v4` using the selected Voice ID. `ELEVENLABS_VOICES_JSON` can override the built-in catalog when a custom server-side list is needed. ElevenLabs billing, rate limits, voice rights and account permissions apply to production use.
-
-See [Deployment](docs/DEPLOY.md) and [ElevenLabs provider](docs/MODELS.md).
-
-## Ownership
-
-Application code authored for **ssboroo / RAINY Voice**. Copyright © 2026 ssboroo. All rights reserved unless separately licensed. Third-party APIs, voices and services remain subject to their own terms and rights.
-
-
-## ElevenLabs Quickstart alignment
-
-RAINY follows the official SDK authentication pattern:
-
-```python
-from dotenv import load_dotenv
-from elevenlabs.client import ElevenLabs
-import os
-
-load_dotenv()
-client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
-audio = client.text_to_speech.convert(
-    text="Сайн байна уу.",
-    voice_id="WgH4JH8sD6a2SIrujiKn",
-    model_id="eleven_v4",
-    output_format="pcm_24000",
-    language_code="mn",
-)
-```
-
-The official quickstart commonly shows `mp3_44100_128` plus local speaker playback. RAINY requests `pcm_24000` because its worker joins long-text/SRT chunks as WAV, then exports the finished result as both WAV and MP3.
-
 
 ## Built-in Mongolian voices
 
@@ -107,13 +94,20 @@ The official quickstart commonly shows `mp3_44100_128` plus local speaker playba
 11. Erdene — Blunt Ulaanbaatar Friend
 12. Ganbold — Confident Khalkha Ad
 
+## Voice cloning
 
-## Text input
+RAINY requires the user to affirm that they have the right/consent to clone the uploaded voice. Voice cloning and deletion are executed in the connected ElevenLabs workspace, so its plan limits and verification requirements apply.
 
-RAINY accepts Mongolian Cyrillic together with Latin names/brands and numbers, for example:
+## Security notes
 
-```text
-RAINY Voice 2026 — OpenAI API, үнэ 45,000₮.
-```
+- API key is server-side only.
+- Sessions use HttpOnly cookies.
+- Mutating API calls require same-origin + CSRF token.
+- Clone, STT, changer and dubbing uploads are type/size checked.
+- Realtime STT uses a 15-minute single-use ElevenLabs token.
+- Generated files are authorized per user before download.
+- Production should use HTTPS and a reverse proxy with body-size/rate limits.
 
-The pronunciation glossary is optional. Use it only when you want to force a specific Mongolian reading, for example `RAINY = Рэйни`.
+## Ownership
+
+Application code authored for **ssboroo / RAINY Voice**. Copyright © 2026 ssboroo. Third-party APIs, voices and media remain subject to their own licenses, rights, consent requirements and ElevenLabs terms.
