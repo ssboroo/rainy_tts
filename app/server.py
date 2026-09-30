@@ -141,34 +141,53 @@ async def persist_upload(upload:UploadFile, destination:Path):
     await upload.seek(0)
 
 def mux_dubbed_video(source:Path, dubbed_audio:Path, output:Path):
-    subprocess.run(
-        [
-            "ffmpeg","-nostdin","-v","error","-y",
-            "-i",str(source),"-i",str(dubbed_audio),
-            "-map","0:v:0","-map","1:a:0",
-            "-c:v","copy","-c:a","aac","-b:a","192k","-shortest",str(output)
-        ],
-        check=True,timeout=600,capture_output=True
-    )
+    copy_command=[
+        "ffmpeg","-nostdin","-v","error","-y",
+        "-i",str(source),"-i",str(dubbed_audio),
+        "-map","0:v:0","-map","1:a:0",
+        "-c:v","copy","-c:a","aac","-b:a","192k","-shortest",str(output)
+    ]
+    try:
+        subprocess.run(copy_command,check=True,timeout=600,capture_output=True)
+    except subprocess.CalledProcessError:
+        subprocess.run(
+            [
+                "ffmpeg","-nostdin","-v","error","-y",
+                "-i",str(source),"-i",str(dubbed_audio),
+                "-map","0:v:0","-map","1:a:0",
+                "-c:v","libx264","-preset","fast","-crf","20",
+                "-c:a","aac","-b:a","192k","-shortest",str(output)
+            ],
+            check=True,timeout=1200,capture_output=True
+        )
 
 def srt_from_words(words):
-    usable=[w for w in (words or []) if w.get("type")=="word" and w.get("start") is not None and w.get("end") is not None]
-    if not usable:
-        return ""
+    tokens=words or []
     def stamp(seconds):
         ms=max(0,round(float(seconds)*1000))
         h,rem=divmod(ms,3600000); m,rem=divmod(rem,60000); s,ms=divmod(rem,1000)
         return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-    cues=[]; group=[]
-    for word in usable:
-        group.append(word)
-        if len(group)>=9 or float(group[-1]["end"])-float(group[0]["start"])>=4:
-            cues.append(group); group=[]
-    if group: cues.append(group)
+    cues=[]; group=[]; start=None; end=None; word_count=0
+    for token in tokens:
+        token_start=token.get("start"); token_end=token.get("end")
+        if start is None and token_start is not None:
+            start=float(token_start)
+        if token_end is not None:
+            end=float(token_end)
+        if start is None and not group:
+            continue
+        group.append(token)
+        if token.get("type")=="word":
+            word_count+=1
+        if start is not None and end is not None and (word_count>=9 or end-start>=4):
+            cues.append((start,end,group)); group=[]; start=None; end=None; word_count=0
+    if group and start is not None and end is not None:
+        cues.append((start,end,group))
     blocks=[]
-    for i,group in enumerate(cues,1):
-        text="".join(w.get("text","") for w in group).strip()
-        blocks.append(f"{i}\n{stamp(group[0]['start'])} --> {stamp(group[-1]['end'])}\n{text}")
+    for i,(start,end,group) in enumerate(cues,1):
+        text="".join(str(token.get("text","")) for token in group).strip()
+        if text:
+            blocks.append(f"{i}\n{stamp(start)} --> {stamp(end)}\n{text}")
     return "\n\n".join(blocks)
 
 @app.get("/")
@@ -449,11 +468,15 @@ async def music(request:Request):
     except Exception: raise HTTPException(422,"Music duration буруу байна.")
     if not prompt or len(prompt)>4100 or not 3000<=length_ms<=600000:
         raise HTTPException(422,"Music prompt 1–4100 тэмдэгт, хугацаа 3 секунд–10 минут байна.")
+    model_id=str(data.get("model_id","music_v2_5"))
+    if model_id not in {"music_v1","music_v2","music_v2_5"}:
+        raise HTTPException(422,"Music model буруу байна.")
+    force_instrumental=bool(data.get("force_instrumental",False))
     title=str(data.get("title","RAINY Music"))[:100]
     return await run_binary_tool(
         request,sess,"music",title,
-        lambda:tools.music(prompt,length_ms),"rainy-music.mp3","audio/mpeg",
-        {"prompt":prompt[:300],"music_length_ms":length_ms}
+        lambda:tools.music(prompt,length_ms,model_id,force_instrumental),"rainy-music.mp3","audio/mpeg",
+        {"prompt":prompt[:300],"music_length_ms":length_ms,"model_id":model_id,"force_instrumental":force_instrumental}
     )
 
 @app.post("/api/tools/sound-effects")
@@ -462,10 +485,24 @@ async def sound_effects(request:Request):
     data=await json_body(request)
     prompt=str(data.get("text","")).strip()
     if not prompt or len(prompt)>2000: raise HTTPException(422,"Sound effect prompt буруу байна.")
+    duration=data.get("duration_seconds")
+    if duration in ("",None):
+        duration=None
+    else:
+        try: duration=float(duration)
+        except Exception: raise HTTPException(422,"Sound effect duration буруу байна.")
+        if not .5<=duration<=30:
+            raise HTTPException(422,"Sound effect duration 0.5–30 секунд байна.")
+    try: influence=float(data.get("prompt_influence",.3))
+    except Exception: raise HTTPException(422,"Prompt influence буруу байна.")
+    if not 0<=influence<=1:
+        raise HTTPException(422,"Prompt influence 0–1 хооронд байна.")
+    loop=bool(data.get("loop",False))
     title=str(data.get("title","Sound Effect"))[:100]
     return await run_binary_tool(
         request,sess,"sound_effects",title,
-        lambda:tools.sound_effect(prompt),"rainy-sfx.mp3","audio/mpeg",{"prompt":prompt[:300]}
+        lambda:tools.sound_effect(prompt,duration,loop,influence),"rainy-sfx.mp3","audio/mpeg",
+        {"prompt":prompt[:300],"duration_seconds":duration,"loop":loop,"prompt_influence":influence}
     )
 
 @app.post("/api/tools/stt")
@@ -586,7 +623,7 @@ async def dubbing_status(job_id:str,request:Request):
         if languages:
             statuses=[x.get("status") for x in languages]
             if "failed" in statuses: status="failed"
-            elif any(x=="completed" for x in statuses): status="done"
+            elif any(x in {"completed","stale"} for x in statuses): status="done"
             elif any(x=="processing" for x in statuses): status="processing"
             else: status="queued"
         merged={"project_id":project_id,"project":project,"languages":languages}
@@ -594,7 +631,7 @@ async def dubbing_status(job_id:str,request:Request):
             artifact_count=c.execute("SELECT COUNT(*) FROM artifacts WHERE job_id=?",(job_id,)).fetchone()[0]
         if status=="done" and not artifact_count:
             for lang in languages:
-                if lang.get("status")!="completed": continue
+                if lang.get("status") not in {"completed","stale"}: continue
                 for kind,url in (lang.get("outputs") or {}).items():
                     if not isinstance(url,str) or not url.startswith("http"): continue
                     data,mime=await tools.download_url(url)
