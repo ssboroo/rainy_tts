@@ -5,10 +5,8 @@ services:
     env_file: .env
     environment:
       DATA_DIR: /data
-      MODEL_DIR: /models/oron
     volumes:
       - studio-data:/data
-      - model-data:/models
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
@@ -23,14 +21,10 @@ services:
     env_file: .env
     environment:
       DATA_DIR: /data
-      MODEL_DIR: /models/oron
-      OMP_NUM_THREADS: "4"
     volumes:
       - studio-data:/data
-      - model-data:/models
     depends_on:
       web:
         condition: service_healthy
 volumes:
   studio-data:
-  model-data:
