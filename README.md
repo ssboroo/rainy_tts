@@ -7,12 +7,12 @@ RAINY is a Mongolian-first creative audio studio built on ElevenLabs APIs.
 - **Text to Speech** — Eleven v4, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3.
 - **Voice Clone** — Instant Voice Clone from 1–10 consented audio samples.
 - **Podcast / Dialogue** — multi-speaker Text to Dialogue with up to 10 unique voices per generation.
-- **Music** — prompt-to-music, 3 seconds to 10 minutes.
-- **Sound Effects** — prompt-to-SFX generation.
+- **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 10 minutes.
+- **Sound Effects** — Sound Effects v2 with duration, seamless loop and prompt-influence controls.
 - **Speech to Text** — Scribe v2 batch transcription with TXT, JSON and SRT artifacts.
-- **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token.
+- **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token, with transcript save to History.
 - **Voice Changer** — uploaded speech transformed to a selected ElevenLabs voice.
-- **Dubbing / Movie** — Dubbing v2 project creation from audio/video upload or public URL, status polling and output download.
+- **Dubbing / Movie** — Dubbing v2 from upload or public URL; uploaded video can be muxed with the completed dubbed audio into MP4.
 - **Voice Library** — 12 Mongolian voices plus user-created clones with preview.
 - **Analytics** — ElevenLabs subscription/usage plus local RAINY 30-day usage.
 - **History** — unified outputs from TTS and every creative tool.
@@ -111,3 +111,10 @@ RAINY requires the user to affirm that they have the right/consent to clone the 
 ## Ownership
 
 Application code authored for **ssboroo / RAINY Voice**. Copyright © 2026 ssboroo. Third-party APIs, voices and media remain subject to their own licenses, rights, consent requirements and ElevenLabs terms.
+
+
+## Current provider limitations
+
+- ElevenLabs Scribe v2 / Realtime supports Mongolian transcription, but production quality should be evaluated with real Mongolian audio before relying on automated transcripts.
+- ElevenLabs `eleven_multilingual_sts_v2` does not currently list Mongolian among its supported source languages. The Voice Changer UI remains available for supported source languages and clearly shows this limitation for Mongolian source speech.
+- Dubbing, cloning, music, SFX and other endpoints consume ElevenLabs credits according to the connected workspace plan.
