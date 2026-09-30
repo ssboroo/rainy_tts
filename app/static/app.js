@@ -1,7 +1,7 @@
 'use strict';
 
 const $=id=>document.getElementById(id);
-const state={user:null,health:null,voices:[],page:'tts',mode:'text',register:false,rt:null};
+const state={user:null,health:null,voices:[],page:'tts',mode:'text',register:false,rt:null,realtimeText:''};
 let noticeTimer;
 
 function notice(message){
@@ -329,6 +329,9 @@ function pcmBase64(float32){
 }
 async function startRealtime(){
   if(!ensureUser())return;
+  state.realtimeText='';
+  $('realtime-transcript').textContent='Сонсож байна…';
+  $('realtime-save').disabled=true;
   try{
     const token=(await api('/tools/realtime-token',{method:'POST',body:{}})).token;
     const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
@@ -352,7 +355,9 @@ async function startRealtime(){
         if(msg.message_type==='committed_transcript'){rt.committed+=(rt.committed?' ':'')+(msg.text||'');rt.partial='';}
         if(msg.message_type==='edited_transcript'&&msg.edited_text){rt.committed=rt.committed.replace(msg.text||'',msg.edited_text);}
         if(msg.error)notice(msg.error);
-        $('realtime-transcript').textContent=(rt.committed+(rt.partial?' '+rt.partial:'')).trim()||'Сонсож байна…';
+        state.realtimeText=(rt.committed+(rt.partial?' '+rt.partial:'')).trim();
+        $('realtime-transcript').textContent=state.realtimeText||'Сонсож байна…';
+        $('realtime-save').disabled=!state.realtimeText;
       }catch{}
     };
     ws.onerror=()=>notice('Realtime STT холболтын алдаа.');
@@ -370,6 +375,16 @@ function stopRealtime(closeSocket=true){
 }
 $('realtime-start').onclick=startRealtime;
 $('realtime-stop').onclick=()=>stopRealtime(true);
+$('realtime-save').onclick=async()=>{
+  if(!ensureUser()||!state.realtimeText)return;
+  const button=$('realtime-save');button.disabled=true;
+  try{
+    await api('/tools/realtime-save',{method:'POST',body:{title:'Realtime Transcript',text:state.realtimeText}});
+    notice('Realtime transcript History-д TXT файлаар хадгалагдлаа.');
+    loadHistory();
+  }catch(e){notice(e.message);}
+  finally{button.disabled=!state.realtimeText;}
+};
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -403,6 +418,9 @@ function renderHistoryItem(item){
     artifacts.forEach(art=>{
       if((art.mime||'').startsWith('audio/')||/\.(mp3|wav|flac)$/i.test(art.filename||'')){
         const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src=art.url;card.append(audio);
+      }
+      if((art.mime||'').startsWith('video/')||/\.mp4$/i.test(art.filename||'')){
+        const video=document.createElement('video');video.controls=true;video.preload='metadata';video.src=art.url;video.className='history-video';card.append(video);
       }
       const link=document.createElement('a');link.href=art.url;link.textContent=(art.filename||'Файл')+' ↓';link.download=art.filename||'';actions.append(link);
     });
