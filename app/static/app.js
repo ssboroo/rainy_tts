@@ -158,7 +158,7 @@ function renderJobs() {
 async function refresh() {
   if(!state.user) {
     state.jobs=[];
-    state.voices=[{id:'builtin-eleven-v4',name:'Монгол · Eleven v4',builtin:true}];
+    state.voices=[{id:'WgH4JH8sD6a2SIrujiKn',name:'RAINY Voice 01',builtin:true}];
   } else {
     const [voices,jobs]=await Promise.all([api('/voices'),api('/jobs')]);
     state.voices=voices.voices;
