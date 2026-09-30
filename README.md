@@ -11,7 +11,7 @@ There is no local speech model, no Oron/F5 runtime, and no GPU requirement in th
 ## Features
 
 - Монгол интерфэйс.
-- Text and SRT input.
+- Text and SRT input, including mixed Mongolian/Latin names, brands and numbers.
 - Server-side official ElevenLabs Python SDK integration.
 - API key never exposed to browser JavaScript.
 - Multiple configured ElevenLabs voices exposed in the RAINY voice selector.
@@ -106,3 +106,14 @@ The official quickstart commonly shows `mp3_44100_128` plus local speaker playba
 10. Batbayar — Firm Khalkha Ad
 11. Erdene — Blunt Ulaanbaatar Friend
 12. Ganbold — Confident Khalkha Ad
+
+
+## Text input
+
+RAINY accepts Mongolian Cyrillic together with Latin names/brands and numbers, for example:
+
+```text
+RAINY Voice 2026 — OpenAI API, үнэ 45,000₮.
+```
+
+The pronunciation glossary is optional. Use it only when you want to force a specific Mongolian reading, for example `RAINY = Рэйни`.
