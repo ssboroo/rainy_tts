@@ -14,7 +14,7 @@ import urllib.request
 import urllib.error
 import wave
 from app import core, server, worker
-from app.engine import assemble
+from app.engine import ElevenLabsEngine, assemble
 
 def wav_bytes(seconds=4):
     buffer=io.BytesIO()
@@ -104,6 +104,32 @@ class APITests(unittest.TestCase):
         self.assertIsNone(self.request('/me',auth=auth)[1]['user'])
 
 class AudioTests(unittest.TestCase):
+    def test_eleven_v4_pcm_adapter(self):
+        pcm = struct.pack('<h',800) * 2400
+        captured = []
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, *args): return pcm
+        def fake_urlopen(request, timeout=0):
+            captured.append(request)
+            return Response()
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'eleven.wav'
+            with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICE_ID':'voice-123','ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
+                with patch('app.engine.urlopen', side_effect=fake_urlopen):
+                    engine = ElevenLabsEngine()
+                    self.assertTrue(engine.readiness()[0])
+                    engine.synthesize('Сайн байна уу.',None,None,output,1.0)
+            body = json.loads(captured[0].data.decode())
+            self.assertEqual(body['model_id'],'eleven_v4')
+            self.assertEqual(body['language_code'],'mn')
+            self.assertIn('output_format=pcm_24000',captured[0].full_url)
+            with wave.open(str(output)) as audio:
+                self.assertEqual(audio.getframerate(),24000)
+                self.assertEqual(audio.getnchannels(),1)
+                self.assertGreater(audio.getnframes(),0)
+
     def test_srt_timing_and_overrun(self):
         with tempfile.TemporaryDirectory() as folder:
             source=Path(folder)/'in.wav';source.write_bytes(wav_bytes(1));output=Path(folder)/'out.wav'
