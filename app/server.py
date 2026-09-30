@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import subprocess
 import threading
 import time
 
@@ -25,7 +26,8 @@ SECURE = ORIGIN.startswith("https://")
 RATE = {}
 RATE_LOCK = threading.Lock()
 AUDIO_EXTS={".mp3",".wav",".m4a",".aac",".flac",".ogg",".webm",".mp4"}
-MEDIA_EXTS=AUDIO_EXTS|{".mov",".mkv",".avi",".mpeg",".mpg"}
+VIDEO_EXTS={".mp4",".mov",".mkv",".avi",".mpeg",".mpg"}
+MEDIA_EXTS=AUDIO_EXTS|VIDEO_EXTS
 MAX_AUDIO_MB=int(os.getenv("MAX_AUDIO_UPLOAD_MB","100"))
 MAX_DUB_MB=int(os.getenv("MAX_DUB_UPLOAD_MB","500"))
 
@@ -128,6 +130,27 @@ def public_tool_job_with_artifacts(row):
     data["artifacts"]=core.tool_artifacts(row["id"],row["user_id"])
     return data
 
+async def persist_upload(upload:UploadFile, destination:Path):
+    await upload.seek(0)
+    with destination.open("wb") as target:
+        while True:
+            chunk=await upload.read(1024*1024)
+            if not chunk:
+                break
+            target.write(chunk)
+    await upload.seek(0)
+
+def mux_dubbed_video(source:Path, dubbed_audio:Path, output:Path):
+    subprocess.run(
+        [
+            "ffmpeg","-nostdin","-v","error","-y",
+            "-i",str(source),"-i",str(dubbed_audio),
+            "-map","0:v:0","-map","1:a:0",
+            "-c:v","copy","-c:a","aac","-b:a","192k","-shortest",str(output)
+        ],
+        check=True,timeout=600,capture_output=True
+    )
+
 def srt_from_words(words):
     usable=[w for w in (words or []) if w.get("type")=="word" and w.get("start") is not None and w.get("end") is not None]
     if not usable:
@@ -167,6 +190,9 @@ def health():
         "capabilities":{
             "tts":True,"voice_cloning":True,"dialogue":True,"music":True,"sound_effects":True,
             "speech_to_text":True,"realtime_stt":True,"voice_changer":True,"dubbing":True,"analytics":True
+        },
+        "limitations":{
+            "voice_changer_mongolian_source":"ElevenLabs multilingual STS v2 одоогоор Монгол source speech-ийг албан ёсны supported language жагсаалтдаа оруулаагүй."
         },
         "registration_open":os.getenv("ALLOW_REGISTRATION","false")=="true"
     }
@@ -492,6 +518,19 @@ async def realtime_token(request:Request):
     except Exception as exc:
         raise api_exception(exc)
 
+@app.post("/api/tools/realtime-save")
+async def realtime_save(request:Request):
+    sess=session(request); mutation_guard(request,sess)
+    data=await json_body(request)
+    text=str(data.get("text","")).strip()
+    if not text or len(text)>100000:
+        raise HTTPException(422,"Realtime transcript хоосон эсвэл хэт урт байна.")
+    title=str(data.get("title","Realtime Transcript")).strip()[:100] or "Realtime Transcript"
+    job_id=core.create_tool_job(sess["user_id"],"realtime_stt",title,{"characters":len(text)},status="done")
+    artifact_id=create_artifact_text(sess["user_id"],job_id,"transcript","realtime-transcript.txt","text/plain",text)
+    core.update_tool_job(job_id,"done",result={"text":text,"artifact_id":artifact_id})
+    return {"job_id":job_id,"artifact_id":artifact_id}
+
 @app.post("/api/tools/dubbing")
 async def dubbing(
     request:Request,
@@ -510,16 +549,22 @@ async def dubbing(
         raise HTTPException(422,"Видео/аудио файл эсвэл URL шаардлагатай.")
     if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",target_language):
         raise HTTPException(422,"Target language code буруу байна.")
-    job_id=core.create_tool_job(
-        sess["user_id"],"dubbing",reference,
-        {"source":file.filename if file else source_url,"source_language":source_language or None,"target_language":target_language},
-        status="queued"
-    )
+    payload={"source":file.filename if file else source_url,"source_language":source_language or None,"target_language":target_language}
+    job_id=core.create_tool_job(sess["user_id"],"dubbing",reference,payload,status="queued")
+    source_path=None
     try:
         result=await tools.create_dubbing(file,source_url.strip() or None,reference,source_language or None,target_language)
+        if file and Path(file.filename or "").suffix.lower() in VIDEO_EXTS:
+            source_path=core.DATA/"tmp"/f"{job_id}-source{Path(file.filename).suffix.lower()}"
+            await persist_upload(file,source_path)
+            payload["source_path"]=str(source_path)
+            with core.db() as c:
+                c.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
         core.update_tool_job(job_id,result=result,status=result.get("status","queued"))
         return {"job_id":job_id,**result}
     except Exception as exc:
+        if source_path:
+            source_path.unlink(missing_ok=True)
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
@@ -555,6 +600,22 @@ async def dubbing_status(job_id:str,request:Request):
                     data,mime=await tools.download_url(url)
                     ext=mimetypes.guess_extension(mime.split(";")[0]) or (".flac" if "audio" in mime else ".bin")
                     create_artifact_bytes(sess["user_id"],job_id,kind,f"dubbing-{lang.get('target_language','target')}{ext}",mime,data)
+            source_path=Path(payload["source_path"]) if payload.get("source_path") else None
+            if source_path and source_path.is_file():
+                with core.db() as c:
+                    audio_row=c.execute(
+                        "SELECT * FROM artifacts WHERE job_id=? AND user_id=? AND mime LIKE 'audio/%' ORDER BY created LIMIT 1",
+                        (job_id,sess["user_id"])
+                    ).fetchone()
+                if audio_row:
+                    video_path=core.DATA/"artifacts"/(core.uid()+".mp4")
+                    try:
+                        mux_dubbed_video(source_path,Path(audio_row["path"]),video_path)
+                        core.add_artifact(job_id,sess["user_id"],"dubbed_video","rainy-dubbed-video.mp4","video/mp4",video_path)
+                    finally:
+                        source_path.unlink(missing_ok=True)
+        if status=="failed" and payload.get("source_path"):
+            Path(payload["source_path"]).unlink(missing_ok=True)
         core.update_tool_job(job_id,status,result=merged,error="Dubbing failed" if status=="failed" else None)
         with core.db() as c:
             row=c.execute("SELECT * FROM tool_jobs WHERE id=?",(job_id,)).fetchone()
@@ -576,9 +637,15 @@ def delete_tool_job(job_id:str,request:Request):
         row=c.execute("SELECT * FROM tool_jobs WHERE id=? AND user_id=?",(job_id,sess["user_id"])).fetchone()
         if not row: raise HTTPException(404,"Project олдсонгүй.")
         artifacts=c.execute("SELECT path FROM artifacts WHERE job_id=?",(job_id,)).fetchall()
+        try:
+            payload=json.loads(row["payload"] or "{}")
+        except Exception:
+            payload={}
         c.execute("DELETE FROM tool_jobs WHERE id=?",(job_id,))
     for artifact in artifacts:
         Path(artifact["path"]).unlink(missing_ok=True)
+    if payload.get("source_path"):
+        Path(payload["source_path"]).unlink(missing_ok=True)
     return {"ok":True}
 
 @app.get("/api/artifacts/{artifact_id}")
