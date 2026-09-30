@@ -1,11 +1,13 @@
-"""ElevenLabs-only speech engine and audio assembly helpers."""
+"""ElevenLabs-only speech engine using the official ElevenLabs Python SDK."""
 import json
 import os
 import subprocess
 import wave
-from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
-from urllib.request import Request, urlopen
+
+from dotenv import load_dotenv
+from elevenlabs.client import ElevenLabs
+
+load_dotenv()
 
 class ElevenLabsEngine:
     """Server-side ElevenLabs Eleven v4 adapter for Mongolian speech."""
@@ -17,6 +19,7 @@ class ElevenLabsEngine:
     def __init__(self):
         self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
         self.language_code = os.getenv('ELEVENLABS_LANGUAGE_CODE', 'mn').strip() or 'mn'
+        self.client = ElevenLabs(api_key=self.api_key) if self.api_key else None
 
     @classmethod
     def configured_voices(cls):
@@ -69,14 +72,16 @@ class ElevenLabsEngine:
             return False, str(exc)
         if not voices:
             return False, 'ElevenLabs voice тохируулаагүй байна.'
-        return True, f'ElevenLabs · Eleven v4 · {len(voices)} voice бэлэн'
+        return True, f'ElevenLabs SDK · Eleven v4 · {len(voices)} voice бэлэн'
 
-    def _setting(self, name, default):
+    @staticmethod
+    def _audio_bytes(audio):
+        if isinstance(audio, (bytes, bytearray)):
+            return bytes(audio)
         try:
-            value = float(os.getenv(name, str(default)))
-        except ValueError:
-            value = default
-        return max(0.0, min(1.0, value))
+            return b''.join(audio)
+        except TypeError as exc:
+            raise RuntimeError('ElevenLabs SDK-аас аудио өгөгдөл авч чадсангүй.') from exc
 
     def synthesize(self, text, output, speed=1.0, voice_id=None):
         ready, reason = self.readiness()
@@ -87,34 +92,17 @@ class ElevenLabsEngine:
         if not resolved_voice:
             raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
 
-        payload = {
-            'text': text,
-            'model_id': self.model_id,
-            'language_code': self.language_code,
-            'voice_settings': {
-                'stability': self._setting('ELEVENLABS_STABILITY', 0.5),
-                'similarity_boost': self._setting('ELEVENLABS_SIMILARITY_BOOST', 0.8),
-            },
-        }
-        endpoint = 'https://api.elevenlabs.io/v1/text-to-speech/' + quote(resolved_voice, safe='')
-        endpoint += '?' + urlencode({'output_format': 'pcm_24000'})
-        request = Request(
-            endpoint,
-            data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-            headers={
-                'xi-api-key': self.api_key,
-                'Content-Type': 'application/json',
-                'Accept': 'audio/pcm',
-            },
-            method='POST',
-        )
         try:
-            with urlopen(request, timeout=90) as response:
-                pcm = response.read(20 * 1024 * 1024 + 1)
-        except HTTPError as exc:
-            raise RuntimeError(f'ElevenLabs API алдаа ({exc.code}).') from exc
-        except (URLError, TimeoutError) as exc:
-            raise RuntimeError('ElevenLabs API-д холбогдож чадсангүй.') from exc
+            audio = self.client.text_to_speech.convert(
+                text=text,
+                voice_id=resolved_voice,
+                model_id=self.model_id,
+                output_format='pcm_24000',
+                language_code=self.language_code,
+            )
+            pcm = self._audio_bytes(audio)
+        except Exception as exc:
+            raise RuntimeError('ElevenLabs SDK хүсэлт амжилтгүй боллоо.') from exc
 
         if not pcm or len(pcm) > 20 * 1024 * 1024 or len(pcm) % 2:
             raise RuntimeError('ElevenLabs-аас буруу аудио хариу ирлээ.')
