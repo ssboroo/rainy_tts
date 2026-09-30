@@ -25,7 +25,9 @@ def wav_bytes(seconds=4):
 class TextTests(unittest.TestCase):
     def test_glossary_and_validation(self):
         self.assertEqual(core.prepare_text('RAINY сайн байна.',{'RAINY':'Рэйни'}),'Рэйни сайн байна.')
-        for text in ('','45000₮','hello','Сайн 😀'):
+        self.assertEqual(core.prepare_text('RAINY Voice 2026 — OpenAI API 45,000₮.'),'RAINY Voice 2026 — OpenAI API 45,000₮.')
+        self.assertEqual(core.prepare_text('hello world'),'hello world')
+        for text in ('','Сайн 😀'):
             with self.assertRaises(ValueError):core.prepare_text(text)
 
     def test_chunks_preserve_words(self):
