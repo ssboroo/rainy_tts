@@ -15,7 +15,7 @@ class ElevenLabsEngine:
 
     def __init__(self):
         self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
-        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', '').strip()
+        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', 'WgH4JH8sD6a2SIrujiKn').strip()
         self.language_code = os.getenv('ELEVENLABS_LANGUAGE_CODE', 'mn').strip() or 'mn'
 
     def readiness(self):
