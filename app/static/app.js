@@ -241,11 +241,13 @@ $('dialogue-generate').onclick=async()=>{
 };
 
 $('music-duration').oninput=()=>$('music-duration-label').textContent=$('music-duration').value+' секунд';
+$('sfx-duration').oninput=()=>$('sfx-duration-label').textContent=Number($('sfx-duration').value)===0?'Auto':$('sfx-duration').value+' секунд';
+$('sfx-influence').oninput=()=>$('sfx-influence-label').textContent=Number($('sfx-influence').value).toFixed(2);
 $('music-generate').onclick=async()=>{
   if(!ensureUser())return;
   const button=$('music-generate');setBusy(button,true,'Music үүсгэж байна…');
   try{
-    await api('/tools/music',{method:'POST',body:{title:'RAINY Music',prompt:$('music-prompt').value,music_length_ms:Number($('music-duration').value)*1000}});
+    await api('/tools/music',{method:'POST',body:{title:'RAINY Music',prompt:$('music-prompt').value,music_length_ms:Number($('music-duration').value)*1000,model_id:$('music-model').value,force_instrumental:$('music-instrumental').checked}});
     notice('Music бэлэн. History хэсэгт орлоо.');loadHistory();
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
 };
@@ -254,7 +256,8 @@ $('sfx-generate').onclick=async()=>{
   if(!ensureUser())return;
   const button=$('sfx-generate');setBusy(button,true,'Sound үүсгэж байна…');
   try{
-    await api('/tools/sound-effects',{method:'POST',body:{title:'Sound Effect',text:$('sfx-prompt').value}});
+    const duration=Number($('sfx-duration').value);
+    await api('/tools/sound-effects',{method:'POST',body:{title:'Sound Effect',text:$('sfx-prompt').value,duration_seconds:duration||null,loop:$('sfx-loop').checked,prompt_influence:Number($('sfx-influence').value)}});
     notice('Sound effect бэлэн.');loadHistory();
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
 };
