@@ -103,19 +103,29 @@ class APITests(unittest.TestCase):
         with patch.object(server.tools,'dialogue',new=AsyncMock(return_value=b'ID3dialogue')):
             response=self.client.post('/api/tools/dialogue',json={'title':'Podcast','inputs':[{'voice_id':ids[0],'text':'Сайн байна уу.'},{'voice_id':ids[1],'text':'Сайн, баярлалаа.'}]},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
-        with patch.object(server.tools,'music',new=AsyncMock(return_value=b'ID3music')):
-            response=self.client.post('/api/tools/music',json={'prompt':'Mongolian cinematic ambient','music_length_ms':10000},headers=self.headers)
+        music_mock=AsyncMock(return_value=b'ID3music')
+        with patch.object(server.tools,'music',new=music_mock):
+            response=self.client.post('/api/tools/music',json={'prompt':'Mongolian cinematic ambient','music_length_ms':10000,'model_id':'music_v2_5','force_instrumental':True},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
-        with patch.object(server.tools,'sound_effect',new=AsyncMock(return_value=b'ID3sfx')):
-            response=self.client.post('/api/tools/sound-effects',json={'text':'cinematic impact'},headers=self.headers)
+        music_mock.assert_awaited_once_with('Mongolian cinematic ambient',10000,'music_v2_5',True)
+        sfx_mock=AsyncMock(return_value=b'ID3sfx')
+        with patch.object(server.tools,'sound_effect',new=sfx_mock):
+            response=self.client.post('/api/tools/sound-effects',json={'text':'cinematic impact','duration_seconds':5,'loop':True,'prompt_influence':.6},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
+        sfx_mock.assert_awaited_once_with('cinematic impact',5.0,True,.6)
 
     def test_stt_voice_changer_and_realtime_token(self):
-        transcript={'language_code':'mn','language_probability':.99,'text':'Сайн байна уу','words':[{'text':'Сайн ','type':'word','start':0,'end':.4},{'text':'байна ','type':'word','start':.4,'end':.8},{'text':'уу','type':'word','start':.8,'end':1.0}]}
+        transcript={'language_code':'mn','language_probability':.99,'text':'Сайн байна уу','words':[{'text':'Сайн','type':'word','start':0,'end':.4},{'text':' ','type':'spacing','start':.4,'end':.4},{'text':'байна','type':'word','start':.4,'end':.8},{'text':' ','type':'spacing','start':.8,'end':.8},{'text':'уу','type':'word','start':.8,'end':1.0}]}
         with patch.object(server.tools,'speech_to_text',new=AsyncMock(return_value=transcript)):
             response=self.client.post('/api/tools/stt',data={'language_code':'mn'},files={'file':('voice.wav',wav_bytes(),'audio/wav')},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()['text'],'Сайн байна уу')
+        job_id=response.json()['job_id']
+        history=self.client.get('/api/history').json()['items']
+        stt_item=next(item for item in history if item['id']==job_id)
+        srt_artifact=next(art for art in stt_item['artifacts'] if art['filename']=='transcript.srt')
+        srt_response=self.client.get(srt_artifact['url'])
+        self.assertIn('Сайн байна уу',srt_response.text)
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
         with patch.object(server.tools,'voice_changer',new=AsyncMock(return_value=b'ID3changed')):
             response=self.client.post('/api/tools/voice-changer',data={'voice_id':voice,'remove_background_noise':'false'},files={'file':('voice.wav',wav_bytes(),'audio/wav')},headers=self.headers)
