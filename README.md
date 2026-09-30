@@ -49,6 +49,7 @@ Copy `.env.example` to `.env`:
 
 ```env
 PUBLIC_ORIGIN=http://localhost:8080
+PUBLIC_ORIGINS=
 ALLOW_REGISTRATION=true
 ELEVENLABS_API_KEY=your_server_side_key
 ELEVENLABS_VOICES_JSON=
@@ -118,3 +119,18 @@ Application code authored for **ssboroo / RAINY Voice**. Copyright © 2026 ssbor
 - ElevenLabs Scribe v2 / Realtime supports Mongolian transcription, but production quality should be evaluated with real Mongolian audio before relying on automated transcripts.
 - ElevenLabs `eleven_multilingual_sts_v2` does not currently list Mongolian among its supported source languages. The Voice Changer UI remains available for supported source languages and clearly shows this limitation for Mongolian source speech.
 - Dubbing, cloning, music, SFX and other endpoints consume ElevenLabs credits according to the connected workspace plan.
+
+
+## Registration / origin configuration
+
+Registration and other write operations use same-origin + CSRF protection. RAINY accepts the origin the browser is actually using, and treats `localhost` / `127.0.0.1` as local aliases on the same port. For multiple production domains, add them to `PUBLIC_ORIGINS` as a comma-separated list.
+
+Example:
+
+```env
+PUBLIC_ORIGIN=https://voice.example.com
+PUBLIC_ORIGINS=https://www.voice.example.com
+ALLOW_REGISTRATION=true
+```
+
+If registration is intentionally closed, keep `ALLOW_REGISTRATION=false`.
