@@ -1,5 +1,4 @@
 """Same-origin HTTP API. Production TLS and connection limits are handled by Caddy."""
-import base64
 import hashlib
 import json
 import logging
@@ -8,15 +7,13 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
-import subprocess
-import tempfile
 import threading
 import time
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from . import core
-from .engine import ElevenLabsEngine, OronEngine, convert_reference
+from .engine import ElevenLabsEngine
 
 STATIC = Path(__file__).parent / 'static'
 ORIGIN = os.getenv('PUBLIC_ORIGIN', 'http://localhost:8080').rstrip('/')
@@ -142,18 +139,8 @@ class Handler(BaseHTTPRequestHandler):
             mime = {'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css; charset=utf-8','svg':'image/svg+xml'}[name.split('.')[-1]]
             return self.file(STATIC / name,mime)
         if method == 'GET' and path == '/api/health':
-            oron_ready, oron_reason = OronEngine().readiness()
-            eleven_ready, eleven_reason = ElevenLabsEngine().readiness()
-            ready = oron_ready or eleven_ready
-            if oron_ready and eleven_ready:
-                reason = 'Oron + Eleven v4 бэлэн'
-            elif eleven_ready:
-                reason = eleven_reason
-            elif oron_ready:
-                reason = oron_reason
-            else:
-                reason = f'Oron: {oron_reason} Eleven v4: {eleven_reason}'
-            return self.send(data={'ok':True,'engine_ready':ready,'engine_message':reason,'providers':{'oron':{'ready':oron_ready,'message':oron_reason},'eleven_v4':{'ready':eleven_ready,'message':eleven_reason}},'capabilities':{'voice_cloning':os.getenv('ENABLE_EXPERIMENTAL_CLONING')=='true','emotion':False,'voice_design':False},'registration_open':os.getenv('ALLOW_REGISTRATION','false')=='true'})
+            ready, reason = ElevenLabsEngine().readiness()
+            return self.send(data={'ok':True,'engine_ready':ready,'engine_message':reason,'provider':'eleven_v4','capabilities':{'voice_cloning':False,'emotion':False,'voice_design':False},'registration_open':os.getenv('ALLOW_REGISTRATION','false')=='true'})
         if method == 'GET' and path == '/api/me':
             session = self.session(False)
             return self.send(data={'user':{'email':session['email'],'csrf':session['csrf']} if session else None})
@@ -191,59 +178,11 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('DELETE FROM sessions WHERE token=?',(session['token'],))
             return self.send(cookie='session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if SECURE else ''))
         if path == '/api/voices' and method == 'GET':
-            with core.db() as c:
-                rows = [dict(r) for r in c.execute('SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC',(user,))]
-            builtins = [{'id':'builtin-female','name':'Эмэгтэй · Oron','builtin':True},{'id':'builtin-male','name':'Эрэгтэй · Oron','builtin':True}]
-            if ElevenLabsEngine().readiness()[0]:
-                label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
-                builtins.insert(0, {'id':ElevenLabsEngine.builtin_id,'name':label,'builtin':True})
-            return self.send(data={'voices':builtins+rows})
-        if path == '/api/voices' and method == 'POST':
-            self.throttle('upload:'+user,20)
-            data = self.body()
-            if data.get('consent') is not True:
-                raise HTTPError(422,'Өөрийн эсвэл ашиглах зөвшөөрөлтэй хоолой байна гэдгийг батална уу.')
-            name = str(data.get('name','')).strip()
-            transcript = core.prepare_text(str(data.get('transcript','')))
-            if not 1 <= len(name) <= 80 or len(transcript)>1500:
-                raise HTTPError(422,'Хоолойн нэр эсвэл бичлэгийн текст хэт урт байна.')
-            with core.db() as c:
-                if c.execute('SELECT COUNT(*) FROM voices WHERE user_id=?',(user,)).fetchone()[0]>=10:
-                    raise HTTPError(409,'Хамгийн ихдээ 10 хоолой хадгална.')
-            try:
-                audio = base64.b64decode(data.get('audio',''),validate=True)
-            except Exception:
-                raise HTTPError(422,'Аудио буруу байна.')
-            if not 100 <= len(audio) <= 8*1024*1024:
-                raise HTTPError(413,'Аудио 8 MB-аас бага байна.')
-            voice_id = core.uid(); target = core.DATA/'voices'/(voice_id+'.wav')
-            try:
-                with tempfile.NamedTemporaryFile(dir=core.DATA/'tmp',suffix='.audio') as source:
-                    source.write(audio); source.flush()
-                    duration = convert_reference(source.name,target)
-                with core.db() as c:
-                    c.execute('INSERT INTO voices VALUES(?,?,?,?,?)',(voice_id,user,name,transcript,time.time()))
-            except (subprocess.SubprocessError, ValueError):
-                target.unlink(missing_ok=True)
-                raise HTTPError(422,'Аудиог уншиж чадсангүй. 3–12 секундийн сонсогдохуйц цэвэр WAV, MP3 эсвэл WebM бичлэг оруулна уу.')
-            return self.send(201,{'id':voice_id,'duration':duration})
-        match = re.fullmatch(r'/api/voices/([a-f0-9]{32})(/audio)?',path)
-        if match:
-            voice_id = match[1]
-            with core.db() as c:
-                if method == 'DELETE':
-                    c.execute('BEGIN IMMEDIATE')
-                voice = c.execute('SELECT * FROM voices WHERE id=? AND user_id=?',(voice_id,user)).fetchone()
-                if not voice:
-                    raise HTTPError(404,'Хоолой олдсонгүй.')
-                if method == 'DELETE' and not match[2]:
-                    if c.execute("SELECT 1 FROM jobs WHERE voice_id=? AND status IN ('queued','running')",(voice_id,)).fetchone():
-                        raise HTTPError(409,'Энэ хоолойгоор дуу үүсгэж байна. Дууссаны дараа устгана уу.')
-                    c.execute('DELETE FROM voices WHERE id=?',(voice_id,))
-                    (core.DATA/'voices'/(voice_id+'.wav')).unlink(missing_ok=True)
-                    return self.send()
-            if method == 'GET' and match[2]:
-                return self.file(core.DATA/'voices'/(voice_id+'.wav'),'audio/wav')
+            label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
+            voices = [{'id':ElevenLabsEngine.builtin_id,'name':label,'builtin':True}] if ElevenLabsEngine().readiness()[0] else []
+            return self.send(data={'voices':voices})
+        if path.startswith('/api/voices') and method in ('POST','DELETE'):
+            raise HTTPError(409,'Одоогоор зөвхөн серверт тохируулсан ElevenLabs хоолой ашиглана.')
         if path == '/api/prepare' and method == 'POST':
             data = self.body()
             return self.send(data={'text':core.prepare_text(str(data.get('text','')), data.get('glossary',{}))})
@@ -254,8 +193,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/jobs' and method == 'POST':
             self.throttle('job:'+user,30)
             data = self.body(); voice_id = str(data.get('voice_id',''))
-            selected_engine = ElevenLabsEngine() if voice_id == ElevenLabsEngine.builtin_id else OronEngine()
-            ready, reason = selected_engine.readiness()
+            if voice_id != ElevenLabsEngine.builtin_id:
+                raise HTTPError(422,'Одоогоор зөвхөн ElevenLabs Eleven v4 хоолой ашиглана.')
+            ready, reason = ElevenLabsEngine().readiness()
             if not ready:
                 raise HTTPError(503,reason)
             title = str(data.get('title','Шинэ бүтээл')).strip()[:100] or 'Шинэ бүтээл'
@@ -283,11 +223,6 @@ class Handler(BaseHTTPRequestHandler):
                 raise HTTPError(422,'Нэг ажил 12000 тэмдэгтээс хэтрэхгүй байна.')
             with core.db() as c:
                 c.execute('BEGIN IMMEDIATE')
-                if voice_id not in ('builtin-male','builtin-female',ElevenLabsEngine.builtin_id):
-                    if os.getenv('ENABLE_EXPERIMENTAL_CLONING') != 'true':
-                        raise HTTPError(409,'Хоолой дуурайлтын чанарын туршилт хараахан нээгдээгүй.')
-                    if not c.execute('SELECT 1 FROM voices WHERE id=? AND user_id=?',(voice_id,user)).fetchone():
-                        raise HTTPError(404,'Хоолой олдсонгүй.')
                 active = c.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(user,)).fetchone()[0]
                 daily = c.execute('SELECT COUNT(*) FROM jobs WHERE user_id=? AND created>?',(user,time.time()-86400)).fetchone()[0]
                 if active>=3 or daily>=20:
