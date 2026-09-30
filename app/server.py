@@ -14,7 +14,10 @@ import time
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
+from dotenv import load_dotenv
 import uvicorn
+
+load_dotenv()
 
 from . import core
 from .engine import ElevenLabsEngine
@@ -30,6 +33,12 @@ VIDEO_EXTS={".mp4",".mov",".mkv",".avi",".mpeg",".mpg"}
 MEDIA_EXTS=AUDIO_EXTS|VIDEO_EXTS
 MAX_AUDIO_MB=int(os.getenv("MAX_AUDIO_UPLOAD_MB","100"))
 MAX_DUB_MB=int(os.getenv("MAX_DUB_UPLOAD_MB","500"))
+
+def env_flag(name, default=False):
+    raw=os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1","true","yes","on"}
 
 app=FastAPI(title="RAINY Voice API",docs_url=None,redoc_url=None)
 tools=ElevenTools()
@@ -234,7 +243,7 @@ def health():
         "limitations":{
             "voice_changer_mongolian_source":"ElevenLabs multilingual STS v2 одоогоор Монгол source speech-ийг албан ёсны supported language жагсаалтдаа оруулаагүй."
         },
-        "registration_open":os.getenv("ALLOW_REGISTRATION","false")=="true"
+        "registration_open":env_flag("ALLOW_REGISTRATION",False)
     }
 
 @app.get("/api/me")
@@ -255,8 +264,8 @@ async def auth(request:Request):
     is_register=request.url.path.endswith("/register")
     with core.db() as c:
         if is_register:
-            if os.getenv("ALLOW_REGISTRATION","false")!="true":
-                raise HTTPException(403,"Одоогоор туршилтын бүртгэл хаалттай байна.")
+            if not env_flag("ALLOW_REGISTRATION",False):
+                raise HTTPException(403,"Одоогоор бүртгэл хаалттай байна.")
             try:
                 c.execute("INSERT INTO users VALUES(?,?,?,?)",(core.uid(),email,core.hash_password(password),time.time()))
             except sqlite3.IntegrityError:
