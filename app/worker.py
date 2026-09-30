@@ -16,14 +16,15 @@ def run_job(job):
     folder.mkdir(exist_ok=True)
     output = core.DATA / 'outputs' / (job['id'] + '.wav')
     try:
-        if job['voice_id'] != ElevenLabsEngine.builtin_id:
-            raise ValueError('Одоогоор зөвхөн ElevenLabs Eleven v4 ашиглана.')
+        resolved_voice_id = ElevenLabsEngine.resolve_voice_id(job['voice_id'])
+        if not resolved_voice_id:
+            raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
         cues = payload.get('cues')
         texts = [cue['text'] for cue in cues] if cues else core.chunks(payload['text'])
         parts = []
         for i, text in enumerate(texts):
             part = folder / f'{i}.wav'
-            engine.synthesize(text, part, payload['speed'])
+            engine.synthesize(text, part, payload['speed'], resolved_voice_id)
             parts.append(part)
             with core.db() as c:
                 c.execute('UPDATE jobs SET progress=? WHERE id=?', (round((i+1)/len(texts)*90),job['id']))
