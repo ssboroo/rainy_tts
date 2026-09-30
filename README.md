@@ -14,6 +14,7 @@ A CPU-first, self-hosted Mongolian voice studio for a **new independent domain**
 - SQLite-д хадгалагдах ажлын дараалал, явц, түүх; worker дахин асахад тасарсан ажлыг сэргээх.
 - WAV/MP3 татах; хэрэглэгч зөвхөн өөрийн аудиод хандана.
 - Oron/F5-TTS CPU adapter: загвар бэлэн бус үед үүсгэхийг хаана.
+- ElevenLabs **Eleven v4** cloud adapter: Монгол текстийг server-side API-аар үүсгэнэ; API key браузерт ил гарахгүй, Oron-той зэрэгцэн provider байдлаар ажиллана.
 - Нэг серверт Docker Compose + шинэ домэйнд HTTPS proxy тохиргоо.
 
 ## Одоогоор баталгаажаагүй / дараагийн ажил
@@ -36,11 +37,24 @@ python -m app.worker
 python -m unittest discover -s tests -v
 ```
 
-Open http://localhost:8080. With no model the studio is honest about unavailability: registration, uploads and history work, synthesis returns 503. See [Deployment](docs/DEPLOY.md) for Windows, Docker and HTTPS, and [Model integration](docs/MODELS.md) for the real engine.
+Open http://localhost:8080. With no configured engine the studio is honest about unavailability: registration, uploads and history work, synthesis returns 503.
+
+For ElevenLabs Eleven v4, set the server-side values below in `.env` and restart both `web` and `worker`:
+
+```env
+ELEVENLABS_API_KEY=your_server_side_key
+ELEVENLABS_VOICE_ID=your_mongolian_voice_id
+ELEVENLABS_VOICE_LABEL=Монгол · Eleven v4
+ELEVENLABS_LANGUAGE_CODE=mn
+```
+
+The worker calls `eleven_v4` and requests 24 kHz PCM, then writes normal WAV/MP3 outputs through the existing queue. ElevenLabs usage is billed and governed by your ElevenLabs account/plan. For the best Mongolian pronunciation, use a voice recorded or cloned from native Mongolian speech.
+
+See [Deployment](docs/DEPLOY.md) for Windows, Docker and HTTPS, and [Model integration](docs/MODELS.md) for the engine details.
 
 ## Architecture
 
-Browser → same-origin Python API → SQLite durable queue → single CPU worker → private WAV/MP3 files.
+Browser → same-origin Python API → SQLite durable queue → single worker → Oron CPU **or** Eleven v4 cloud provider → private WAV/MP3 files.
 
 Reference uploads and outputs are outside the public static directory. Authentication is required for every voice/job operation. CSRF tokens, strict same-site cookies, request size caps and per-user job limits are included. The service needs a hardened reverse proxy and the documented launch gates before public paid use.
 
