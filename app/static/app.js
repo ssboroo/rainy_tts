@@ -428,6 +428,7 @@ function renderHistoryItem(item){
   const meta=document.createElement('p');meta.textContent=(item.tool_type||'tool').replaceAll('_',' ')+' · '+new Date(item.created*1000).toLocaleString('mn-MN');
   left.append(title,meta);const badge=document.createElement('span');badge.className='badge';badge.textContent=item.status;head.append(left,badge);card.append(head);
   if(item.result?.text){const p=document.createElement('p');p.className='result-preview';p.textContent=item.result.text.slice(0,400);card.append(p);}
+  if(item.status==='failed'&&item.error){const p=document.createElement('p');p.className='danger-text';p.textContent='Алдаа: '+item.error;card.append(p);}
   const artifacts=item.artifacts||[];
   if(artifacts.length){
     const actions=document.createElement('div');actions.className='artifact-actions';
