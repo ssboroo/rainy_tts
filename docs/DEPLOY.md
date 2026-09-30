@@ -1,47 +1,69 @@
 # Deployment / Серверт байрлуулах
 
-RAINY Voice currently uses **ElevenLabs Eleven v4 only**. No local model or GPU is required.
+RAINY uses FastAPI + Uvicorn, SQLite storage, an ElevenLabs TTS worker, FFmpeg, and ElevenLabs Creative APIs. No GPU or local speech model is required.
 
 ## Local Windows
 
-Install Python 3.12+ and FFmpeg. Copy `.env.example` to `.env`, add your ElevenLabs API key and `ELEVENLABS_VOICES_JSON` voice catalog, then start two terminals:
+Install Python 3.12+ and FFmpeg.
 
 ```powershell
-python -m app.server
+git pull origin main
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
+Set the server-side `ELEVENLABS_API_KEY` in `.env`.
+
+Terminal 1:
+
 ```powershell
-python -m app.worker
+.\.venv\Scripts\python.exe -m app.server
+```
+
+Terminal 2:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.worker
 ```
 
 Open http://localhost:8080.
 
-## Docker server
+## Docker
 
 ```bash
 cp .env.example .env
-# Set PUBLIC_ORIGIN, ELEVENLABS_API_KEY and ELEVENLABS_VOICES_JSON.
 docker compose up -d --build
 ```
 
-Use `deploy/Caddyfile` with the production domain and expose only 80/443 publicly. Port 8080 remains bound to localhost.
+The web and worker containers share the `studio-data` volume. It stores SQLite, TTS outputs, creative-tool artifacts and temporary dubbing source video while an uploaded video is being processed.
 
-The web and worker containers share one persistent `studio-data` volume. There is no model volume.
+## Reverse proxy
+
+Use HTTPS in production. The included Caddy configuration can proxy to localhost:8080. Configure proxy request-body limits high enough for your chosen `MAX_AUDIO_UPLOAD_MB` and `MAX_DUB_UPLOAD_MB` values.
+
+Realtime STT also requires outbound WebSocket access to ElevenLabs.
 
 ## Secrets
 
-Store the real ElevenLabs key only in `.env` or your deployment secret manager. Do not put it in GitHub, frontend JavaScript or screenshots.
+Never commit or embed `ELEVENLABS_API_KEY` in frontend JavaScript. Store it in `.env` locally or in the deployment platform's secret manager.
 
-## Before charging customers
+## Production checklist
 
-- Confirm ElevenLabs commercial/account terms for the intended workload.
-- Add payment and a transaction-safe credit ledger.
+- Rotate any API key that was pasted into a public/shared chat or log.
+- Confirm ElevenLabs plan/permissions for TTS, IVC, Music, SFX, Scribe, Speech-to-Speech, Dubbing and Analytics.
+- Add payment/credit controls before opening expensive generation endpoints to the public.
 - Add password recovery and account deletion.
-- Add reverse-proxy rate limits, retention policy, storage quotas and monitoring.
-- Track ElevenLabs API latency, failures, rate limits and credit usage.
-- Test backups and restoration.
+- Add reverse-proxy rate limits, storage quotas and retention cleanup.
+- Monitor API errors, credit usage and artifact disk size.
+- Back up SQLite and required generated artifacts.
+- Test restore procedures.
 - Run a security review before a public paid launch.
+
+## Dubbing
+
+Dubbing project creation consumes ElevenLabs credits. Uploaded video sources are kept privately only while needed for local audio/video muxing and are deleted after the completed dub is muxed or the project fails/deletes.
 
 ## Backup
 
-Back up the SQLite database using a consistent SQLite backup and copy generated outputs to encrypted off-host storage if you need retention. Never back up or publish the real `.env` file with the API key.
+Back up SQLite consistently and copy retained outputs to encrypted off-host storage if required. Never include the real `.env` file in backups shared outside the server.
