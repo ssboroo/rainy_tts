@@ -107,28 +107,24 @@ class APITests(unittest.TestCase):
 class AudioTests(unittest.TestCase):
     def test_eleven_v4_pcm_adapter(self):
         pcm = struct.pack('<h',800) * 2400
-        captured = []
-
-        class Response:
-            def __enter__(self): return self
-            def __exit__(self, *args): return False
-            def read(self, *args): return pcm
-
-        def fake_urlopen(request, timeout=0):
-            captured.append(request)
-            return Response()
 
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / 'eleven.wav'
             with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICE_ID':'voice-123','ELEVENLABS_VOICES_JSON':'','ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
-                with patch('app.engine.urlopen', side_effect=fake_urlopen):
+                with patch('app.engine.ElevenLabs') as client_cls:
+                    convert = client_cls.return_value.text_to_speech.convert
+                    convert.return_value = [pcm]
                     engine = ElevenLabsEngine()
                     self.assertTrue(engine.readiness()[0])
                     engine.synthesize('Сайн байна уу.',output,1.0)
-            body = json.loads(captured[0].data.decode())
-            self.assertEqual(body['model_id'],'eleven_v4')
-            self.assertEqual(body['language_code'],'mn')
-            self.assertIn('output_format=pcm_24000',captured[0].full_url)
+                    client_cls.assert_called_once_with(api_key='test-key')
+                    convert.assert_called_once_with(
+                        text='Сайн байна уу.',
+                        voice_id='voice-123',
+                        model_id='eleven_v4',
+                        output_format='pcm_24000',
+                        language_code='mn',
+                    )
             with wave.open(str(output)) as audio:
                 self.assertEqual(audio.getframerate(),24000)
                 self.assertEqual(audio.getnchannels(),1)
