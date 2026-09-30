@@ -13,7 +13,7 @@ import wave
 from fastapi.testclient import TestClient
 
 from app import core, server, worker
-from app.engine import ElevenLabsEngine, assemble
+from app.engine import ElevenLabsEngine, assemble, friendly_elevenlabs_error
 
 def wav_bytes(seconds=.2):
     buffer=io.BytesIO()
@@ -181,6 +181,12 @@ class APITests(unittest.TestCase):
             response=self.client.get('/api/analytics')
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()['subscription']['tier'],'starter')
+
+class ProviderErrorTests(unittest.TestCase):
+    def test_friendly_elevenlabs_errors(self):
+        self.assertIn('API key',friendly_elevenlabs_error(Exception('invalid_api_key')))
+        self.assertIn('credit',friendly_elevenlabs_error(Exception('insufficient_credits')))
+        self.assertIn('voice',friendly_elevenlabs_error(Exception('voice_access_denied')))
 
 class AudioTests(unittest.TestCase):
     def test_default_mongolian_voice_catalog(self):
