@@ -72,6 +72,22 @@ class APITests(unittest.TestCase):
         self.csrf=response.json()['user']['csrf']
         self.headers={'Origin':'http://testserver','X-CSRF-Token':self.csrf}
 
+    def test_registration_accepts_actual_same_origin_and_rejects_cross_site(self):
+        with TestClient(server.app, base_url='http://127.0.0.1:8080') as local_client:
+            email=f'local-{time.time_ns()}@example.com'
+            response=local_client.post(
+                '/api/register',
+                json={'email':email,'password':'strong-password-123'},
+                headers={'Origin':'http://127.0.0.1:8080'}
+            )
+            self.assertEqual(response.status_code,200,response.text)
+        blocked=self.client.post(
+            '/api/register',
+            json={'email':f'evil-{time.time_ns()}@example.com','password':'strong-password-123'},
+            headers={'Origin':'http://evil.test'}
+        )
+        self.assertEqual(blocked.status_code,403,blocked.text)
+
     def test_tts_queue_and_history(self):
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
         with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')):
