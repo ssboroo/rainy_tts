@@ -105,18 +105,28 @@ class APITests(unittest.TestCase):
         self.assertIsNone(self.request('/me',auth=auth)[1]['user'])
 
 class AudioTests(unittest.TestCase):
+    def test_default_mongolian_voice_catalog(self):
+        with patch.dict(os.environ, {'ELEVENLABS_VOICES_JSON':''}, clear=False):
+            voices = ElevenLabsEngine.configured_voices()
+        self.assertEqual(len(voices),12)
+        self.assertEqual(voices[0]['id'],'WgH4JH8sD6a2SIrujiKn')
+        self.assertEqual(voices[0]['name'],'Sarnai - Proud Mongolian Narrator')
+        self.assertEqual(voices[-1]['id'],'RbMF2tQ1nCK38TfvNGLk')
+        self.assertEqual(voices[-1]['name'],'Ganbold - Confident Khalkha Ad')
+
     def test_eleven_v4_pcm_adapter(self):
         pcm = struct.pack('<h',800) * 2400
 
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / 'eleven.wav'
-            with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICE_ID':'voice-123','ELEVENLABS_VOICES_JSON':'','ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
+            catalog=json.dumps([{'id':'voice-123','name':'Test Voice'}])
+            with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICES_JSON':catalog,'ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
                 with patch('app.engine.ElevenLabs') as client_cls:
                     convert = client_cls.return_value.text_to_speech.convert
                     convert.return_value = [pcm]
                     engine = ElevenLabsEngine()
                     self.assertTrue(engine.readiness()[0])
-                    engine.synthesize('Сайн байна уу.',output,1.0)
+                    engine.synthesize('Сайн байна уу.',output,1.0,'voice-123')
                     client_cls.assert_called_once_with(api_key='test-key')
                     convert.assert_called_once_with(
                         text='Сайн байна уу.',
