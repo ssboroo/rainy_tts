@@ -12,7 +12,7 @@ There is no local speech model, no Oron/F5 runtime, and no GPU requirement in th
 
 - Монгол интерфэйс.
 - Text and SRT input.
-- Server-side ElevenLabs API integration.
+- Server-side official ElevenLabs Python SDK integration.
 - API key never exposed to browser JavaScript.
 - Multiple configured ElevenLabs voices exposed in the RAINY voice selector.
 - Speed control, pronunciation glossary and long-text chunking.
@@ -39,9 +39,10 @@ Never commit a real API key.
 
 ## Run locally
 
-Python 3.12+ and FFmpeg are required.
+Python 3.12+ and FFmpeg are required. RAINY uses the official ElevenLabs Python SDK.
 
 ```bash
+pip install -r requirements.txt
 python -m app.server
 # second terminal
 python -m app.worker
@@ -66,3 +67,26 @@ See [Deployment](docs/DEPLOY.md) and [ElevenLabs provider](docs/MODELS.md).
 ## Ownership
 
 Application code authored for **ssboroo / RAINY Voice**. Copyright © 2026 ssboroo. All rights reserved unless separately licensed. Third-party APIs, voices and services remain subject to their own terms and rights.
+
+
+## ElevenLabs Quickstart alignment
+
+RAINY follows the official SDK authentication pattern:
+
+```python
+from dotenv import load_dotenv
+from elevenlabs.client import ElevenLabs
+import os
+
+load_dotenv()
+client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+audio = client.text_to_speech.convert(
+    text="Сайн байна уу.",
+    voice_id="WgH4JH8sD6a2SIrujiKn",
+    model_id="eleven_v4",
+    output_format="pcm_24000",
+    language_code="mn",
+)
+```
+
+The official quickstart commonly shows `mp3_44100_128` plus local speaker playback. RAINY requests `pcm_24000` because its worker joins long-text/SRT chunks as WAV, then exports the finished result as both WAV and MP3.
