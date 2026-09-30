@@ -68,20 +68,33 @@ class ElevenTools:
         )
         return response.content
 
-    async def music(self, prompt, length_ms):
-        payload={"prompt":prompt,"music_length_ms":int(length_ms)}
+    async def music(self, prompt, length_ms, model_id="music_v2_5", force_instrumental=False):
+        payload={
+            "prompt":prompt,
+            "music_length_ms":int(length_ms),
+            "model_id":model_id,
+            "force_instrumental":bool(force_instrumental),
+        }
         response=await self._request(
             "POST","/v1/music",
-            params={"output_format":"mp3_44100_128"},
+            params={"output_format":"mp3_48000_192" if model_id in {"music_v2","music_v2_5"} else "mp3_44100_128"},
             json=payload,timeout=360
         )
         return response.content
 
-    async def sound_effect(self, text):
+    async def sound_effect(self, text, duration_seconds=None, loop=False, prompt_influence=0.3):
+        payload={
+            "text":text,
+            "model_id":"eleven_text_to_sound_v2",
+            "loop":bool(loop),
+            "prompt_influence":float(prompt_influence),
+        }
+        if duration_seconds is not None:
+            payload["duration_seconds"]=float(duration_seconds)
         response=await self._request(
             "POST","/v1/sound-generation",
             params={"output_format":"mp3_44100_128"},
-            json={"text":text},timeout=180
+            json=payload,timeout=180
         )
         return response.content
 
