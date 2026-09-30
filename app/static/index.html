@@ -1,8 +1,244 @@
 <!doctype html>
-<html lang="mn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Монгол дуу оруулалтын онлайн студи"><title>RAINY Voice — Дууны студи</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
-<body><aside class="sidebar"><a class="brand" href="/">▥ <span>RAINY<span class="thin">VOICE</span></span></a><p class="eyebrow">МОНГОЛ ДУУНЫ СТУДИ</p><nav aria-label="Үндсэн цэс"><button class="nav active" data-page="studio">◉ <span>Дуу үүсгэх</span></button><button class="nav" data-page="history">▤ <span>Миний бүтээлүүд</span></button></nav><div class="side-bottom"><div class="version">Туршилтын хувилбар <span>01</span></div><p>Таны үг. Таны хоолой.</p></div></aside>
-<main><header><span id="breadcrumb">Ажлын талбар / Дуу үүсгэх</span><div class="account-actions"><button id="account" class="account">Нэвтрэх</button><button id="logout" class="quiet" hidden>Гарах</button></div></header><div id="notice" role="status" class="notice" hidden></div>
-<section id="studio" class="page"><div class="page-heading"><div><p class="eyebrow">VOICE STUDIO</p><h1>Үгэндээ дуу оруул.</h1><p class="muted">Монгол текстээ ElevenLabs v4-өөр дуу болго.</p></div><span class="pill">Монгол хэл</span></div><div class="studio-grid"><div class="editor card"><div class="editor-top"><div class="tabs" role="group" aria-label="Оролтын төрөл"><button id="text-tab" class="selected">Текст</button><button id="srt-tab">SRT хадмал</button></div><span id="counter">0 / 12000</span></div><label for="title" class="sr-only">Бүтээлийн нэр</label><input id="title" class="title-input" maxlength="100" placeholder="Бүтээлийн нэр"><label for="text" class="sr-only">Унших текст</label><textarea id="text" maxlength="12000" placeholder="Энд монгол текстээ бичээрэй…"></textarea><div id="srt-panel" hidden><label class="upload-zone" for="srt-file">SRT файл сонгох<input id="srt-file" type="file" accept=".srt"></label><label for="srt-text" class="sr-only">SRT агуулга</label><textarea id="srt-text" placeholder="1&#10;00:00:00,000 --> 00:00:04,000&#10;Сайн байна уу."></textarea></div><div class="editor-bottom"><button id="example" class="quiet">Жишээ текст</button><span>Үүсгэсэн аудио хувийн санд хадгалагдана</span></div></div><aside class="controls card"><p class="eyebrow">ДУУНЫ ТОХИРГОО</p><label for="voice">Хоолой</label><select id="voice"><option value="builtin-eleven-v4">Монгол · Eleven v4</option></select><p class="hint">Одоогоор серверт тохируулсан ElevenLabs хоолой ашиглана.</p><div class="divider"></div><label for="speed">Унших хурд <output id="speed-value">1.0×</output></label><input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1"><div class="range-labels"><span>Тайван</span><span>Хурдан</span></div><details><summary>Дуудлагын толь</summary><p class="hint">Нэг мөрөнд: нэр = монгол дуудлага</p><textarea id="glossary" placeholder="RAINY = рэйни"></textarea></details><div class="engine-status"><span class="status-icon">◌</span><p id="engine-message">Хөдөлгүүр шалгаж байна…</p></div><button id="generate" class="primary" disabled>Дуу үүсгэх</button><p class="hint center">Боловсруулалт сервер дээр үргэлжилнэ.</p></aside></div><section class="recent"><div class="section-heading"><h2>Сүүлийн бүтээлүүд</h2><button class="quiet" id="all-jobs">Бүгдийг харах</button></div><div id="recent-jobs" class="jobs"></div></section></section>
-<section id="history" class="page" hidden><div class="page-heading"><div><p class="eyebrow">YOUR CREATIONS</p><h1>Миний бүтээлүүд.</h1><p class="muted">Дуу үүсгэх явц болон бэлэн аудиогоо эндээс хянаарай.</p></div><button id="refresh" class="secondary">Шинэчлэх</button></div><div id="history-jobs" class="jobs"></div></section>
-<footer>RAINY Voice <span>Монгол хэлээр бүтээх орон зай.</span></footer></main>
-<dialog id="auth-dialog"><form id="auth-form"><button type="button" id="close-auth" class="close" aria-label="Хаах">×</button><p class="eyebrow">RAINY VOICE</p><h2 id="auth-title">Студид нэвтрэх</h2><p class="muted">Бүтээлүүдээ хувийн сандаа хадгалаарай.</p><label for="email">Имэйл</label><input id="email" type="email" autocomplete="email" required><label for="password">Нууц үг</label><input id="password" type="password" minlength="12" maxlength="128" autocomplete="current-password" required><p class="hint">Хамгийн багадаа 12 тэмдэгт.</p><p id="auth-error" role="alert"></p><button class="primary" type="submit" id="auth-submit">Нэвтрэх</button><button type="button" id="auth-toggle" class="text-button">Шинэ бүртгэл үүсгэх</button></form></dialog></body></html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090b0f">
+  <meta name="description" content="RAINY Voice — Монгол хэлний AI дуу оруулалтын студи">
+  <title>RAINY Voice — Mongolian Voice Intelligence</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <div class="ambient-orb orb-a"></div>
+    <div class="ambient-orb orb-b"></div>
+    <div class="noise"></div>
+  </div>
+  <div class="cursor-glow" aria-hidden="true"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="RAINY Voice">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-type">RAINY <small>VOICE</small></span>
+      </a>
+
+      <div class="rail-label">VOICE INTELLIGENCE</div>
+
+      <nav aria-label="Үндсэн цэс">
+        <button class="nav active" data-page="studio">
+          <span class="nav-icon" aria-hidden="true">◌</span>
+          <span>Studio</span>
+          <b>01</b>
+        </button>
+        <button class="nav" data-page="history">
+          <span class="nav-icon" aria-hidden="true">↗</span>
+          <span>Бүтээлүүд</span>
+          <b>02</b>
+        </button>
+      </nav>
+
+      <div class="side-bottom">
+        <div class="provider-mini">
+          <span class="live-dot"></span>
+          <div>
+            <small>ENGINE</small>
+            <strong>Eleven v4</strong>
+          </div>
+        </div>
+        <p>Монгол хэлэнд зориулсан<br>AI voice studio.</p>
+        <span class="edition">RAINY / 2026</span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="top-left">
+          <span class="route-index">01</span>
+          <span id="breadcrumb">Studio / Text to speech</span>
+        </div>
+        <div class="top-actions">
+          <span class="engine-chip"><i></i> Eleven v4</span>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Өнгөний горим солих">☼</button>
+          <button id="account" class="account">Нэвтрэх</button>
+          <button id="logout" class="quiet logout" hidden>Гарах</button>
+        </div>
+      </header>
+
+      <div id="notice" role="status" class="notice" hidden></div>
+
+      <section id="studio" class="page">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="kicker"><span></span> MONGOLIAN VOICE INTELLIGENCE</p>
+            <h1>Монгол хэл<br><em>дуу хоолой</em> болж<br>амилна.</h1>
+            <div class="hero-bottom">
+              <p>Текстээ бич. Хэмнэлээ тохируул. RAINY таны үгийг байгалийн мэт дуу хоолой болгоно.</p>
+              <div class="hero-meta">
+                <span>01 / SCRIPT</span>
+                <span>02 / VOICE</span>
+                <span>03 / EXPORT</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="voice-sculpture" aria-hidden="true">
+            <div class="halo halo-a"></div>
+            <div class="halo halo-b"></div>
+            <div class="voice-core">
+              <div class="waveform hero-wave">
+                <i style="--h:32%"></i><i style="--h:68%"></i><i style="--h:42%"></i><i style="--h:84%"></i>
+                <i style="--h:54%"></i><i style="--h:96%"></i><i style="--h:62%"></i><i style="--h:76%"></i>
+                <i style="--h:38%"></i><i style="--h:88%"></i><i style="--h:48%"></i><i style="--h:70%"></i>
+                <i style="--h:26%"></i>
+              </div>
+              <span>MN</span>
+            </div>
+            <div class="orbit-label label-a">ELEVEN v4</div>
+            <div class="orbit-label label-b">24 KHZ / PCM</div>
+            <div class="orbit-label label-c">MONGOLIAN</div>
+          </div>
+        </section>
+
+        <section class="studio-stage" aria-label="Дуу үүсгэх студи">
+          <div class="stage-head">
+            <div>
+              <p class="section-number">01 — CREATE</p>
+              <h2>Voice composer</h2>
+            </div>
+            <p>Нэг workspace.<br>Нэг урсгал.</p>
+          </div>
+
+          <div class="composer">
+            <div class="editor-panel">
+              <div class="editor-toolbar">
+                <div class="tabs" role="group" aria-label="Оролтын төрөл">
+                  <button id="text-tab" class="selected">Текст</button>
+                  <button id="srt-tab">SRT</button>
+                </div>
+                <div class="editor-stats">
+                  <span class="language-badge">MN</span>
+                  <span id="counter">0 / 12000</span>
+                </div>
+              </div>
+
+              <div class="script-area">
+                <label for="title" class="sr-only">Бүтээлийн нэр</label>
+                <input id="title" class="title-input" maxlength="100" placeholder="Бүтээлийн нэр / Untitled">
+                <label for="text" class="sr-only">Унших текст</label>
+                <textarea id="text" maxlength="12000" placeholder="Монгол текстээ энд бичнэ үү…"></textarea>
+
+                <div id="srt-panel" hidden>
+                  <label class="upload-zone" for="srt-file">
+                    <span class="upload-symbol">＋</span>
+                    <span><strong>SRT файл оруулах</strong><small>эсвэл доорх талбарт paste хийнэ үү</small></span>
+                    <input id="srt-file" type="file" accept=".srt">
+                  </label>
+                  <label for="srt-text" class="sr-only">SRT агуулга</label>
+                  <textarea id="srt-text" placeholder="1&#10;00:00:00,000 --> 00:00:04,000&#10;Сайн байна уу."></textarea>
+                </div>
+              </div>
+
+              <div class="editor-footer">
+                <button id="example" class="ghost-link">Жишээ текст <span>↗</span></button>
+                <div class="privacy-note"><i></i> Таны бүтээл хувийн санд хадгалагдана</div>
+              </div>
+            </div>
+
+            <aside class="control-panel">
+              <div class="control-head">
+                <span>VOICE PROFILE</span>
+                <span class="profile-status">LIVE</span>
+              </div>
+
+              <div class="voice-profile">
+                <div class="voice-avatar">
+                  <span>R</span>
+                  <div class="mini-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+                </div>
+                <div class="voice-copy">
+                  <label for="voice">RAINY Voice</label>
+                  <select id="voice"><option value="builtin-eleven-v4">Монгол · Eleven v4</option></select>
+                  <p>Natural · Clear · Mongolian</p>
+                </div>
+              </div>
+
+              <div class="control-block">
+                <label for="speed">Унших хурд <output id="speed-value">1.00×</output></label>
+                <input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1">
+                <div class="range-labels"><span>0.8</span><span>Natural</span><span>1.2</span></div>
+              </div>
+
+              <details class="pronunciation">
+                <summary><span>Дуудлагын толь</span><b>＋</b></summary>
+                <p class="hint">Нэг мөрөнд: нэр = монгол дуудлага</p>
+                <textarea id="glossary" placeholder="RAINY = рэйни"></textarea>
+              </details>
+
+              <div class="engine-status">
+                <span class="status-icon"><i></i></span>
+                <div><small>SYSTEM STATUS</small><p id="engine-message">Хөдөлгүүр шалгаж байна…</p></div>
+              </div>
+
+              <button id="generate" class="generate" disabled>
+                <span class="generate-label">Дуу үүсгэх</span>
+                <span class="generate-arrow">↗</span>
+              </button>
+              <p class="microcopy">WAV + MP3 · 24 kHz · server-side generation</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="recent">
+          <div class="stage-head compact">
+            <div><p class="section-number">02 — RECENT</p><h2>Сүүлийн бүтээлүүд</h2></div>
+            <button class="ghost-link" id="all-jobs">Бүгдийг харах <span>↗</span></button>
+          </div>
+          <div id="recent-jobs" class="jobs"></div>
+        </section>
+      </section>
+
+      <section id="history" class="page" hidden>
+        <section class="history-hero">
+          <p class="kicker"><span></span> YOUR CREATIONS</p>
+          <div class="history-title">
+            <h1>Дуу бүр<br><em>өөрийн мөртэй.</em></h1>
+            <p>Үүсгэсэн бүх аудиогоо нэг дороос сонсож, WAV эсвэл MP3 хэлбэрээр татаж авна.</p>
+          </div>
+        </section>
+
+        <div class="stage-head">
+          <div><p class="section-number">ARCHIVE</p><h2>Миний бүтээлүүд</h2></div>
+          <button id="refresh" class="secondary">Шинэчлэх <span>↻</span></button>
+        </div>
+        <div id="history-jobs" class="jobs history-jobs"></div>
+      </section>
+
+      <footer>
+        <div><strong>RAINY</strong><span>VOICE INTELLIGENCE</span></div>
+        <p>Монгол хэлээр бүтээх<br>шинэ дууны орон зай.</p>
+        <span>© 2026 RAINY</span>
+      </footer>
+    </main>
+  </div>
+
+  <dialog id="auth-dialog">
+    <form id="auth-form">
+      <button type="button" id="close-auth" class="close" aria-label="Хаах">×</button>
+      <p class="kicker"><span></span> PRIVATE STUDIO</p>
+      <h2 id="auth-title">RAINY-д нэвтрэх</h2>
+      <p class="muted">Бүтээлүүдээ хувийн сандаа хадгалж, хаанаас ч үргэлжлүүл.</p>
+      <label for="email">Имэйл</label>
+      <input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
+      <label for="password">Нууц үг</label>
+      <input id="password" type="password" minlength="12" maxlength="128" autocomplete="current-password" required placeholder="••••••••••••">
+      <p class="hint">Хамгийн багадаа 12 тэмдэгт.</p>
+      <p id="auth-error" role="alert"></p>
+      <button class="generate auth-submit" type="submit" id="auth-submit"><span>Нэвтрэх</span><span>↗</span></button>
+      <button type="button" id="auth-toggle" class="ghost-link auth-toggle">Шинэ бүртгэл үүсгэх</button>
+    </form>
+  </dialog>
+</body>
+</html>
