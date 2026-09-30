@@ -36,7 +36,7 @@ async function api(path,{method='GET',body=null,form=false}={}){
 
 function ensureUser(){
   if(state.user) return true;
-  $('auth-dialog').showModal();
+  openAuth(false);
   return false;
 }
 
@@ -79,13 +79,26 @@ document.querySelectorAll('.nav').forEach(button=>button.onclick=()=>page(button
 function renderAccount(){
   $('account').textContent=state.user?state.user.email:'Нэвтрэх';
   $('logout').hidden=!state.user;
+  $('register').hidden=!!state.user||!state.health?.registration_open;
+  $('auth-toggle').hidden=!state.health?.registration_open;
 }
 
-$('account').onclick=()=>state.user?notice('Нэвтэрсэн: '+state.user.email):$('auth-dialog').showModal();
+function openAuth(registerMode=false){
+  state.register=!!registerMode&&!!state.health?.registration_open;
+  $('auth-title').textContent=state.register?'RAINY-д бүртгүүлэх':'RAINY-д нэвтрэх';
+  $('auth-submit').querySelector('span').textContent=state.register?'Бүртгүүлэх':'Нэвтрэх';
+  $('auth-toggle').textContent=state.register?'Бүртгэлтэй бол нэвтрэх':'Шинэ бүртгэл үүсгэх';
+  $('auth-error').textContent='';
+  if(!$('auth-dialog').open)$('auth-dialog').showModal();
+}
+
+$('register').onclick=()=>openAuth(true);
+$('account').onclick=()=>state.user?notice('Нэвтэрсэн: '+state.user.email):openAuth(false);
 $('close-auth').onclick=()=>$('auth-dialog').close();
 $('auth-dialog').onclick=e=>{if(e.target===$('auth-dialog')) $('auth-dialog').close();};
 
 $('auth-toggle').onclick=()=>{
+  if(!state.health?.registration_open)return;
   state.register=!state.register;
   $('auth-title').textContent=state.register?'RAINY-д бүртгүүлэх':'RAINY-д нэвтрэх';
   $('auth-submit').querySelector('span').textContent=state.register?'Бүртгүүлэх':'Нэвтрэх';
@@ -448,7 +461,7 @@ async function init(){
   if(matchMedia('(pointer:fine)').matches)window.addEventListener('pointermove',e=>{document.documentElement.style.setProperty('--mx',e.clientX+'px');document.documentElement.style.setProperty('--my',e.clientY+'px');},{passive:true});
   try{
     const [health,meData]=await Promise.all([api('/health'),api('/me')]);
-    state.health=health;state.user=meData.user;$('auth-toggle').hidden=!health.registration_open;renderAccount();
+    state.health=health;state.user=meData.user;renderAccount();
   }catch(e){notice(e.message);}
   await refreshVoices();
   if(!$('dialogue-rows').children.length){addSpeakerRow('Сайн байна уу. Өнөөдрийн RAINY podcast эхэлж байна.');addSpeakerRow('Сайн байна уу. Ярилцлагад оролцож байгаадаа баяртай байна.');}
