@@ -76,8 +76,29 @@ def session(request:Request, required=True):
         raise HTTPException(401,"Эхлээд нэвтэрнэ үү.")
     return row
 
+def allowed_origins(request:Request):
+    configured={ORIGIN.rstrip("/")}
+    configured.update(
+        item.strip().rstrip("/")
+        for item in os.getenv("PUBLIC_ORIGINS","").split(",")
+        if item.strip()
+    )
+    host=request.headers.get("host","").strip()
+    if host:
+        configured.add(f"{request.url.scheme}://{host}".rstrip("/"))
+    local_aliases=set()
+    for origin in configured:
+        match=re.fullmatch(r"(https?)://(localhost|127\.0\.0\.1)(:\d+)?",origin,re.IGNORECASE)
+        if match:
+            scheme,_,port=match.groups()
+            local_aliases.add(f"{scheme}://localhost{port or ''}")
+            local_aliases.add(f"{scheme}://127.0.0.1{port or ''}")
+    configured.update(local_aliases)
+    return configured
+
 def mutation_guard(request:Request, sess=None):
-    if request.headers.get("origin") != ORIGIN:
+    origin=(request.headers.get("origin") or "").rstrip("/")
+    if not origin or origin not in allowed_origins(request):
         raise HTTPException(403,"Хүсэлтийн эх сурвалж зөвшөөрөгдөөгүй.")
     if sess and not secrets.compare_digest(request.headers.get("x-csrf-token",""),sess["csrf"]):
         raise HTTPException(403,"Хуудсаа шинэчлээд дахин оролдоно уу.")
