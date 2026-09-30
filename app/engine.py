@@ -94,12 +94,13 @@ class ElevenLabsEngine:
         except TypeError as exc:
             raise RuntimeError('ElevenLabs SDK-аас аудио өгөгдөл авч чадсангүй.') from exc
 
-    def synthesize(self, text, output, speed=1.0, voice_id=None):
+    def synthesize(self, text, output, speed=1.0, voice_id=None, trusted_voice=False):
         ready, reason = self.readiness()
         if not ready:
             raise RuntimeError(reason)
 
-        resolved_voice = self.resolve_voice_id(voice_id or self.legacy_builtin_id)
+        requested_voice = voice_id or self.legacy_builtin_id
+        resolved_voice = requested_voice if trusted_voice else self.resolve_voice_id(requested_voice)
         if not resolved_voice:
             raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
 
