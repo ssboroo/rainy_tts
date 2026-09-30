@@ -178,8 +178,10 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('DELETE FROM sessions WHERE token=?',(session['token'],))
             return self.send(cookie='session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+('; Secure' if SECURE else ''))
         if path == '/api/voices' and method == 'GET':
-            label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
-            voices = [{'id':ElevenLabsEngine.builtin_id,'name':label,'builtin':True}] if ElevenLabsEngine().readiness()[0] else []
+            try:
+                voices = ElevenLabsEngine.configured_voices()
+            except RuntimeError as exc:
+                raise HTTPError(503,str(exc))
             return self.send(data={'voices':voices})
         if path.startswith('/api/voices') and method in ('POST','DELETE'):
             raise HTTPError(409,'Одоогоор зөвхөн серверт тохируулсан ElevenLabs хоолой ашиглана.')
@@ -192,9 +194,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(data={'jobs':rows})
         if path == '/api/jobs' and method == 'POST':
             self.throttle('job:'+user,30)
-            data = self.body(); voice_id = str(data.get('voice_id',''))
-            if voice_id != ElevenLabsEngine.builtin_id:
-                raise HTTPError(422,'Одоогоор зөвхөн ElevenLabs Eleven v4 хоолой ашиглана.')
+            data = self.body(); voice_id = str(data.get('voice_id','')).strip()
+            resolved_voice_id = ElevenLabsEngine.resolve_voice_id(voice_id)
+            if not resolved_voice_id:
+                raise HTTPError(422,'Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
             ready, reason = ElevenLabsEngine().readiness()
             if not ready:
                 raise HTTPError(503,reason)
