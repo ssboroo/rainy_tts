@@ -158,7 +158,7 @@ function renderJobs() {
 async function refresh() {
   if(!state.user) {
     state.jobs=[];
-    state.voices=[{id:'WgH4JH8sD6a2SIrujiKn',name:'RAINY Voice 01',builtin:true}];
+    state.voices=[{"id":"WgH4JH8sD6a2SIrujiKn","name":"Sarnai - Proud Mongolian Narrator","builtin":true},{"id":"6OjaeAQxnuXC0oUZXZR2","name":"Bolor - Playful Ulaanbaatar Creator","builtin":true},{"id":"sjPAZPn7M1KgdmdYfsuu","name":"Bataar - Calm Khalkha Narrator","builtin":true},{"id":"2cecqSnkajrth9sJSoEH","name":"Uyanga - Kind Khalkha Friend","builtin":true},{"id":"4pSHaU93d1XS027ZFhHB","name":"Oyuna - Warm Khalkha Narrator","builtin":true},{"id":"ztVKSTjXnQBPBYroYARn","name":"Temuulen - Upbeat Ulaanbaatar Creator","builtin":true},{"id":"49bcW9p7CyYxa3c0X0im","name":"Enkhtuya - Proud Ovorkhangai Ad","builtin":true},{"id":"DLfKtGm2VGo06slN2VJE","name":"Munkhbat - Warm Khentii Creator","builtin":true},{"id":"sQRZO8j8yYwJ3eCSUFy3","name":"Naran - Patient Ulaanbaatar Friend","builtin":true},{"id":"Die79un8ishA33PLnH1j","name":"Batbayar - Firm Khalkha Ad","builtin":true},{"id":"D9okmaITNQEQZq1w4Z1C","name":"Erdene - Blunt Ulaanbaatar Friend","builtin":true},{"id":"RbMF2tQ1nCK38TfvNGLk","name":"Ganbold - Confident Khalkha Ad","builtin":true}];
   } else {
     const [voices,jobs]=await Promise.all([api('/voices'),api('/jobs')]);
     state.voices=voices.voices;
