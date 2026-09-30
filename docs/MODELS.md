@@ -1,43 +1,35 @@
-# ElevenLabs provider
+# ElevenLabs providers used by RAINY
 
-RAINY Voice currently uses **ElevenLabs Eleven v4 only**.
+RAINY is an ElevenLabs Creative Studio, not a local-model runtime.
 
-## Runtime
+## Models and APIs
 
-The server-side adapter in `app/engine.py` calls the ElevenLabs Text to Speech API with:
+- Text to Speech: `eleven_v4`, Mongolian language hint `mn`, PCM 24 kHz → WAV/MP3.
+- Podcast / Dialogue: `eleven_v3` Text to Dialogue.
+- Music: `music_v2_5` by default, with `music_v2` and `music_v1` selectable.
+- Sound Effects: `eleven_text_to_sound_v2`.
+- Speech to Text: `scribe_v2`.
+- Realtime STT: `scribe_v2_realtime` via browser WebSocket and a single-use token.
+- Voice Changer: `eleven_multilingual_sts_v2`.
+- Dubbing: `dubbing_v2`.
+- Voice Clone: Instant Voice Cloning API.
 
-- `model_id=eleven_v4`
-- `language_code=mn`
-- configured `ELEVENLABS_VOICE_ID`
-- `pcm_24000` output
+## Voice catalog
 
-The returned PCM is written to WAV. The worker also exports MP3 through FFmpeg.
+RAINY ships with 12 configured Mongolian ElevenLabs voice IDs. A user-created Instant Voice Clone is stored in the local `voices` table after ElevenLabs returns its Voice ID, then becomes available in TTS, Dialogue and Voice Changer selectors.
 
-## Required environment values
+`ELEVENLABS_VOICES_JSON` can override the built-in catalog.
 
-```env
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICES_JSON=[{"id":"WgH4JH8sD6a2SIrujiKn","name":"RAINY Voice 01"},{"id":"SECOND_VOICE_ID","name":"RAINY Voice 02"}]
-ELEVENLABS_LANGUAGE_CODE=mn
-ELEVENLABS_STABILITY=0.5
-ELEVENLABS_SIMILARITY_BOOST=0.8
-```
+## Mongolian notes
 
-The API key is server-side only and must not be added to static JavaScript, Git commits or public logs.
+TTS uses Eleven v4 with `language_code=mn`.
 
-## Voice policy
+Scribe v2 accepts ISO-639-1 or ISO-639-3 language codes and is used with `mn` in the UI; automatic detection can be used by leaving the language field empty.
 
-The current app can expose up to 100 server-configured ElevenLabs voices from `ELEVENLABS_VOICES_JSON`. Each job stores the selected configured Voice ID; arbitrary client-supplied IDs are rejected. Local reference upload and Oron/F5 voice conditioning are disabled.
+Voice Changer uses `eleven_multilingual_sts_v2`. Mongolian is not currently in that model's documented supported-source-language list, so RAINY shows a warning rather than claiming Mongolian speech-to-speech support.
 
-If voice cloning is added later, only voices the operator/user has the rights and consent to use should be uploaded to ElevenLabs.
+## Security
 
-## Production checks
+`ELEVENLABS_API_KEY` is server-side only. Normal browser requests never receive it. Realtime STT uses an ElevenLabs single-use token instead.
 
-Before a paid public launch:
-
-- Confirm the ElevenLabs plan supports the intended commercial use and volume.
-- Confirm rights for the configured voice.
-- Measure Mongolian pronunciation quality with native speakers.
-- Test names, Ө/Ү, long vowels, punctuation and glossary replacements.
-- Track API errors, rate limits, latency and credit usage.
-- Add billing/credit controls before allowing large public workloads.
+Voice cloning requires a user consent/right confirmation before files are sent to ElevenLabs.
