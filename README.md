@@ -29,7 +29,7 @@ PUBLIC_ORIGIN=http://localhost:8080
 ALLOW_REGISTRATION=true
 
 ELEVENLABS_API_KEY=your_server_side_key
-ELEVENLABS_VOICES_JSON=[{"id":"WgH4JH8sD6a2SIrujiKn","name":"RAINY Voice 01"},{"id":"SECOND_VOICE_ID","name":"RAINY Voice 02"}]
+# Optional: ELEVENLABS_VOICES_JSON can override the built-in 12 Mongolian voices.
 ELEVENLABS_LANGUAGE_CODE=mn
 ELEVENLABS_STABILITY=0.5
 ELEVENLABS_SIMILARITY_BOOST=0.8
@@ -60,7 +60,7 @@ The current Docker image contains only the web/worker runtime and FFmpeg. Model 
 
 ## Notes
 
-RAINY sends TTS jobs to `eleven_v4` using the voice selected from `ELEVENLABS_VOICES_JSON`. If that variable is empty, the legacy `ELEVENLABS_VOICE_ID` value is used as a single-voice fallback. ElevenLabs billing, rate limits, voice rights and account permissions apply to production use.
+RAINY includes 12 Mongolian ElevenLabs voices by default and sends TTS jobs to `eleven_v4` using the selected Voice ID. `ELEVENLABS_VOICES_JSON` can override the built-in catalog when a custom server-side list is needed. ElevenLabs billing, rate limits, voice rights and account permissions apply to production use.
 
 See [Deployment](docs/DEPLOY.md) and [ElevenLabs provider](docs/MODELS.md).
 
@@ -90,3 +90,19 @@ audio = client.text_to_speech.convert(
 ```
 
 The official quickstart commonly shows `mp3_44100_128` plus local speaker playback. RAINY requests `pcm_24000` because its worker joins long-text/SRT chunks as WAV, then exports the finished result as both WAV and MP3.
+
+
+## Built-in Mongolian voices
+
+1. Sarnai — Proud Mongolian Narrator
+2. Bolor — Playful Ulaanbaatar Creator
+3. Bataar — Calm Khalkha Narrator
+4. Uyanga — Kind Khalkha Friend
+5. Oyuna — Warm Khalkha Narrator
+6. Temuulen — Upbeat Ulaanbaatar Creator
+7. Enkhtuya — Proud Ovorkhangai Ad
+8. Munkhbat — Warm Khentii Creator
+9. Naran — Patient Ulaanbaatar Friend
+10. Batbayar — Firm Khalkha Ad
+11. Erdene — Blunt Ulaanbaatar Friend
+12. Ganbold — Confident Khalkha Ad
