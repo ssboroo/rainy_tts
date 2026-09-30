@@ -17,8 +17,7 @@ The returned PCM is written to WAV. The worker also exports MP3 through FFmpeg.
 
 ```env
 ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...
-ELEVENLABS_VOICE_LABEL=Монгол · Eleven v4
+ELEVENLABS_VOICES_JSON=[{"id":"WgH4JH8sD6a2SIrujiKn","name":"RAINY Voice 01"},{"id":"SECOND_VOICE_ID","name":"RAINY Voice 02"}]
 ELEVENLABS_LANGUAGE_CODE=mn
 ELEVENLABS_STABILITY=0.5
 ELEVENLABS_SIMILARITY_BOOST=0.8
@@ -28,7 +27,7 @@ The API key is server-side only and must not be added to static JavaScript, Git 
 
 ## Voice policy
 
-The current app exposes one server-configured ElevenLabs voice. Local reference upload and Oron/F5 voice conditioning are disabled.
+The current app can expose up to 100 server-configured ElevenLabs voices from `ELEVENLABS_VOICES_JSON`. Each job stores the selected configured Voice ID; arbitrary client-supplied IDs are rejected. Local reference upload and Oron/F5 voice conditioning are disabled.
 
 If voice cloning is added later, only voices the operator/user has the rights and consent to use should be uploaded to ElevenLabs.
 
