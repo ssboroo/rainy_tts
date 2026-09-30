@@ -15,6 +15,20 @@ class ElevenLabsEngine:
     model_id = 'eleven_v4'
     legacy_builtin_id = 'builtin-eleven-v4'
     default_voice_id = 'WgH4JH8sD6a2SIrujiKn'
+    default_voice_catalog = [
+        {'id':'WgH4JH8sD6a2SIrujiKn','name':'Sarnai - Proud Mongolian Narrator','builtin':True},
+        {'id':'6OjaeAQxnuXC0oUZXZR2','name':'Bolor - Playful Ulaanbaatar Creator','builtin':True},
+        {'id':'sjPAZPn7M1KgdmdYfsuu','name':'Bataar - Calm Khalkha Narrator','builtin':True},
+        {'id':'2cecqSnkajrth9sJSoEH','name':'Uyanga - Kind Khalkha Friend','builtin':True},
+        {'id':'4pSHaU93d1XS027ZFhHB','name':'Oyuna - Warm Khalkha Narrator','builtin':True},
+        {'id':'ztVKSTjXnQBPBYroYARn','name':'Temuulen - Upbeat Ulaanbaatar Creator','builtin':True},
+        {'id':'49bcW9p7CyYxa3c0X0im','name':'Enkhtuya - Proud Ovorkhangai Ad','builtin':True},
+        {'id':'DLfKtGm2VGo06slN2VJE','name':'Munkhbat - Warm Khentii Creator','builtin':True},
+        {'id':'sQRZO8j8yYwJ3eCSUFy3','name':'Naran - Patient Ulaanbaatar Friend','builtin':True},
+        {'id':'Die79un8ishA33PLnH1j','name':'Batbayar - Firm Khalkha Ad','builtin':True},
+        {'id':'D9okmaITNQEQZq1w4Z1C','name':'Erdene - Blunt Ulaanbaatar Friend','builtin':True},
+        {'id':'RbMF2tQ1nCK38TfvNGLk','name':'Ganbold - Confident Khalkha Ad','builtin':True},
+    ]
 
     def __init__(self):
         self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
@@ -48,10 +62,12 @@ class ElevenLabsEngine:
                 seen.add(voice_id)
 
         if not voices:
-            voice_id = os.getenv('ELEVENLABS_VOICE_ID', cls.default_voice_id).strip()
-            label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
-            if voice_id:
-                voices.append({'id':voice_id,'name':label,'builtin':True})
+            legacy_voice_id = os.getenv('ELEVENLABS_VOICE_ID', '').strip()
+            if legacy_voice_id:
+                label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
+                voices.append({'id':legacy_voice_id,'name':label,'builtin':True})
+            else:
+                voices = [dict(voice) for voice in cls.default_voice_catalog]
 
         return voices
 
