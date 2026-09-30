@@ -26,7 +26,7 @@ def db():
         con.close()
 
 def init():
-    for directory in ('voices', 'outputs', 'tmp'):
+    for directory in ('voices', 'outputs', 'tmp', 'artifacts'):
         (DATA / directory).mkdir(parents=True, exist_ok=True)
     with db() as c:
         c.executescript('''
@@ -36,6 +36,30 @@ def init():
         CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),name TEXT NOT NULL,transcript TEXT NOT NULL,created REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),voice_id TEXT NOT NULL,title TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL,progress INTEGER DEFAULT 0,error TEXT,created REAL NOT NULL,result TEXT);
         CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status,created);
+        CREATE TABLE IF NOT EXISTS tool_jobs(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id),
+            tool_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL,
+            error TEXT,
+            result TEXT,
+            created REAL NOT NULL,
+            updated REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS tool_jobs_user ON tool_jobs(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS artifacts(
+            id TEXT PRIMARY KEY,
+            job_id TEXT NOT NULL REFERENCES tool_jobs(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL REFERENCES users(id),
+            kind TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            mime TEXT NOT NULL,
+            path TEXT NOT NULL,
+            created REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS artifacts_job ON artifacts(job_id,created);
         ''')
 
 def uid():
@@ -107,3 +131,51 @@ def parse_srt(raw):
 
 def public_job(row):
     return {k: row[k] for k in ('id','title','status','progress','error','created','result')}
+
+
+def create_tool_job(user_id, tool_type, title, payload=None, status='running'):
+    job_id = uid()
+    now = time.time()
+    with db() as c:
+        c.execute(
+            'INSERT INTO tool_jobs(id,user_id,tool_type,title,payload,status,created,updated) VALUES(?,?,?,?,?,?,?,?)',
+            (job_id,user_id,tool_type,title[:100] or tool_type,json.dumps(payload or {},ensure_ascii=False),status,now,now)
+        )
+    return job_id
+
+def update_tool_job(job_id, status=None, result=None, error=None):
+    fields, values = ['updated=?'], [time.time()]
+    if status is not None:
+        fields.append('status=?'); values.append(status)
+    if result is not None:
+        fields.append('result=?'); values.append(json.dumps(result,ensure_ascii=False))
+    if error is not None:
+        fields.append('error=?'); values.append(str(error)[:1000])
+    values.append(job_id)
+    with db() as c:
+        c.execute('UPDATE tool_jobs SET '+','.join(fields)+' WHERE id=?', values)
+
+def add_artifact(job_id, user_id, kind, filename, mime, path):
+    artifact_id = uid()
+    with db() as c:
+        c.execute(
+            'INSERT INTO artifacts(id,job_id,user_id,kind,filename,mime,path,created) VALUES(?,?,?,?,?,?,?,?)',
+            (artifact_id,job_id,user_id,kind,filename,mime,str(path),time.time())
+        )
+    return artifact_id
+
+def public_tool_job(row):
+    data={k:row[k] for k in ('id','tool_type','title','status','error','created','updated')}
+    try:
+        data['result']=json.loads(row['result']) if row['result'] else None
+    except (TypeError,json.JSONDecodeError):
+        data['result']=None
+    return data
+
+def tool_artifacts(job_id, user_id):
+    with db() as c:
+        rows=c.execute(
+            'SELECT id,kind,filename,mime,created FROM artifacts WHERE job_id=? AND user_id=? ORDER BY created',
+            (job_id,user_id)
+        ).fetchall()
+    return [dict(row) for row in rows]
