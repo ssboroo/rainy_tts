@@ -13,6 +13,30 @@ The Oron model card labels its weights CC-BY-4.0 and documents two supplied voic
 
 The adapter follows the model card's F5TTS API, explicitly sets `device='cpu'`, and uses raw rather than EMA tensors. Model weights have been downloaded for integration checks. A real CPU inference smoke test passed. Voice quality, clone quality and commercial readiness remain **unverified**; see VERIFICATION.md for the exact test result.
 
+## Cloud provider: ElevenLabs Eleven v4
+
+Added on 2026-10-01 using the official ElevenLabs server-side Text to Speech API. The adapter calls `POST /v1/text-to-speech/:voice_id` with `model_id=eleven_v4`, requests `pcm_24000`, and keeps `ELEVENLABS_API_KEY` out of browser code.
+
+Official references:
+- https://elevenlabs.io/docs/overview/models
+- https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+- https://elevenlabs.io/docs/eleven-api/quickstart
+
+Eleven v4 lists Mongolian among its 90+ supported languages. The app sends `ELEVENLABS_LANGUAGE_CODE=mn` by default for the API language hint. Choose a voice recorded or cloned in Mongolian for the best native accent and pronunciation.
+
+Required environment values:
+
+```env
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=...
+ELEVENLABS_VOICE_LABEL=Монгол · Eleven v4
+ELEVENLABS_LANGUAGE_CODE=mn
+ELEVENLABS_STABILITY=0.5
+ELEVENLABS_SIMILARITY_BOOST=0.8
+```
+
+The API key is used only by the server/worker. Do not place it in static JavaScript or commit a real key. ElevenLabs account usage, billing, voice rights and cloning consent remain the operator's responsibility. The existing local upload/clone workflow still routes to Oron; this integration does not automatically upload user reference recordings to ElevenLabs.
+
 ## Install in a reviewed CPU worker image
 
 1. Select and record exact immutable commits for `SWivid/F5-TTS` and `btseee/oron-tts`. Review dependencies and licenses before installation; do not blindly install moving main branches in production.
