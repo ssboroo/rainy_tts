@@ -11,19 +11,65 @@ class ElevenLabsEngine:
     """Server-side ElevenLabs Eleven v4 adapter for Mongolian speech."""
 
     model_id = 'eleven_v4'
-    builtin_id = 'builtin-eleven-v4'
+    legacy_builtin_id = 'builtin-eleven-v4'
+    default_voice_id = 'WgH4JH8sD6a2SIrujiKn'
 
     def __init__(self):
         self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
-        self.voice_id = os.getenv('ELEVENLABS_VOICE_ID', 'WgH4JH8sD6a2SIrujiKn').strip()
         self.language_code = os.getenv('ELEVENLABS_LANGUAGE_CODE', 'mn').strip() or 'mn'
+
+    @classmethod
+    def configured_voices(cls):
+        """Return the public voice catalog configured by environment variables."""
+        raw = os.getenv('ELEVENLABS_VOICES_JSON', '').strip()
+        voices = []
+        seen = set()
+
+        if raw:
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError('ELEVENLABS_VOICES_JSON буруу JSON байна.') from exc
+            if not isinstance(parsed, list):
+                raise RuntimeError('ELEVENLABS_VOICES_JSON нь жагсаалт байх ёстой.')
+            for item in parsed[:100]:
+                if not isinstance(item, dict):
+                    continue
+                voice_id = str(item.get('id','')).strip()
+                name = str(item.get('name','')).strip()[:80]
+                if not voice_id or voice_id in seen:
+                    continue
+                if not name:
+                    name = f'RAINY Voice {len(voices)+1:02d}'
+                voices.append({'id':voice_id,'name':name,'builtin':True})
+                seen.add(voice_id)
+
+        if not voices:
+            voice_id = os.getenv('ELEVENLABS_VOICE_ID', cls.default_voice_id).strip()
+            label = os.getenv('ELEVENLABS_VOICE_LABEL','Монгол · Eleven v4').strip()[:80] or 'Монгол · Eleven v4'
+            if voice_id:
+                voices.append({'id':voice_id,'name':label,'builtin':True})
+
+        return voices
+
+    @classmethod
+    def resolve_voice_id(cls, voice_id):
+        voices = cls.configured_voices()
+        if voice_id == cls.legacy_builtin_id and voices:
+            return voices[0]['id']
+        allowed = {voice['id'] for voice in voices}
+        return voice_id if voice_id in allowed else None
 
     def readiness(self):
         if not self.api_key:
             return False, 'ELEVENLABS_API_KEY тохируулаагүй байна.'
-        if not self.voice_id:
-            return False, 'ELEVENLABS_VOICE_ID тохируулаагүй байна.'
-        return True, 'ElevenLabs · Eleven v4 бэлэн'
+        try:
+            voices = self.configured_voices()
+        except RuntimeError as exc:
+            return False, str(exc)
+        if not voices:
+            return False, 'ElevenLabs voice тохируулаагүй байна.'
+        return True, f'ElevenLabs · Eleven v4 · {len(voices)} voice бэлэн'
 
     def _setting(self, name, default):
         try:
@@ -32,10 +78,14 @@ class ElevenLabsEngine:
             value = default
         return max(0.0, min(1.0, value))
 
-    def synthesize(self, text, output, speed=1.0):
+    def synthesize(self, text, output, speed=1.0, voice_id=None):
         ready, reason = self.readiness()
         if not ready:
             raise RuntimeError(reason)
+
+        resolved_voice = self.resolve_voice_id(voice_id or self.legacy_builtin_id)
+        if not resolved_voice:
+            raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
 
         payload = {
             'text': text,
@@ -46,7 +96,7 @@ class ElevenLabsEngine:
                 'similarity_boost': self._setting('ELEVENLABS_SIMILARITY_BOOST', 0.8),
             },
         }
-        endpoint = 'https://api.elevenlabs.io/v1/text-to-speech/' + quote(self.voice_id, safe='')
+        endpoint = 'https://api.elevenlabs.io/v1/text-to-speech/' + quote(resolved_voice, safe='')
         endpoint += '?' + urlencode({'output_format': 'pcm_24000'})
         request = Request(
             endpoint,
