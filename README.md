@@ -14,7 +14,7 @@ There is no local speech model, no Oron/F5 runtime, and no GPU requirement in th
 - Text and SRT input.
 - Server-side ElevenLabs API integration.
 - API key never exposed to browser JavaScript.
-- One configured ElevenLabs voice exposed as the current RAINY voice.
+- Multiple configured ElevenLabs voices exposed in the RAINY voice selector.
 - Speed control, pronunciation glossary and long-text chunking.
 - Durable job queue and progress.
 - WAV/MP3 export.
@@ -29,8 +29,7 @@ PUBLIC_ORIGIN=http://localhost:8080
 ALLOW_REGISTRATION=true
 
 ELEVENLABS_API_KEY=your_server_side_key
-ELEVENLABS_VOICE_ID=WgH4JH8sD6a2SIrujiKn
-ELEVENLABS_VOICE_LABEL=Монгол · Eleven v4
+ELEVENLABS_VOICES_JSON=[{"id":"WgH4JH8sD6a2SIrujiKn","name":"RAINY Voice 01"},{"id":"SECOND_VOICE_ID","name":"RAINY Voice 02"}]
 ELEVENLABS_LANGUAGE_CODE=mn
 ELEVENLABS_STABILITY=0.5
 ELEVENLABS_SIMILARITY_BOOST=0.8
@@ -60,7 +59,7 @@ The current Docker image contains only the web/worker runtime and FFmpeg. Model 
 
 ## Notes
 
-RAINY currently sends TTS jobs to `eleven_v4` using the configured `ELEVENLABS_VOICE_ID`. ElevenLabs billing, rate limits, voice rights and account permissions apply to production use.
+RAINY sends TTS jobs to `eleven_v4` using the voice selected from `ELEVENLABS_VOICES_JSON`. If that variable is empty, the legacy `ELEVENLABS_VOICE_ID` value is used as a single-voice fallback. ElevenLabs billing, rate limits, voice rights and account permissions apply to production use.
 
 See [Deployment](docs/DEPLOY.md) and [ElevenLabs provider](docs/MODELS.md).
 
