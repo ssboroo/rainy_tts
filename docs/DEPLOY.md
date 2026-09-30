@@ -4,7 +4,7 @@ RAINY Voice currently uses **ElevenLabs Eleven v4 only**. No local model or GPU 
 
 ## Local Windows
 
-Install Python 3.12+ and FFmpeg. Copy `.env.example` to `.env`, add your ElevenLabs API key and Voice ID, then start two terminals:
+Install Python 3.12+ and FFmpeg. Copy `.env.example` to `.env`, add your ElevenLabs API key and `ELEVENLABS_VOICES_JSON` voice catalog, then start two terminals:
 
 ```powershell
 python -m app.server
@@ -20,7 +20,7 @@ Open http://localhost:8080.
 
 ```bash
 cp .env.example .env
-# Set PUBLIC_ORIGIN, ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.
+# Set PUBLIC_ORIGIN, ELEVENLABS_API_KEY and ELEVENLABS_VOICES_JSON.
 docker compose up -d --build
 ```
 
