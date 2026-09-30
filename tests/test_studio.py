@@ -72,6 +72,12 @@ class APITests(unittest.TestCase):
         self.csrf=response.json()['user']['csrf']
         self.headers={'Origin':'http://testserver','X-CSRF-Token':self.csrf}
 
+    def test_health_reports_registration_open(self):
+        with patch.dict(os.environ, {'ALLOW_REGISTRATION':'yes'}, clear=False):
+            response=self.client.get('/api/health')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertTrue(response.json()['registration_open'])
+
     def test_registration_accepts_actual_same_origin_and_rejects_cross_site(self):
         with TestClient(server.app, base_url='http://127.0.0.1:8080') as local_client:
             email=f'local-{time.time_ns()}@example.com'
