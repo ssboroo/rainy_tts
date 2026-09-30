@@ -5,7 +5,7 @@ RAINY is an ElevenLabs Creative Studio, not a local-model runtime.
 ## Models and APIs
 
 - Text to Speech: `eleven_v4`, Mongolian language hint `mn`, PCM 24 kHz → WAV/MP3.
-- Podcast / Dialogue: `eleven_v3` Text to Dialogue.
+- Podcast / Dialogue: `eleven_v4` Text to Dialogue for Mongolian-capable multi-speaker generation.
 - Music: `music_v2_5` by default, with `music_v2` and `music_v1` selectable.
 - Sound Effects: `eleven_text_to_sound_v2`.
 - Speech to Text: `scribe_v2`.
