@@ -61,13 +61,11 @@ def prepare_text(text, glossary=None):
         if not source or not target or len(source) > 100 or len(target) > 200:
             raise ValueError('Дуудлагын толь буруу байна.')
         text = re.sub(re.escape(source), lambda _: target, text, flags=re.I)
-    if re.search('[A-Za-z]', text):
-        raise ValueError('Латин нэр, үгсийг дуудлагын тольд кириллээр оруулна уу.')
-    # Do not silently guess Mongolian number morphology. User reviews explicit expansion.
-    if re.search(r'\d|[₮$€%]', text):
-        raise ValueError('Тоо, үнэ, хувийг үгээр бичнэ үү. Жишээ: дөчин таван мянган төгрөг.')
-    if re.search(r'[^А-Яа-яӨөҮүЁё\s.,!?…:;\-—«»“”"()\u2019\u0027]', text):
-        raise ValueError('Дэмжигдээгүй тэмдэгт байна. Монгол кирилл текст ашиглана уу.')
+    # ElevenLabs v4 can handle mixed Mongolian/Latin text and numbers.
+    # Keep a conservative character allow-list to reject emoji/control-like input,
+    # while allowing common names, brands, URLs, prices and abbreviations.
+    if re.search(r'[^А-Яа-яӨөҮүЁёA-Za-z0-9\s.,!?…:;\-—_«»“”"()\[\]{}\u2019\u0027/@#&+*=₮$€%]', text):
+        raise ValueError('Дэмжигдээгүй тэмдэгт байна.')
     return re.sub(r'\s+', ' ', text)
 
 def chunks(text, limit=240):
