@@ -83,11 +83,16 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.request('/logout','POST',{},alice,origin=False)[0],403)
         self.assertEqual(self.request('/voices','POST',{},alice)[0],409)
         self.assertEqual(self.request('/jobs','POST',{'text':'Сайн байна уу.','voice_id':'builtin-female'},alice)[0],422)
-        with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')):
+        catalog=json.dumps([
+            {'id':'voice-a','name':'RAINY A'},
+            {'id':'voice-b','name':'RAINY B'}
+        ])
+        with patch.dict(os.environ, {'ELEVENLABS_VOICES_JSON':catalog}, clear=False), patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')):
             status,voices,_=self.request('/voices',auth=alice)
             self.assertEqual(status,200)
-            self.assertEqual(voices['voices'][0]['id'],ElevenLabsEngine.builtin_id)
-            status,data,_=self.request('/jobs','POST',{'text':'Сайн байна уу.','voice_id':ElevenLabsEngine.builtin_id},alice)
+            self.assertEqual([v['id'] for v in voices['voices']],['voice-a','voice-b'])
+            self.assertEqual(self.request('/jobs','POST',{'text':'Сайн байна уу.','voice_id':'voice-x'},alice)[0],422)
+            status,data,_=self.request('/jobs','POST',{'text':'Сайн байна уу.','voice_id':'voice-b'},alice)
             self.assertEqual(status,202,data);job_id=data['id']
             self.assertEqual(self.request('/jobs/'+job_id,auth=bob)[0],404)
             self.assertEqual(self.request('/jobs/'+job_id+'/wav',auth=alice)[0],409)
@@ -115,7 +120,7 @@ class AudioTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / 'eleven.wav'
-            with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICE_ID':'voice-123','ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
+            with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICE_ID':'voice-123','ELEVENLABS_VOICES_JSON':'','ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
                 with patch('app.engine.urlopen', side_effect=fake_urlopen):
                     engine = ElevenLabsEngine()
                     self.assertTrue(engine.readiness()[0])
@@ -144,10 +149,11 @@ class AudioTests(unittest.TestCase):
             try:
                 with core.db() as c:
                     c.execute('INSERT INTO users VALUES(?,?,?,?)',('u','worker@example.com','unused',time.time()))
-                    c.execute('INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)',('j','u',ElevenLabsEngine.builtin_id,'Test',json.dumps({'text':'Сайн байна уу.','speed':1}),'running',time.time()))
+                    c.execute('INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)',('j','u','voice-worker','Test',json.dumps({'text':'Сайн байна уу.','speed':1}),'running',time.time()))
                     job=c.execute('SELECT * FROM jobs WHERE id=?',('j',)).fetchone()
-                def synth(text,output,speed):output.write_bytes(wav_bytes(.2))
-                with patch.object(worker.engine,'synthesize',side_effect=synth):worker.run_job(job)
+                def synth(text,output,speed,voice_id):output.write_bytes(wav_bytes(.2))
+                catalog=json.dumps([{'id':'voice-worker','name':'Worker Voice'}])
+                with patch.dict(os.environ, {'ELEVENLABS_VOICES_JSON':catalog}, clear=False), patch.object(worker.engine,'synthesize',side_effect=synth):worker.run_job(job)
                 with core.db() as c:self.assertEqual(c.execute('SELECT status FROM jobs WHERE id=?',('j',)).fetchone()[0],'done')
                 self.assertTrue((core.DATA/'outputs/j.mp3').stat().st_size>0)
                 self.assertFalse((core.DATA/'tmp/j').exists())
