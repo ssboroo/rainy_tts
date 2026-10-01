@@ -1489,24 +1489,34 @@ async def analytics(request:Request):
             (sess["user_id"],cutoff)
         ).fetchone()[0]
     account=billing.wallet(sess["user_id"])
-    with core.db() as db:
-        usage_rows=db.execute(
-            "SELECT product,provider_cost,request_id,trace_id,metadata,created FROM provider_usage WHERE user_id=? ORDER BY created DESC LIMIT 20",
-            (sess["user_id"],)
-        ).fetchall()
-    provider_usage=[]
-    for row in usage_rows:
-        item=dict(row)
-        try:item["metadata"]=json.loads(item["metadata"] or "{}")
-        except Exception:item["metadata"]={}
-        provider_usage.append(item)
     return {
         "local_30d":local,
         "credits_spent_30d":int(spent or 0),
         "wallet":account["wallet"],
         "subscription":account["subscription"],
-        "provider_usage":provider_usage,
     }
+
+def admin_user(request:Request):
+    sess=session(request)
+    allowed={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
+    if not allowed or str(sess["email"]).lower() not in allowed:
+        raise HTTPException(403,"Admin эрх шаардлагатай.")
+    return sess
+
+@app.get("/api/admin/provider-usage")
+def admin_provider_usage(request:Request):
+    admin_user(request)
+    with core.db() as db:
+        rows=db.execute(
+            "SELECT p.*,u.email FROM provider_usage p JOIN users u ON u.id=p.user_id ORDER BY p.created DESC LIMIT 500"
+        ).fetchall()
+    items=[]
+    for row in rows:
+        item=dict(row)
+        try:item["metadata"]=json.loads(item["metadata"] or "{}")
+        except Exception:item["metadata"]={}
+        items.append(item)
+    return {"items":items}
 
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
