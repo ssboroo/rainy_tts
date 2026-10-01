@@ -57,10 +57,11 @@ function setBusy(button,busy,label){
 }
 
 const pageMeta={
-  tts:['01','Create / Text to Speech'],clone:['02','Create / Voice Clone'],dialogue:['03','Create / Podcast & Dialogue'],
-  music:['04','Create / Music'],sfx:['05','Create / Sound Effects'],stt:['06','Audio / Speech to Text'],
-  realtime:['07','Audio / Realtime STT'],changer:['08','Audio / Voice Changer'],dubbing:['09','Video / Dubbing'],
-  voices:['10','Library / Voices'],billing:['11','Account / Subscription'],analytics:['12','Library / Analytics'],history:['13','Library / History']
+  tts:['01','Create / Text to Speech'],clone:['02','Create / Instant Voice Clone'],pvc:['03','Create / Professional Voice Clone'],
+  dialogue:['04','Create / Podcast & Dialogue'],music:['05','Create / Music'],sfx:['06','Create / Sound Effects'],
+  stt:['07','Audio / Speech to Text'],realtime:['08','Audio / Realtime STT'],isolator:['09','Audio / Voice Isolator'],
+  changer:['10','Audio / Voice Changer · Experimental'],dubbing:['11','Video / Dubbing'],reception:['12','Business AI / Reception.ai'],
+  voices:['13','Library / Voices'],billing:['14','Account / Subscription'],analytics:['15','Library / Analytics'],history:['16','Library / History']
 };
 
 function page(name){
@@ -70,6 +71,7 @@ function page(name){
   $('breadcrumb').textContent=pageMeta[name][1];
   document.querySelector('.route-index').textContent=pageMeta[name][0];
   if(name==='voices'){refreshVoices(true);loadProviderStatus();}
+  if(name==='reception'){loadReception();loadReceptionEvents();}
   if(name==='billing') loadBilling();
   if(name==='analytics') loadAnalytics();
   if(name==='history') loadHistory();
@@ -227,7 +229,7 @@ $('generate').onclick=async()=>{
   if(!ensureUser()) return;
   const button=$('generate');setBusy(button,true,'Дуу үүсгэж байна…');
   try{
-    const body={title:$('tts-title').value,voice_id:$('voice').value,speed:Number($('speed').value),glossary:parseGlossary()};
+    const body={title:$('tts-title').value,voice_id:$('voice').value,model_id:$('tts-model').value,speed:Number($('speed').value),glossary:parseGlossary()};
     body[state.mode==='srt'?'srt':'text']=$(state.mode==='srt'?'srt-text':'text').value;
     await api('/jobs',{method:'POST',body});
     notice('TTS дараалалд орлоо. History хэсгээс явцыг харна уу.');
@@ -245,6 +247,69 @@ $('clone-form').onsubmit=async event=>{
     const result=await api('/voices/clone',{method:'POST',body:form,form:true});
     notice('Voice clone бэлэн: '+result.voice_id);event.currentTarget.reset();await refreshVoices();
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
+};
+
+$('pvc-form').onsubmit=async event=>{
+  event.preventDefault();if(!ensureUser())return;
+  const formEl=event.currentTarget,button=formEl.querySelector('button[type=submit]');
+  setBusy(button,true,'PVC sample upload…');
+  try{
+    if(!formEl.querySelector('[name=ownership]').checked)throw new Error('PVC нь зөвхөн өөрийн хоолойд зориулагдана.');
+    const form=new FormData(formEl);
+    form.set('language','mn');
+    form.set('ownership','true');
+    form.set('remove_background_noise',formEl.querySelector('[name=remove_background_noise]').checked?'true':'false');
+    const result=await api('/voices/pvc',{method:'POST',body:form,form:true});
+    $('pvc-voice-id').value=result.voice_id;
+    $('pvc-result').hidden=false;
+    $('pvc-result').textContent='PVC draft үүслээ · '+result.voice_id+' · ownership verification шаардлагатай.';
+    $('pvc-verify-form').hidden=false;
+    notice('Professional Voice Clone draft үүслээ. Verification хийнэ үү.');
+  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+};
+
+$('pvc-captcha-get').onclick=async()=>{
+  if(!ensureUser())return;
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Voice ID алга.');
+  try{
+    const data=await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha');
+    $('pvc-captcha').hidden=false;
+    const raw=data.captcha||data.image||data.data||JSON.stringify(data);
+    $('pvc-captcha').textContent=typeof raw==='string'?raw:JSON.stringify(raw,null,2);
+    notice('Verification CAPTCHA бэлэн.');
+  }catch(e){notice(e.message);}
+};
+
+$('pvc-verify').onclick=async()=>{
+  if(!ensureUser())return;
+  const id=$('pvc-voice-id').value.trim(),file=$('pvc-recording').files[0];
+  if(!id||!file)return notice('PVC Voice ID болон verification recording шаардлагатай.');
+  const form=new FormData();form.append('recording',file);
+  try{
+    await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha',{method:'POST',body:form,form:true});
+    notice('Ownership verification амжилттай. Training эхлүүлж болно.');
+  }catch(e){notice(e.message);}
+};
+
+$('pvc-train').onclick=async()=>{
+  if(!ensureUser())return;
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Voice ID алга.');
+  const button=$('pvc-train');setBusy(button,true,'Training эхлүүлж байна…');
+  try{
+    const result=await api('/voices/pvc/'+encodeURIComponent(id)+'/train',{method:'POST',body:{}});
+    $('pvc-result').hidden=false;$('pvc-result').textContent='Status: '+(result.status||'training');
+    notice('PVC training эхэллээ. Дараа нь Status шалгана уу.');
+  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+};
+
+$('pvc-status').onclick=async()=>{
+  if(!ensureUser())return;
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Voice ID алга.');
+  try{
+    const result=await api('/voices/pvc/'+encodeURIComponent(id));
+    $('pvc-result').hidden=false;$('pvc-result').textContent='Status: '+result.status;
+    if(result.status==='ready'){notice('PVC бэлэн. Voice Library-д нэмэгдлээ.');await refreshVoices();}
+  }catch(e){notice(e.message);}
 };
 
 function addSpeakerRow(text=''){
@@ -317,6 +382,17 @@ $('stt-form').onsubmit=async event=>{
       (result.edit_error?'\n\nPolish warning: '+result.edit_error:'');
     notice(result.polished?'Монгол transcript засвартайгаар бэлэн боллоо.':'Transcript бэлэн боллоо.');
     loadHistory();loadBilling(true);
+  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+};
+
+$('isolator-form').onsubmit=async event=>{
+  event.preventDefault();if(!ensureUser())return;
+  const button=event.currentTarget.querySelector('button[type=submit]');setBusy(button,true,'Voice цэвэрлэж байна…');
+  try{
+    const result=await api('/tools/voice-isolator',{method:'POST',body:new FormData(event.currentTarget),form:true});
+    $('isolator-result').hidden=false;
+    $('isolator-result').textContent='Voice Isolator бэлэн · '+result.credits_used+' credits · History-оос татаж авна уу.';
+    notice('Шуугиан цэвэрлэсэн voice бэлэн.');loadHistory();loadBilling(true);
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
 };
 
@@ -574,6 +650,45 @@ async function pollWirePayment(orderId){
   };
   tick();
 }
+
+async function loadReception(){
+  if(!ensureUser())return;
+  try{
+    const data=await api('/reception/config');
+    const root=$('reception-tools');root.replaceChildren();
+    data.tools.forEach(tool=>{
+      const card=document.createElement('article');card.className='reception-tool-card';
+      const name=document.createElement('strong');name.textContent=tool.name;
+      const desc=document.createElement('p');desc.textContent=tool.description;
+      const url=document.createElement('code');url.textContent=tool.url;
+      const copy=document.createElement('button');copy.className='secondary';copy.type='button';copy.textContent='URL copy';
+      copy.onclick=async()=>{await navigator.clipboard.writeText(tool.url);notice(tool.name+' URL copy хийлээ.');};
+      card.append(name,desc,url,copy);root.append(card);
+    });
+  }catch(e){notice(e.message);}
+}
+async function loadReceptionEvents(){
+  if(!state.user)return;
+  try{
+    const data=await api('/reception/events'),root=$('reception-events');root.replaceChildren();
+    if(!data.items.length){root.innerHTML='<div class="empty">Reception.ai activity хараахан алга.</div>';return;}
+    data.items.forEach(item=>{
+      const row=document.createElement('div');row.className='ledger-row';
+      const left=document.createElement('div');const title=document.createElement('strong');title.textContent=item.tool_name;
+      const meta=document.createElement('small');meta.textContent=new Date(item.created*1000).toLocaleString('mn-MN');
+      const payload=document.createElement('span');payload.textContent=JSON.stringify(item.payload);payload.className='reception-payload';
+      left.append(title,meta,payload);row.append(left);root.append(row);
+    });
+  }catch(e){notice(e.message);}
+}
+$('reception-load').onclick=loadReception;
+$('reception-refresh').onclick=loadReceptionEvents;
+$('reception-rotate').onclick=async()=>{
+  if(!ensureUser())return;
+  if(!confirm('Reception.ai webhook token солих уу? Хуучин URL-ууд шууд хүчингүй болно.'))return;
+  try{await api('/reception/rotate-token',{method:'POST',body:{}});await loadReception();notice('Reception.ai token шинэчлэгдлээ.');}
+  catch(e){notice(e.message);}
+};
 
 async function loadAnalytics(){
   if(!state.user){$('analytics-content').innerHTML='<div class="empty">Analytics харахын тулд нэвтэрнэ үү.</div>';return;}
