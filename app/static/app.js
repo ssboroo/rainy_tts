@@ -1,7 +1,7 @@
 'use strict';
 
 const $=id=>document.getElementById(id);
-const state={user:null,health:null,voices:[],page:'tts',mode:'text',register:false,rt:null,realtimeText:''};
+const state={user:null,health:null,voices:[],page:'tts',mode:'text',register:false,rt:null,realtimeText:'',billing:null};
 let noticeTimer;
 
 function notice(message){
@@ -60,7 +60,7 @@ const pageMeta={
   tts:['01','Create / Text to Speech'],clone:['02','Create / Voice Clone'],dialogue:['03','Create / Podcast & Dialogue'],
   music:['04','Create / Music'],sfx:['05','Create / Sound Effects'],stt:['06','Audio / Speech to Text'],
   realtime:['07','Audio / Realtime STT'],changer:['08','Audio / Voice Changer'],dubbing:['09','Video / Dubbing'],
-  voices:['10','Library / Voices'],analytics:['11','Library / Analytics'],history:['12','Library / History']
+  voices:['10','Library / Voices'],billing:['11','Account / Subscription'],analytics:['12','Library / Analytics'],history:['13','Library / History']
 };
 
 function page(name){
@@ -70,6 +70,7 @@ function page(name){
   $('breadcrumb').textContent=pageMeta[name][1];
   document.querySelector('.route-index').textContent=pageMeta[name][0];
   if(name==='voices'){refreshVoices(true);loadProviderStatus();}
+  if(name==='billing') loadBilling();
   if(name==='analytics') loadAnalytics();
   if(name==='history') loadHistory();
   window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
@@ -81,6 +82,7 @@ function renderAccount(){
   $('logout').hidden=!state.user;
   $('register').hidden=!!state.user||!state.health?.registration_open;
   $('auth-toggle').hidden=!state.health?.registration_open;
+  $('credit-chip').hidden=!state.user;
 }
 
 function openAuth(registerMode=false){
@@ -117,6 +119,7 @@ $('auth-form').onsubmit=async event=>{
     $('auth-dialog').close();
     renderAccount();
     await refreshVoices();
+    await loadBilling(true);
     if(state.page==='voices')await loadProviderStatus();
     notice('RAINY Studio бэлэн.');
   }catch(e){$('auth-error').textContent=e.message;}
@@ -126,9 +129,10 @@ $('auth-form').onsubmit=async event=>{
 $('logout').onclick=async()=>{
   try{
     await api('/logout',{method:'POST',body:{}});
-    state.user=null;renderAccount();await refreshVoices();notice('Системээс гарлаа.');
+    state.user=null;state.billing=null;renderAccount();$('credit-chip').hidden=true;await refreshVoices();notice('Системээс гарлаа.');
   }catch(e){notice(e.message);}
 };
+$('credit-chip').onclick=()=>page('billing');
 
 function setTheme(theme){
   document.documentElement.dataset.theme=theme;
@@ -448,6 +452,108 @@ $('sync-voices').onclick=async()=>{
   finally{button.disabled=false;button.textContent='Optional sync ↻';}
 };
 
+function formatMnt(value){return '₮'+Number(value||0).toLocaleString('en-US');}
+function formatCycle(ts){return ts?new Date(Number(ts)*1000).toLocaleDateString('mn-MN'):'—';}
+
+function renderPlans(plans,wireConfigured){
+  const root=$('plan-grid');root.replaceChildren();
+  plans.filter(plan=>plan.id!=='trial').forEach(plan=>{
+    const card=document.createElement('article');card.className='plan-card';
+    const top=document.createElement('div');top.className='plan-card-top';
+    const name=document.createElement('strong');name.textContent=plan.name;
+    const price=document.createElement('span');price.textContent=formatMnt(plan.price_mnt)+'/сар';
+    top.append(name,price);
+    const credits=document.createElement('h3');credits.textContent=Number(plan.monthly_credits).toLocaleString('en-US')+' credits';
+    const desc=document.createElement('p');desc.textContent=plan.description||'';
+    const button=document.createElement('button');button.className='generate plan-buy';button.type='button';
+    button.innerHTML='<span>Wire.mn-ээр авах</span><span>↗</span>';
+    button.disabled=!wireConfigured;
+    button.onclick=()=>buyPlan(plan.id,button);
+    card.append(top,credits,desc,button);root.append(card);
+  });
+}
+
+function renderLedger(items){
+  const root=$('credit-ledger');root.replaceChildren();
+  if(!items?.length){root.innerHTML='<div class="empty">Credit хөдөлгөөн хараахан алга.</div>';return;}
+  items.forEach(item=>{
+    const row=document.createElement('div');row.className='ledger-row';
+    const left=document.createElement('div');
+    const title=document.createElement('strong');
+    title.textContent=(item.tool_type||item.kind||'credit').replaceAll('_',' ');
+    const meta=document.createElement('small');meta.textContent=new Date(item.created*1000).toLocaleString('mn-MN');
+    left.append(title,meta);
+    const delta=document.createElement('b');delta.className=Number(item.delta)>=0?'credit-plus':'credit-minus';
+    delta.textContent=(Number(item.delta)>=0?'+':'')+Number(item.delta).toLocaleString('en-US');
+    const balance=document.createElement('span');balance.textContent='→ '+Number(item.balance_after).toLocaleString('en-US');
+    const right=document.createElement('div');right.className='ledger-amount';right.append(delta,balance);
+    row.append(left,right);root.append(row);
+  });
+}
+
+async function loadBilling(silent=false){
+  try{
+    const catalog=await api('/billing/plans');
+    if(!state.user){
+      state.billing={plans:catalog.plans,wire_configured:catalog.wire_configured};
+      $('billing-plan').textContent='Нэвтэрнэ үү';
+      $('billing-balance').textContent='0';
+      $('billing-cycle').textContent='Subscription авахын тулд нэвтэрнэ үү.';
+      renderPlans(catalog.plans,catalog.wire_configured);
+      renderLedger([]);
+      return;
+    }
+    const account=await api('/billing/me');
+    state.billing={...account,plans:catalog.plans,wire_configured:catalog.wire_configured};
+    const wallet=account.wallet||{},sub=account.subscription||{};
+    $('billing-plan').textContent=(sub.plan_id||'trial').toUpperCase();
+    $('billing-balance').textContent=Number(wallet.balance||0).toLocaleString('en-US');
+    $('billing-cycle').textContent='Дуусах: '+formatCycle(sub.cycle_end);
+    $('credit-chip').textContent=Number(wallet.balance||0).toLocaleString('en-US')+' credits';
+    $('credit-chip').hidden=false;
+    renderPlans(catalog.plans,catalog.wire_configured);
+    renderLedger(account.ledger||[]);
+    if(!catalog.wire_configured&&!silent)notice('Wire.mn API key тохируулаагүй байна.');
+  }catch(e){if(!silent)notice(e.message);}
+}
+
+async function buyPlan(planId,button){
+  if(!ensureUser())return;
+  setBusy(button,true,'Wire checkout…');
+  try{
+    const data=await api('/billing/wire/create',{method:'POST',body:{plan_id:planId}});
+    $('payment-status').hidden=false;
+    $('payment-status').textContent=formatMnt(data.amount_mnt)+' төлбөр хүлээгдэж байна. Wire.mn checkout нээгдлээ.';
+    const popup=window.open(data.pay_url,'_blank','noopener,noreferrer');
+    if(!popup)window.location.href=data.pay_url;
+    pollWirePayment(data.order_id);
+  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+}
+
+async function pollWirePayment(orderId){
+  let tries=0;
+  const tick=async()=>{
+    if(++tries>120)return;
+    try{
+      const data=await api('/billing/wire/status/'+encodeURIComponent(orderId));
+      $('payment-status').hidden=false;
+      if(data.status==='paid'){
+        $('payment-status').textContent='Төлбөр баталгаажлаа. Subscription болон credit идэвхжлээ.';
+        notice('Төлбөр амжилттай. Credit нэмэгдлээ.');
+        await loadBilling(true);
+        return;
+      }
+      if(data.status==='failed'||data.status==='expired'){
+        $('payment-status').textContent='Төлбөр '+data.status+'. Дахин checkout үүсгэнэ үү.';
+        return;
+      }
+      $('payment-status').textContent='Wire.mn төлбөр хүлээгдэж байна…';
+    }catch(e){$('payment-status').textContent=e.message;return;}
+    setTimeout(tick,3000);
+  };
+  tick();
+}
+
 async function loadAnalytics(){
   if(!state.user){$('analytics-content').innerHTML='<div class="empty">Analytics харахын тулд нэвтэрнэ үү.</div>';return;}
   $('analytics-content').innerHTML='<div class="empty">Уншиж байна…</div>';
@@ -509,8 +615,15 @@ async function init(){
     state.health=health;state.user=meData.user;renderAccount();
   }catch(e){notice(e.message);}
   await refreshVoices();
+  await loadBilling(true);
   if(!$('dialogue-rows').children.length){addSpeakerRow('Сайн байна уу. Өнөөдрийн RAINY podcast эхэлж байна.');addSpeakerRow('Сайн байна уу. Ярилцлагад оролцож байгаадаа баяртай байна.');}
   updateCounter();
+  const params=new URLSearchParams(location.search);
+  if(params.get('payment')==='success'&&params.get('order')){
+    page('billing');
+    pollWirePayment(params.get('order'));
+    history.replaceState({},'',location.pathname);
+  }
 }
 init();
 
