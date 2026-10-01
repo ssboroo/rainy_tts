@@ -169,17 +169,39 @@ class APITests(unittest.TestCase):
         sfx_mock.assert_awaited_once_with('cinematic impact',5.0,True,.6)
 
     def test_stt_voice_changer_and_realtime_token(self):
-        transcript={'language_code':'mn','language_probability':.99,'text':'Сайн байна уу','words':[{'text':'Сайн','type':'word','start':0,'end':.4},{'text':' ','type':'spacing','start':.4,'end':.4},{'text':'байна','type':'word','start':.4,'end':.8},{'text':' ','type':'spacing','start':.8,'end':.8},{'text':'уу','type':'word','start':.8,'end':1.0}]}
-        with patch.object(server.tools,'speech_to_text',new=AsyncMock(return_value=transcript)):
-            response=self.client.post('/api/tools/stt',data={'language_code':'mn'},files={'file':('voice.wav',wav_bytes(),'audio/wav')},headers=self.headers)
+        transcript={
+            'language_code':'mn','language_probability':.99,
+            'text':'Сайн байн уу RAINY',
+            'edited_transcript':{'kind':'transcript','text':'Сайн байна уу, RAINY.'},
+            'words':[{'text':'Сайн','type':'word','start':0,'end':.4},{'text':' ','type':'spacing','start':.4,'end':.4},{'text':'байн','type':'word','start':.4,'end':.8},{'text':' ','type':'spacing','start':.8,'end':.8},{'text':'уу','type':'word','start':.8,'end':1.0},{'text':' ','type':'spacing','start':1.0,'end':1.0},{'text':'RAINY','type':'word','start':1.0,'end':1.4}]
+        }
+        stt_mock=AsyncMock(return_value=transcript)
+        with patch.object(server.tools,'speech_to_text',new=stt_mock):
+            response=self.client.post(
+                '/api/tools/stt',
+                data={'language_code':'mn','keyterms':'RAINY, ElevenLabs','polish':'true','no_verbatim':'true','diarize':'false','num_speakers':'1'},
+                files={'file':('voice.wav',wav_bytes(),'audio/wav')},
+                headers=self.headers
+            )
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(response.json()['text'],'Сайн байна уу')
+        self.assertEqual(response.json()['text'],'Сайн байна уу, RAINY.')
+        self.assertEqual(response.json()['raw_text'],'Сайн байн уу RAINY')
+        self.assertTrue(response.json()['polished'])
+        self.assertEqual(response.json()['keyterms_used'],2)
+        args=stt_mock.await_args.args
+        self.assertEqual(args[1],'mn')
+        self.assertEqual(args[2],['RAINY','ElevenLabs'])
+        self.assertEqual(args[3:],(True,False,1,True))
         job_id=response.json()['job_id']
         history=self.client.get('/api/history').json()['items']
         stt_item=next(item for item in history if item['id']==job_id)
+        names={art['filename'] for art in stt_item['artifacts']}
+        self.assertIn('transcript.txt',names)
+        self.assertIn('transcript-raw.txt',names)
+        self.assertIn('transcript.srt',names)
         srt_artifact=next(art for art in stt_item['artifacts'] if art['filename']=='transcript.srt')
         srt_response=self.client.get(srt_artifact['url'])
-        self.assertIn('Сайн байна уу',srt_response.text)
+        self.assertIn('Сайн байн уу RAINY',srt_response.text)
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
         changer_mock=AsyncMock(return_value=b'ID3changed')
         with patch.object(server.tools,'voice_changer',new=changer_mock):
@@ -195,6 +217,15 @@ class APITests(unittest.TestCase):
         realtime=[item for item in history if item['tool_type']=='realtime_stt']
         self.assertTrue(realtime)
         self.assertTrue(realtime[0]['artifacts'])
+
+    def test_stt_rejects_unsafe_or_too_many_keyterms(self):
+        response=self.client.post(
+            '/api/tools/stt',
+            data={'language_code':'mn','keyterms':'bad<term>','polish':'true'},
+            files={'file':('voice.wav',wav_bytes(),'audio/wav')},
+            headers=self.headers
+        )
+        self.assertEqual(response.status_code,422,response.text)
 
     def test_dubbing_create_and_completed_output(self):
         create={'project_id':'proj_test','status':'queued','language_ids':['lang_test']}
