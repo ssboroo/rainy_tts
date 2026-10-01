@@ -421,7 +421,7 @@ def logout(request:Request):
 @app.get("/api/billing/plans")
 def billing_plans():
     return {
-        "plans":billing.plan_catalog(),
+        "plans":billing.public_plan_catalog(),
         "rates":billing.RATES,
         "wire_configured":wire_payment.configured(),
         "margin_protected":True,
@@ -442,6 +442,8 @@ async def billing_wire_create(request:Request):
     plan=billing.get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise HTTPException(422,"Subscription plan буруу байна.")
+    if not plan.get("profit_safe",False):
+        raise HTTPException(503,"Энэ plan-ийн үнэ өртгийн хамгаалалтын доод босгыг хангахгүй байна.")
     account=billing.wallet(sess["user_id"])
     current=account.get("subscription") or {}
     current_plan=billing.get_plan(current.get("plan_id"))
@@ -827,11 +829,17 @@ def get_tts_job(job_id:str,request:Request):
 @app.delete("/api/jobs/{job_id}")
 def delete_tts_job(job_id:str,request:Request):
     sess=session(request); mutation_guard(request,sess)
-    with core.db() as c:
-        row=c.execute("SELECT * FROM jobs WHERE id=? AND user_id=?",(job_id,sess["user_id"])).fetchone()
+    with core.db() as db:
+        row=db.execute("SELECT * FROM jobs WHERE id=? AND user_id=?",(job_id,sess["user_id"])).fetchone()
         if not row: raise HTTPException(404,"Бүтээл олдсонгүй.")
         if row["status"]=="running": raise HTTPException(409,"Ажил дууссаны дараа устгана уу.")
-        c.execute("DELETE FROM jobs WHERE id=?",(job_id,))
+        try:
+            payload=json.loads(row["payload"] or "{}")
+        except Exception:
+            payload={}
+        if row["status"]=="queued":
+            billing.refund(sess["user_id"],(payload.get("billing") or {}).get("charge_id"),"job_cancelled")
+        db.execute("DELETE FROM jobs WHERE id=?",(job_id,))
     for ext in ("wav","mp3"):
         (core.DATA/"outputs"/f"{job_id}.{ext}").unlink(missing_ok=True)
     return {"ok":True}
