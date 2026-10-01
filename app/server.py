@@ -971,13 +971,14 @@ async def voice_changer(
     if voice_id not in allowed_voice_ids(sess["user_id"]):
         raise HTTPException(422,"Target voice буруу байна.")
     duration=await upload_duration_seconds(file)
+    multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
     title="Voice Changer"
     return await run_binary_tool(
         request,sess,"voice_changer",title,
         lambda:tools.voice_changer(file,voice_id,remove_background_noise),
         "rainy-voice-changer.mp3","audio/mpeg",
-        {"voice_id":voice_id,"source":file.filename,"duration_seconds":duration},
-        billing.estimate("voice_changer",seconds=duration)
+        {"voice_id":voice_id,"source":file.filename,"duration_seconds":duration,"voice_multiplier":multiplier},
+        max(1,math.ceil(billing.estimate("voice_changer",seconds=duration)*multiplier))
     )
 
 @app.post("/api/tools/realtime-token")
