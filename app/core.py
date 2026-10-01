@@ -127,6 +127,44 @@ def init():
             payment_intent_id TEXT,
             created REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS pvc_voices(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            language TEXT NOT NULL DEFAULT 'mn',
+            status TEXT NOT NULL DEFAULT 'draft',
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created REAL NOT NULL,
+            updated REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS pvc_voices_user ON pvc_voices(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS provider_usage(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            job_id TEXT,
+            product TEXT NOT NULL,
+            provider_cost REAL,
+            request_id TEXT,
+            trace_id TEXT,
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS provider_usage_user ON provider_usage(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS reception_integrations(
+            user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            token TEXT UNIQUE NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1,
+            created REAL NOT NULL,
+            updated REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS reception_events(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            tool_name TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            created REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS reception_events_user ON reception_events(user_id,created DESC);
         ''')
 
 def uid():
@@ -230,6 +268,14 @@ def add_artifact(job_id, user_id, kind, filename, mime, path):
             (artifact_id,job_id,user_id,kind,filename,mime,str(path),time.time())
         )
     return artifact_id
+
+
+def add_provider_usage(user_id, job_id, product, provider_cost=None, request_id=None, trace_id=None, metadata=None):
+    with db() as c:
+        c.execute(
+            'INSERT INTO provider_usage(id,user_id,job_id,product,provider_cost,request_id,trace_id,metadata,created) VALUES(?,?,?,?,?,?,?,?,?)',
+            (uid(),user_id,job_id,product,provider_cost,request_id,trace_id,json.dumps(metadata or {},ensure_ascii=False),time.time())
+        )
 
 def public_tool_job(row):
     data={k:row[k] for k in ('id','tool_type','title','status','error','created','updated')}
