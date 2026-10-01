@@ -66,7 +66,7 @@ class BillingUnitTests(unittest.TestCase):
                 modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
                 self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-            expected={"starter":1900,"creator":5100,"pro":12600,"studio":25500,"agency":52300}
+            expected={"starter":3000,"creator":6200,"pro":13700,"studio":26600,"agency":52300}
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
 
@@ -193,7 +193,7 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(billing.wallet(user)["wallet"]["balance"],after_charge+80)
 
     def test_wire_checkout_then_status_activates_plan(self):
-        intent={"id":"pi_test","status":"requires_payment_method","amount":29900,"currency":"MNT"}
+        intent={"id":"pi_test","status":"requires_payment_method","amount":39900,"currency":"MNT"}
         checkout={"id":"cs_test","url":"https://pay.wire.mn/test"}
         with patch.object(server.wire_payment,"configured",return_value=True), \
              patch.object(server.wire_payment,"create_payment_intent",new=AsyncMock(return_value=intent)), \
@@ -201,7 +201,7 @@ class BillingApiTests(unittest.TestCase):
             created=self.client.post("/api/billing/wire/create",json={"plan_id":"starter"},headers=self.headers)
         self.assertEqual(created.status_code,200,created.text)
         data=created.json()
-        self.assertEqual(data["amount_mnt"],29900)
+        self.assertEqual(data["amount_mnt"],39900)
         self.assertEqual(data["pay_url"],"https://pay.wire.mn/test")
 
         paid={"id":"pi_test","status":"succeeded","amount":29900,"currency":"MNT"}
@@ -235,7 +235,7 @@ class BillingApiTests(unittest.TestCase):
         bad=self.client.post("/api/billing/wire/webhook",content=body,headers={"WirePayment-Signature":"bad"})
         self.assertEqual(bad.status_code,401,bad.text)
 
-        provider={"id":"pi_webhook","status":"succeeded","amount":59900,"currency":"MNT"}
+        provider={"id":"pi_webhook","status":"succeeded","amount":69900,"currency":"MNT"}
         with patch.dict(os.environ,{"WIRE_MN_WEBHOOK_SECRET":secret},clear=False), \
              patch.object(server.wire_payment,"retrieve_payment_intent",new=AsyncMock(return_value=provider)):
             first=self.client.post("/api/billing/wire/webhook",content=body,headers={"WirePayment-Signature":sig})
