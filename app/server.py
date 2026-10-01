@@ -793,9 +793,10 @@ async def create_tts(request:Request):
         active=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
     if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
     job_id=core.uid()
-    credits=billing.estimate("tts",chars=count)
-    charge_id=charge(sess["user_id"],credits,"tts",job_id,{"characters":count})
-    payload["billing"]={"credits":credits,"charge_id":charge_id}
+    multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
+    credits=max(1,math.ceil(billing.estimate("tts",chars=count)*multiplier))
+    charge_id=charge(sess["user_id"],credits,"tts",job_id,{"characters":count,"voice_multiplier":multiplier})
+    payload["billing"]={"credits":credits,"charge_id":charge_id,"voice_multiplier":multiplier}
     try:
         with core.db() as db:
             db.execute(
