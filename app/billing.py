@@ -15,26 +15,67 @@ CREDIT_USD = 0.001
 
 PLANS = {
     "trial": {
-        "id":"trial","name":"Trial","price_mnt":0,"monthly_credits":300,
-        "description":"Туршилтын 300 credit","sort":0,
+        "id":"trial","name":"Trial","price_mnt":0,
+        "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":29900,"monthly_credits":4000,
-        "description":"Хөнгөн хэрэглээ","sort":1,
+        "id":"starter","name":"Starter","price_mnt":29900,
+        "description":"Хөнгөн хэрэглээ · 1 clone slot","sort":1,
     },
     "creator": {
-        "id":"creator","name":"Creator","price_mnt":59900,"monthly_credits":10000,
-        "description":"Контент бүтээгчид","sort":2,
+        "id":"creator","name":"Creator","price_mnt":59900,
+        "description":"Контент бүтээгч · 2 clone slot","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":129900,"monthly_credits":25000,
-        "description":"Өдөр тутмын идэвхтэй хэрэглээ","sort":3,
+        "id":"pro","name":"Pro","price_mnt":129900,
+        "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":249900,"monthly_credits":45000,
-        "description":"Баг, студи, агентлаг","sort":4,
+        "id":"studio","name":"Studio","price_mnt":249900,
+        "description":"Баг, студи · 10 clone slot","sort":4,
     },
 }
+
+PLAN_ENTITLEMENTS = {
+    "trial":{"clone_limit":0},
+    "starter":{"clone_limit":1},
+    "creator":{"clone_limit":2},
+    "pro":{"clone_limit":5},
+    "studio":{"clone_limit":10},
+}
+
+def pricing_settings():
+    fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
+    markup=max(2.0,float(os.getenv("BILLING_TARGET_MARKUP","2.0")))
+    payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
+    overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
+    fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
+    return {
+        "usd_mnt_rate":fx,
+        "target_markup":markup,
+        "payment_fee":payment_fee,
+        "overhead_reserve":overhead,
+        "fx_buffer":fx_buffer,
+    }
+
+def safe_monthly_credits(price_mnt):
+    settings=pricing_settings()
+    usable=float(price_mnt)*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    upstream_mnt_per_credit=CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+    max_credits=usable/(upstream_mnt_per_credit*settings["target_markup"])
+    return max(0,int(max_credits//100)*100)
+
+def get_plan(plan_id):
+    base=PLANS.get(plan_id)
+    if not base:
+        return None
+    plan=base.copy()
+    if plan_id=="trial":
+        plan["monthly_credits"]=max(0,int(os.getenv("BILLING_TRIAL_CREDITS","0")))
+    else:
+        plan["monthly_credits"]=safe_monthly_credits(plan["price_mnt"])
+    plan.update(PLAN_ENTITLEMENTS.get(plan_id,{}))
+    return plan
 
 # Integer RAINY credits. Rates mirror public ElevenAPI API pricing,
 # plus a platform fee for scarce custom-voice slots.
@@ -54,7 +95,7 @@ def billing_enabled():
     return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
 
 def plan_catalog():
-    return [PLANS[key].copy() for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
+    return [get_plan(key) for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
 
 def estimate(tool_type, *, chars=0, seconds=0, duration_known=True):
     chars=max(0,int(chars or 0))
@@ -87,7 +128,7 @@ def ensure_wallet(user_id, trial=True):
         row=c.execute("SELECT * FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
         if row:
             return dict(row)
-        starting=PLANS["trial"]["monthly_credits"] if trial else 0
+        starting=get_plan("trial")["monthly_credits"] if trial else 0
         c.execute(
             "INSERT INTO credit_wallets(user_id,balance,lifetime_in,lifetime_out,updated) VALUES(?,?,?,?,?)",
             (user_id,starting,starting,0,now)
@@ -205,7 +246,7 @@ def grant(user_id, credits, kind="admin_grant", reference=None, metadata=None):
     return ledger_id
 
 def _activate_plan_tx(c, user_id, plan_id, order_id=None, now=None):
-    plan=PLANS.get(plan_id)
+    plan=get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Paid plan буруу байна.")
     now=time.time() if now is None else now
@@ -243,7 +284,7 @@ def activate_plan(user_id, plan_id, order_id=None):
     return plan.copy()
 
 def create_order(user_id, plan_id, provider="manual"):
-    plan=PLANS.get(plan_id)
+    plan=get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Plan буруу байна.")
     order_id=core.uid()
