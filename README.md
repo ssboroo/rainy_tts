@@ -45,7 +45,7 @@ python -m venv .venv
 # .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env`:
+Copy `.env.example` to `.env`, or keep local secrets in `.env.local`. RAINY loads `.env.local` first and then `.env`:
 
 ```env
 PUBLIC_ORIGIN=http://localhost:8080
@@ -54,6 +54,7 @@ ALLOW_REGISTRATION=true
 ELEVENLABS_API_KEY=your_server_side_key
 ELEVENLABS_VOICES_JSON=
 ELEVENLABS_LANGUAGE_CODE=mn
+ELEVENLABS_TTS_MODEL=eleven_v4
 MAX_AUDIO_UPLOAD_MB=100
 MAX_DUB_UPLOAD_MB=500
 ```
@@ -134,3 +135,18 @@ ALLOW_REGISTRATION=true
 ```
 
 If registration is intentionally closed, keep `ALLOW_REGISTRATION=false`.
+
+
+## Direct ElevenLabs smoke test
+
+To verify the API key and a configured voice independently from the web UI and worker:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\test-elevenlabs.py
+```
+
+This writes `elevenlabs-test.mp3` using the first RAINY Mongolian voice ID and `eleven_v4`.
+
+For Mongolian generation, do not switch the default to `eleven_multilingual_v2`. ElevenLabs currently documents Multilingual v2 as a 29-language model that does not include Mongolian, and its Text-to-Speech API notes that `language_code` is ignored for Multilingual v2. RAINY therefore uses `eleven_v4` with `language_code=mn`.
+
+The built-in voice IDs are passed directly to the ElevenLabs SDK. The Voice Library sync control is optional and is only a fallback for accounts that require saving a shared voice into the workspace.
