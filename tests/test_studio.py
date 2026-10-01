@@ -98,13 +98,15 @@ class APITests(unittest.TestCase):
     def test_tts_queue_and_history(self):
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
         with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')):
-            response=self.client.post('/api/jobs',json={'text':'RAINY Voice 2026 сайн байна.','voice_id':voice,'speed':1},headers=self.headers)
+            response=self.client.post('/api/jobs',json={'text':'RAINY Voice 2026 сайн байна.','voice_id':voice,'model_id':'eleven_v4_turbo','speed':1},headers=self.headers)
         self.assertEqual(response.status_code,202,response.text)
         job_id=response.json()['id']
         with core.db() as db:
             row=db.execute('SELECT voice_id,payload FROM jobs WHERE id=?',(job_id,)).fetchone()
         self.assertEqual(row['voice_id'],voice)
-        self.assertNotIn('provider_voice_id',json.loads(row['payload']))
+        payload=json.loads(row['payload'])
+        self.assertNotIn('provider_voice_id',payload)
+        self.assertEqual(payload['model_id'],'eleven_v4_turbo')
         self.assertEqual(self.client.get('/api/jobs').status_code,200)
         history=self.client.get('/api/history').json()['items']
         self.assertEqual(history[0]['id'],job_id)
@@ -228,6 +230,72 @@ class APITests(unittest.TestCase):
         )
         self.assertEqual(response.status_code,422,response.text)
 
+    def test_voice_isolator(self):
+        isolator=AsyncMock(return_value=(b'ID3clean',{'request_id':'req-1','trace_id':'trace-1'}))
+        with patch.object(server.tools,'voice_isolator',new=isolator):
+            response=self.client.post(
+                '/api/tools/voice-isolator',
+                files={'file':('voice.wav',wav_bytes(2),'audio/wav')},
+                headers=self.headers
+            )
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['provider_usage']['request_id'],'req-1')
+        history=self.client.get('/api/history').json()['items']
+        self.assertTrue(any(x['tool_type']=='voice_isolator' for x in history))
+
+    def test_professional_voice_clone_flow(self):
+        create=AsyncMock(return_value={'voice_id':'pvc-test'})
+        samples=AsyncMock(return_value=[{'sample_id':'s1','duration_secs':30}])
+        with patch.object(server.billing,'billing_enabled',return_value=False), \
+             patch.object(server.tools,'pvc_create',new=create), \
+             patch.object(server.tools,'pvc_add_samples',new=samples):
+            response=self.client.post(
+                '/api/voices/pvc',
+                data={'name':'My PVC','description':'Mongolian professional voice','language':'mn','ownership':'true','remove_background_noise':'false'},
+                files=[('files',('sample.wav',wav_bytes(2),'audio/wav'))],
+                headers=self.headers
+            )
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['voice_id'],'pvc-test')
+        captcha=AsyncMock(return_value={'captcha':'base64-image'})
+        with patch.object(server.tools,'pvc_get_captcha',new=captcha):
+            response=self.client.get('/api/voices/pvc/pvc-test/captcha')
+        self.assertEqual(response.status_code,200,response.text)
+        verify=AsyncMock(return_value={'status':'ok'})
+        with patch.object(server.tools,'pvc_verify_captcha',new=verify):
+            response=self.client.post(
+                '/api/voices/pvc/pvc-test/captcha',
+                files={'recording':('verify.wav',wav_bytes(),'audio/wav')},
+                headers=self.headers
+            )
+        self.assertEqual(response.status_code,200,response.text)
+        train=AsyncMock(return_value={'status':'ok'})
+        with patch.object(server.tools,'pvc_train',new=train):
+            response=self.client.post('/api/voices/pvc/pvc-test/train',json={},headers=self.headers)
+        self.assertEqual(response.status_code,200,response.text)
+        ready={
+            'voice_id':'pvc-test','name':'My PVC',
+            'voice_verification':{'is_verified':True},
+            'fine_tuning':{'state':{'eleven_v4':'fine_tuned'}}
+        }
+        with patch.object(server.tools,'pvc_status',new=AsyncMock(return_value=ready)):
+            response=self.client.get('/api/voices/pvc/pvc-test')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['status'],'ready')
+        voices=self.client.get('/api/voices').json()['voices']
+        self.assertTrue(any(v['id']=='pvc-test' for v in voices))
+
+    def test_reception_ai_webhook_flow(self):
+        config=self.client.get('/api/reception/config')
+        self.assertEqual(config.status_code,200,config.text)
+        tool=next(x for x in config.json()['tools'] if x['name']=='create_lead')
+        path=tool['url'].split('http://testserver')[-1]
+        response=self.client.post(path,json={'name':'Bataa','phone':'99112233','interest':'booking'})
+        self.assertEqual(response.status_code,200,response.text)
+        events=self.client.get('/api/reception/events')
+        self.assertEqual(events.status_code,200,events.text)
+        self.assertTrue(any(x['tool_name']=='create_lead' for x in events.json()['items']))
+
     def test_dubbing_create_and_completed_output(self):
         create={'project_id':'proj_test','status':'queued','language_ids':['lang_test']}
         with patch.object(server.tools,'create_dubbing',new=AsyncMock(return_value=create)):
@@ -302,10 +370,13 @@ class AudioTests(unittest.TestCase):
             catalog=json.dumps([{'id':'voice-123','name':'Test Voice'}])
             with patch.dict(os.environ, {'ELEVENLABS_API_KEY':'test-key','ELEVENLABS_VOICES_JSON':catalog,'ELEVENLABS_LANGUAGE_CODE':'mn'}, clear=False):
                 with patch('app.engine.ElevenLabs') as client_cls:
-                    convert=client_cls.return_value.text_to_speech.convert
-                    convert.return_value=[pcm]
+                    convert=client_cls.return_value.text_to_speech.with_raw_response.convert
+                    raw=MagicMock()
+                    raw.data=[pcm]
+                    raw.headers={'character-cost':'14','request-id':'req-tts','x-trace-id':'trace-tts'}
+                    convert.return_value=raw
                     engine=ElevenLabsEngine()
-                    engine.synthesize('Сайн байна уу.',output,1.0,'voice-123')
+                    meta=engine.synthesize('Сайн байна уу.',output,1.0,'voice-123')
                     convert.assert_called_once_with(
                         text='Сайн байна уу.',
                         voice_id='voice-123',
@@ -313,6 +384,8 @@ class AudioTests(unittest.TestCase):
                         output_format='pcm_24000',
                         language_code='mn',
                     )
+                    self.assertEqual(meta['character_cost'],'14')
+                    self.assertEqual(meta['request_id'],'req-tts')
             with wave.open(str(output)) as audio:
                 self.assertEqual(audio.getframerate(),24000)
 
@@ -346,7 +419,7 @@ class AudioTests(unittest.TestCase):
                     c.execute('INSERT INTO users VALUES(?,?,?,?)',('u','worker@example.com','unused',time.time()))
                     c.execute('INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)',('j','u','voice-worker','Test',json.dumps({'text':'Сайн байна уу.','speed':1}),'running',time.time()))
                     job=c.execute('SELECT * FROM jobs WHERE id=?',('j',)).fetchone()
-                def synth(text,output,speed,voice_id,trusted_voice=False):output.write_bytes(wav_bytes())
+                def synth(text,output,speed,voice_id,trusted_voice=False,model_id=None):output.write_bytes(wav_bytes());return {'model_id':model_id}
                 catalog=json.dumps([{'id':'voice-worker','name':'Worker Voice'}])
                 with patch.dict(os.environ, {'ELEVENLABS_VOICES_JSON':catalog}, clear=False), patch.object(worker.engine,'synthesize',side_effect=synth):
                     worker.run_job(job)
