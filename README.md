@@ -4,17 +4,20 @@ RAINY is a Mongolian-first creative audio studio built on ElevenLabs APIs.
 
 ## Tools
 
-- **Text to Speech** — Eleven v4, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3.
-- **Voice Clone** — Instant Voice Clone from 1–10 consented audio samples.
+- **Text to Speech** — Eleven v4 or v4 Turbo, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3, provider request/cost metadata.
+- **Instant Voice Clone** — from 1–10 consented audio samples.
+- **Professional Voice Clone (PVC)** — Mongolian PVC draft, samples, ownership CAPTCHA verification, training and readiness tracking.
 - **Podcast / Dialogue** — multi-speaker Text to Dialogue with up to 10 unique voices per generation.
 - **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 10 minutes.
 - **Sound Effects** — Sound Effects v2 with duration, seamless loop and prompt-influence controls.
 - **Speech to Text** — Scribe v2 batch transcription with TXT, JSON and SRT artifacts.
 - **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token, with transcript save to History.
-- **Voice Changer** — uploaded speech transformed to a selected ElevenLabs voice.
+- **Voice Isolator** — remove background noise/ambience from uploaded audio or video.
+- **Voice Changer** — uploaded speech transformed to a selected ElevenLabs voice; Mongolian source speech remains experimental because the current STS v2 supported-language list does not include Mongolian.
 - **Dubbing / Movie** — Dubbing v2 from upload or public URL; uploaded video can be muxed with the completed dubbed audio into MP4.
 - **Voice Library** — 12 Mongolian voices plus user-created clones with preview.
 - **Analytics** — ElevenLabs subscription/usage plus local RAINY 30-day usage.
+- **Reception.ai** — per-user webhook URLs for lead capture, messages, quote requests and phone orders.
 - **History** — unified outputs from TTS and every creative tool.
 
 ## Architecture
@@ -238,3 +241,34 @@ RAINY uses Scribe v2 with `language_code=mn` by default. For higher-quality Mong
 Keyterm prompting adds 20% to the upstream STT cost. Transcript editing adds 30% and has a minimum 10-second billable duration. RAINY includes these surcharges in customer credit usage so the margin guard remains intact.
 
 When transcript editing succeeds, `transcript.txt` contains the polished Mongolian text and `transcript-raw.txt` preserves the original Scribe result. SRT timestamps remain based on the original word-aligned transcript.
+
+
+## Reception.ai integration
+
+Open **Business AI → Reception.ai** inside RAINY and click **Integration URL авах**. RAINY creates per-user webhook URLs for:
+
+- `create_lead`
+- `take_message`
+- `request_quote`
+- `create_order`
+
+In Reception.ai open **Integrations → Webhook**, create a POST webhook for each tool, paste the matching RAINY URL, describe when the receptionist should call it, and define the body parameters you want Reception.ai to collect from callers. The URL contains an unguessable per-user token. Rotating the token in RAINY immediately invalidates the old URLs.
+
+Reception.ai remains the system that handles calls, phone numbers, its own scheduling and receptionist configuration. RAINY acts as the connected business-data/tool layer for custom workflows.
+
+## Professional Voice Clone
+
+RAINY's PVC flow is intentionally owner-only:
+
+1. Create a Mongolian PVC draft.
+2. Upload voice samples.
+3. Retrieve the ElevenLabs ownership CAPTCHA.
+4. Record the voice owner reading the CAPTCHA and submit it.
+5. Start training.
+6. Poll status; when verification + fine-tuning are complete, RAINY automatically adds the voice to the user's Voice Library.
+
+ElevenLabs PVC requires an eligible provider plan and only permits Professional Voice Cloning of the user's own voice.
+
+## Provider cost metadata
+
+TTS uses the ElevenLabs raw SDK response and persists the provider `character-cost`, `request-id`, and `x-trace-id` headers with the completed job. Voice Isolator also persists request/trace IDs. These values are available through RAINY analytics/history data for auditing actual upstream requests without exposing the ElevenLabs API key.
