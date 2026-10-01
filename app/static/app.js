@@ -561,14 +561,15 @@ async function loadAnalytics(){
   $('analytics-content').innerHTML='<div class="empty">Уншиж байна…</div>';
   try{
     const data=await api('/analytics');
-    const sub=data.subscription||{},local=data.local_30d||{};
+    const sub=data.subscription||{},wallet=data.wallet||{},local=data.local_30d||{};
     const cards=[
-      ['Plan',sub.tier||'—'],['Characters',sub.character_count!=null?sub.character_count.toLocaleString():'—'],
-      ['Limit',sub.character_limit!=null?sub.character_limit.toLocaleString():'—'],['Voice slots',(sub.voice_slots_used??'—')+' / '+(sub.voice_limit??'—')]
+      ['Plan',(sub.plan_id||'trial').toUpperCase()],
+      ['Credit үлдэгдэл',Number(wallet.balance||0).toLocaleString('en-US')],
+      ['30 хоногт ашигласан',Number(data.credits_spent_30d||0).toLocaleString('en-US')],
+      ['Cycle дуусах',sub.cycle_end?new Date(sub.cycle_end*1000).toLocaleDateString('mn-MN'):'—']
     ];
     $('analytics-content').innerHTML='<div class="metric-grid">'+cards.map(x=>'<article><small>'+escapeHtml(x[0])+'</small><strong>'+escapeHtml(x[1])+'</strong></article>').join('')+'</div>'+
-      '<div class="usage-local"><h3>RAINY · Сүүлийн 30 хоног</h3>'+Object.entries(local).map(([k,v])=>'<span><b>'+escapeHtml(k)+'</b>'+v+'</span>').join('')+'</div>'+
-      (data.eleven_error?'<p class="danger-text">'+escapeHtml(data.eleven_error)+'</p>':'');
+      '<div class="usage-local"><h3>RAINY · Сүүлийн 30 хоног</h3>'+Object.entries(local).map(([k,v])=>'<span><b>'+escapeHtml(k)+'</b>'+v+'</span>').join('')+'</div>';
   }catch(e){$('analytics-content').innerHTML='<div class="empty">'+escapeHtml(e.message)+'</div>';}
 }
 $('analytics-refresh').onclick=loadAnalytics;
