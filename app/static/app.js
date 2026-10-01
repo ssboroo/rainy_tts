@@ -180,7 +180,7 @@ function renderVoiceLibrary(){
     if(voice.builtin){
       const sync=document.createElement('span');
       sync.className='voice-sync-state '+(voice.synced?'ready':'pending');
-      sync.textContent=voice.synced?'Ready':'Sync required';
+      sync.textContent=voice.synced?'Synced':'Direct ID';
       card.append(sync);
     }
     const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
@@ -445,7 +445,7 @@ $('sync-voices').onclick=async()=>{
     await refreshVoices(true);
     await loadProviderStatus();
   }catch(e){notice(e.message);}
-  finally{button.disabled=false;button.textContent='12 voice sync ↻';}
+  finally{button.disabled=false;button.textContent='Optional sync ↻';}
 };
 
 async function loadAnalytics(){
