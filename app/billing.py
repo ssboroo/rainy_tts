@@ -51,7 +51,7 @@ RATES = {
 }
 
 def billing_enabled():
-    return os.getenv("BILLING_ENABLED","true").strip().lower() in {"1","true","yes","on"}
+    return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
 
 def plan_catalog():
     return [PLANS[key].copy() for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
