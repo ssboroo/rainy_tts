@@ -32,19 +32,19 @@ PLANS = {
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":29_900,
+        "id":"starter","name":"Starter","price_mnt":39_900,
         "description":"Эхлэх хэрэглээ · 1 clone slot","sort":1,
     },
     "creator": {
-        "id":"creator","name":"Creator","price_mnt":59_900,
+        "id":"creator","name":"Creator","price_mnt":69_900,
         "description":"Контент бүтээгч · 2 clone slot","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":129_900,
+        "id":"pro","name":"Pro","price_mnt":139_900,
         "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":249_900,
+        "id":"studio","name":"Studio","price_mnt":259_900,
         "description":"Студи, баг · 10 clone slot","sort":4,
     },
     "agency": {
