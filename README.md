@@ -7,7 +7,7 @@ RAINY is a Mongolian-first creative audio studio built on ElevenLabs APIs.
 - **Text to Speech** — Eleven v4, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3.
 - **Voice Clone** — Instant Voice Clone from 1–10 consented audio samples.
 - **Podcast / Dialogue** — multi-speaker Text to Dialogue with up to 10 unique voices per generation.
-- **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 10 minutes.
+- **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 5 minutes.
 - **Sound Effects** — Sound Effects v2 with duration, seamless loop and prompt-influence controls.
 - **Speech to Text** — Scribe v2 batch transcription with TXT, JSON and SRT artifacts.
 - **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token, with transcript save to History.
@@ -150,3 +150,66 @@ This writes `elevenlabs-test.mp3` using the first RAINY Mongolian voice ID and `
 For Mongolian generation, do not switch the default to `eleven_multilingual_v2`. ElevenLabs currently documents Multilingual v2 as a 29-language model that does not include Mongolian, and its Text-to-Speech API notes that `language_code` is ignored for Multilingual v2. RAINY therefore uses `eleven_v4` with `language_code=mn`.
 
 The built-in voice IDs are passed directly to the ElevenLabs SDK. The Voice Library sync control is optional and is only a fallback for accounts that require saving a shared voice into the workspace.
+
+
+## RAINY subscriptions, credits and Wire.mn
+
+RAINY can meter customer usage with its own credits while keeping the ElevenLabs API key private.
+
+Default customer plans are:
+
+| Plan | Price | Protected monthly credits* | Clone slots |
+| --- | ---: | ---: | ---: |
+| Starter | ₮29,900 | ~3,200 | 1 |
+| Creator | ₮59,900 | ~6,400 | 2 |
+| Pro | ₮129,900 | ~13,900 | 5 |
+| Studio | ₮249,900 | ~26,800 | 10 |
+
+\* Credit budgets are calculated at runtime, not hard-coded. With the default guard RAINY reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 2× coverage of modeled upstream API cost. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
+
+Usage rates currently modeled from ElevenAPI public API rates:
+
+- TTS / Dialogue: 100 RAINY credits per 1,000 standard-rate characters.
+- Scribe v2 STT: 220 credits per hour.
+- Realtime STT: 100 credits per 15-minute token window.
+- Music: 150 credits per minute.
+- Voice Changer / Sound Effects: 120 credits per minute.
+- Dubbing v2: 2,200 credits per source minute.
+- Instant Voice Clone: 1,000-credit platform charge plus plan clone-slot limits.
+
+Shared Voice Library voices may have a provider credit multiplier. RAINY requests the current shared-voice `rate`, caches it, and multiplies customer credit usage accordingly. If the provider rate cannot be retrieved, `BILLING_UNKNOWN_VOICE_MULTIPLIER` is used as a conservative fallback.
+
+Fresh registrations receive zero free generation credits by default. Set `BILLING_TRIAL_CREDITS` above zero only when you intentionally want to fund a promotional trial.
+
+Wire.mn payment flow:
+
+1. Customer selects a paid RAINY plan.
+2. Server creates a Wire.mn PaymentIntent with a stable `Idempotency-Key`.
+3. Customer is sent to Wire hosted checkout.
+4. RAINY accepts only a valid signed `WirePayment-Signature` webhook (HMAC-SHA256, 5-minute tolerance), or server-side status polling.
+5. Before activating the subscription RAINY retrieves the PaymentIntent from Wire and verifies **paid status + exact MNT amount + currency**.
+6. Subscription and monthly credits are activated atomically. Duplicate webhook deliveries do not grant credits twice.
+
+Configure:
+
+```env
+BILLING_ENABLED=true
+BILLING_USD_MNT_RATE=3700
+BILLING_TARGET_MARKUP=2.0
+BILLING_PAYMENT_FEE_PERCENT=3
+BILLING_OVERHEAD_RESERVE_PERCENT=10
+BILLING_FX_BUFFER_PERCENT=10
+BILLING_UNKNOWN_VOICE_MULTIPLIER=2.0
+BILLING_TRIAL_CREDITS=0
+
+WIRE_MN_API_URL=https://api.wire.mn/v1
+WIRE_MN_API_KEY=
+WIRE_MN_WEBHOOK_SECRET=
+WIRE_MN_ALLOWED_OPERATORS=sandbox
+```
+
+For live Wire keys, do not keep `sandbox` in `WIRE_MN_ALLOWED_OPERATORS`. Use connected live operator IDs or leave the value empty if Wire should select the connected operator.
+
+Recommended ElevenLabs provider setup for an early commercial launch is a **paid subscription tier that unlocks Voice Library API access plus PAYG/top-ups**. Keep provider credentials and PAYG controls server-side. Increase the provider tier only when concurrency or plan limits require it; customer RAINY credit pricing remains independent of the provider subscription tier.
+
+This margin guard protects modeled gross unit economics; it cannot guarantee accounting profit because taxes, refunds, chargebacks, infrastructure, support, changing provider prices and actual payment fees can differ from the configured reserves.
