@@ -20,7 +20,7 @@ import uvicorn
 load_dotenv(dotenv_path='.env.local', override=False)
 load_dotenv(dotenv_path='.env', override=False)
 
-from . import core
+from . import core, billing, wire_payment
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 
@@ -204,6 +204,44 @@ def api_exception(exc):
         return HTTPException(422,str(exc))
     logging.exception("ElevenLabs tool failed")
     return HTTPException(502,"ElevenLabs үйлдэл амжилтгүй боллоо.")
+
+def charge(user_id,credits,tool_type,reference=None,metadata=None):
+    try:
+        return billing.debit(user_id,credits,tool_type,reference,metadata)
+    except ValueError as exc:
+        raise HTTPException(402,str(exc))
+
+async def upload_duration_seconds(upload:UploadFile):
+    suffix=Path(upload.filename or "media.bin").suffix.lower() or ".bin"
+    temp=core.DATA/"tmp"/f"probe-{core.uid()}{suffix}"
+    try:
+        await persist_upload(upload,temp)
+        process=subprocess.run(
+            ["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(temp)],
+            check=False,capture_output=True,text=True,timeout=60
+        )
+        if process.returncode!=0:
+            raise HTTPException(422,"Audio/video хугацааг тодорхойлж чадсангүй.")
+        seconds=float(process.stdout.strip())
+        if not (seconds>0 and seconds<=24*3600):
+            raise HTTPException(422,"Audio/video хугацаа буруу байна.")
+        return seconds
+    except FileNotFoundError:
+        raise HTTPException(503,"FFprobe олдсонгүй. FFmpeg суулгана уу.")
+    finally:
+        temp.unlink(missing_ok=True)
+        await upload.seek(0)
+
+def wire_order_matches(intent,order):
+    try:
+        amount=int(intent.get("amount"))
+    except Exception:
+        amount=-1
+    return str(intent.get("currency","")).upper()=="MNT" and amount==int(order["amount_mnt"])
+
+def billing_order_for_user(order_id,user_id):
+    with core.db() as c:
+        return c.execute("SELECT * FROM billing_orders WHERE id=? AND user_id=?",(order_id,user_id)).fetchone()
 
 def create_artifact_bytes(user_id,job_id,kind,filename,mime,data):
     ext=Path(filename).suffix
