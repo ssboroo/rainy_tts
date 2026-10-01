@@ -987,9 +987,23 @@ async def run_binary_tool(request,sess,tool_type,title,runner,filename,mime,payl
     job_id=core.create_tool_job(sess["user_id"],tool_type,title,payload)
     charge_id=charge(sess["user_id"],credits,tool_type,job_id,{"title":title}) if credits else None
     try:
-        data=await runner()
+        raw=await runner()
+        provider_meta={}
+        if isinstance(raw,tuple) and len(raw)==2 and isinstance(raw[1],dict):
+            data,provider_meta=raw
+        else:
+            data=raw
         artifact_id=create_artifact_bytes(sess["user_id"],job_id,"audio",filename,mime,data)
+        if provider_meta:
+            core.add_provider_usage(
+                sess["user_id"],job_id,tool_type,
+                request_id=provider_meta.get("request_id"),
+                trace_id=provider_meta.get("trace_id"),
+                metadata=provider_meta
+            )
         result={"artifact_id":artifact_id,"credits_used":credits}
+        if provider_meta:
+            result["provider_usage"]=provider_meta
         core.update_tool_job(job_id,"done",result=result)
         return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
