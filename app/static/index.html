@@ -31,6 +31,8 @@
         <div class="rail-label inline">VIDEO & LIBRARY</div>
         <button class="nav" data-page="dubbing"><span class="nav-icon">▶</span><span>Dubbing / Movie</span></button>
         <button class="nav" data-page="voices"><span class="nav-icon">♬</span><span>Voice Library</span></button>
+        <div class="rail-label inline">ACCOUNT</div>
+        <button class="nav" data-page="billing"><span class="nav-icon">₮</span><span>Subscription</span></button>
         <button class="nav" data-page="analytics"><span class="nav-icon">⌗</span><span>Analytics</span></button>
         <button class="nav" data-page="history"><span class="nav-icon">↗</span><span>History</span></button>
       </nav>
@@ -40,7 +42,7 @@
     <main>
       <header class="topbar">
         <div class="top-left"><span class="route-index">01</span><span id="breadcrumb">Create / Text to Speech</span></div>
-        <div class="top-actions"><span class="engine-chip"><i></i> ElevenLabs</span><button id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
+        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 credits</button><span class="engine-chip"><i></i> ElevenLabs</span><button id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
       </header>
       <div id="notice" role="status" class="notice" hidden></div>
 
@@ -124,6 +126,28 @@
           <button id="sync-voices" class="secondary" type="button">Optional sync ↻</button>
         </div>
         <div id="voice-grid" class="voice-grid"></div>
+      </section>
+
+      <section id="billing" class="page tool-page" hidden>
+        <div class="tool-hero"><p class="kicker"><span></span>SUBSCRIPTION & CREDITS</p><h1>Хэрэглэсэн хэмжээгээрээ <em>credit.</em></h1><p>Сарын багцаа Wire.mn-ээр төлнө. Төлбөр сервер талаас баталгаажмагц credit автоматаар идэвхжинэ.</p></div>
+        <div class="wallet-card">
+          <div><small>ОДООГИЙН БАГЦ</small><strong id="billing-plan">—</strong><p id="billing-cycle">Нэвтэрсний дараа харагдана.</p></div>
+          <div class="wallet-balance"><small>ҮЛДЭГДЭЛ</small><strong id="billing-balance">0</strong><span>credits</span></div>
+        </div>
+        <div id="payment-status" class="result-box" hidden></div>
+        <div id="plan-grid" class="plan-grid"></div>
+        <div class="credit-guide">
+          <h3>Credit зарцуулалт</h3>
+          <div class="credit-rate-grid">
+            <span><b>100</b> ≈ 1,000 TTS тэмдэгт</span>
+            <span><b>150</b> ≈ 1 минут Music</span>
+            <span><b>220</b> ≈ 1 цаг Speech to Text</span>
+            <span><b>100</b> = 15 минут Realtime STT token</span>
+            <span><b>120</b> ≈ 1 минут Voice Changer / SFX</span>
+            <span><b>2,200</b> ≈ 1 минут Dubbing v2</span>
+          </div>
+        </div>
+        <div class="ledger-wrap"><h3>Credit түүх</h3><div id="credit-ledger" class="ledger-list"></div></div>
       </section>
 
       <section id="analytics" class="page tool-page" hidden>
