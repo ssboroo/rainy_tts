@@ -19,6 +19,15 @@ class ElevenTools:
             raise ElevenAPIError(503,"ELEVENLABS_API_KEY тохируулаагүй байна.")
         return {"xi-api-key":self.api_key}
 
+    @staticmethod
+    def _meta(response):
+        headers=response.headers or {}
+        return {
+            "character_cost":headers.get("character-cost"),
+            "request_id":headers.get("request-id"),
+            "trace_id":headers.get("x-trace-id"),
+        }
+
     async def _request(self, method, path, **kwargs):
         headers=dict(self._headers())
         headers.update(kwargs.pop("headers",{}))
@@ -100,7 +109,7 @@ class ElevenTools:
             params={"output_format":"mp3_44100_128"},
             json=payload,timeout=240
         )
-        return response.content
+        return response.content, self._meta(response)
 
     async def music(self, prompt, length_ms, model_id="music_v2_5", force_instrumental=False):
         payload={
@@ -114,7 +123,7 @@ class ElevenTools:
             params={"output_format":"mp3_48000_192" if model_id in {"music_v2","music_v2_5"} else "mp3_44100_128"},
             json=payload,timeout=360
         )
-        return response.content
+        return response.content, self._meta(response)
 
     async def sound_effect(self, text, duration_seconds=None, loop=False, prompt_influence=0.3):
         payload={
@@ -130,7 +139,7 @@ class ElevenTools:
             params={"output_format":"mp3_44100_128"},
             json=payload,timeout=180
         )
-        return response.content
+        return response.content, self._meta(response)
 
     async def speech_to_text(
         self, upload, language_code="mn", keyterms=None, polish=True,
@@ -185,7 +194,7 @@ class ElevenTools:
             params={"output_format":"mp3_44100_128"},
             files=files,data=data,timeout=300
         )
-        return response.content
+        return response.content, self._meta(response)
 
     async def voice_isolator(self, upload):
         await upload.seek(0)
