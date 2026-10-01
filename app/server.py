@@ -396,6 +396,8 @@ def billing_plans():
         "credit_usd":billing.CREDIT_USD,
         "rates":billing.RATES,
         "wire_configured":wire_payment.configured(),
+        "pricing_guard":billing.pricing_settings(),
+        "margin_protected":True,
     }
 
 @app.get("/api/billing/me")
@@ -410,7 +412,7 @@ async def billing_wire_create(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("wire-create:"+sess["user_id"],10,900)
     data=await json_body(request)
     plan_id=str(data.get("plan_id","")).strip()
-    plan=billing.PLANS.get(plan_id)
+    plan=billing.get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise HTTPException(422,"Subscription plan буруу байна.")
     if not wire_payment.configured():
@@ -641,6 +643,16 @@ async def clone_voice(
         raise HTTPException(422,"1–10 аудио sample оруулна уу.")
     for upload in files:
         validate_upload(upload,AUDIO_EXTS,MAX_AUDIO_MB)
+    account=billing.wallet(sess["user_id"])
+    sub=account.get("subscription") or {}
+    plan=billing.get_plan(sub.get("plan_id"))
+    clone_limit=int((plan or {}).get("clone_limit",0))
+    with core.db() as db:
+        clone_count=db.execute("SELECT COUNT(*) FROM voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
+    if billing.billing_enabled() and (sub.get("status")!="active" or clone_limit<=0):
+        raise HTTPException(402,"Voice Clone ашиглахын тулд clone эрхтэй subscription шаардлагатай.")
+    if billing.billing_enabled() and clone_count>=clone_limit:
+        raise HTTPException(409,f"Таны plan {clone_limit} clone voice хүртэл зөвшөөрнө.")
     job_id=core.create_tool_job(sess["user_id"],"voice_clone",name,{"files":[f.filename for f in files]})
     credits=billing.estimate("voice_clone")
     charge_id=charge(sess["user_id"],credits,"voice_clone",job_id,{"samples":len(files)})
@@ -845,8 +857,8 @@ async def music(request:Request):
     prompt=str(data.get("prompt","")).strip()
     try: length_ms=int(data.get("music_length_ms",30000))
     except Exception: raise HTTPException(422,"Music duration буруу байна.")
-    if not prompt or len(prompt)>4100 or not 3000<=length_ms<=600000:
-        raise HTTPException(422,"Music prompt 1–4100 тэмдэгт, хугацаа 3 секунд–10 минут байна.")
+    if not prompt or len(prompt)>4100 or not 3000<=length_ms<=300000:
+        raise HTTPException(422,"Music prompt 1–4100 тэмдэгт, хугацаа 3 секунд–5 минут байна.")
     model_id=str(data.get("model_id","music_v2_5"))
     if model_id not in {"music_v1","music_v2","music_v2_5"}:
         raise HTTPException(422,"Music model буруу байна.")
