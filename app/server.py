@@ -605,18 +605,20 @@ async def billing_wire_webhook(request:Request):
 @app.get("/api/voices")
 def voices(request:Request):
     sess=session(request,False)
-    with core.db() as c:
-        aliases={row["source_id"]:row["provider_id"] for row in c.execute("SELECT source_id,provider_id FROM voice_aliases")}
+    with core.db() as db:
+        aliases={row["source_id"]:row["provider_id"] for row in db.execute("SELECT source_id,provider_id FROM voice_aliases")}
+        rates={row["source_id"]:float(row["multiplier"]) for row in db.execute("SELECT source_id,multiplier FROM voice_rates")}
     result=[]
     for voice in ElevenLabsEngine.configured_voices():
         item=dict(voice)
         item["provider_id"]=aliases.get(voice["id"])
         item["synced"]=voice["id"] in aliases
+        item["cost_multiplier"]=rates.get(voice["id"],1.0)
         result.append(item)
     if sess:
-        with core.db() as c:
-            for row in c.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
-                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"]})
+        with core.db() as db:
+            for row in db.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
+                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"],"cost_multiplier":1.0})
     return {"voices":result}
 
 @app.get("/api/provider/status")
