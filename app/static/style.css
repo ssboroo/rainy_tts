@@ -382,3 +382,5 @@ select option{background:var(--panel-solid);color:var(--text)}
 .ledger-list{display:grid}.ledger-row{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:13px 0;border-top:1px solid var(--line)}.ledger-row:first-child{border-top:0}.ledger-row strong{display:block;font-size:.7rem;text-transform:capitalize}.ledger-row small{display:block;color:var(--muted);font-size:.55rem;margin-top:3px}.ledger-amount{text-align:right}.ledger-amount b{display:block;font-size:.75rem}.ledger-amount span{display:block;color:var(--muted);font-size:.55rem;margin-top:3px}.credit-plus{color:var(--lime)}.credit-minus{color:#ff9b8b}
 @media(max-width:1180px){.plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.wallet-card{align-items:flex-start}.wallet-balance{text-align:left}.plan-grid,.credit-rate-grid{grid-template-columns:1fr}.wallet-card{flex-direction:column}}
+
+.field-help{display:block;color:var(--muted);font-size:.58rem;line-height:1.55;margin-top:2px}
