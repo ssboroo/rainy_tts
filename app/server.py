@@ -824,7 +824,7 @@ async def pvc_verify(voice_id:str,request:Request,recording:UploadFile=File(...)
 async def pvc_train(voice_id:str,request:Request):
     sess=session(request); mutation_guard(request,sess); owned_pvc(sess["user_id"],voice_id)
     try:
-        result=await tools.pvc_train(voice_id,"eleven_v4")
+        result=await tools.pvc_train(voice_id,None)
         with core.db() as db:
             db.execute("UPDATE pvc_voices SET status='training',updated=? WHERE id=?",(time.time(),voice_id))
         return {"voice_id":voice_id,"status":"training",**result}
@@ -1489,11 +1489,23 @@ async def analytics(request:Request):
             (sess["user_id"],cutoff)
         ).fetchone()[0]
     account=billing.wallet(sess["user_id"])
+    with core.db() as db:
+        usage_rows=db.execute(
+            "SELECT product,provider_cost,request_id,trace_id,metadata,created FROM provider_usage WHERE user_id=? ORDER BY created DESC LIMIT 20",
+            (sess["user_id"],)
+        ).fetchall()
+    provider_usage=[]
+    for row in usage_rows:
+        item=dict(row)
+        try:item["metadata"]=json.loads(item["metadata"] or "{}")
+        except Exception:item["metadata"]={}
+        provider_usage.append(item)
     return {
         "local_30d":local,
         "credits_spent_30d":int(spent or 0),
         "wallet":account["wallet"],
         "subscription":account["subscription"],
+        "provider_usage":provider_usage,
     }
 
 if __name__=="__main__":
