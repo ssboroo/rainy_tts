@@ -88,8 +88,8 @@
       </section>
 
       <section id="music" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>MUSIC</p><h1>Prompt-оос <em>хөгжим.</em></h1><p>3 секундээс 5 минут хүртэл original music compose хийнэ.</p></div>
-        <div class="tool-form"><div class="field"><label>Music prompt</label><textarea id="music-prompt" class="big-textarea small" placeholder="Cinematic Mongolian electronic music with morin khuur…"></textarea></div><div class="field-grid"><div class="field"><label>Model</label><select id="music-model"><option value="music_v2_5">Music v2.5 · Latest</option><option value="music_v2">Music v2</option><option value="music_v1">Music v1</option></select></div><div class="field"><label>Урт — <span id="music-duration-label">30 секунд</span></label><input id="music-duration" type="range" min="3" max="300" value="30"></div></div><label class="check"><input id="music-instrumental" type="checkbox"> Зөвхөн instrumental хөгжим</label><button id="music-generate" class="generate"><span>Music үүсгэх</span><span>↗</span></button></div>
+        <div class="tool-hero"><p class="kicker"><span></span>MUSIC</p><h1>Prompt-оос <em>хөгжим.</em></h1><p>3 секундээс 10 минут хүртэл original music compose хийнэ.</p></div>
+        <div class="tool-form"><div class="field"><label>Music prompt</label><textarea id="music-prompt" class="big-textarea small" placeholder="Cinematic Mongolian electronic music with morin khuur…"></textarea></div><div class="field-grid"><div class="field"><label>Model</label><select id="music-model"><option value="music_v2_5">Music v2.5 · Latest</option><option value="music_v2">Music v2</option><option value="music_v1">Music v1</option></select></div><div class="field"><label>Урт — <span id="music-duration-label">30 секунд</span></label><input id="music-duration" type="range" min="3" max="600" value="30"></div></div><label class="check"><input id="music-instrumental" type="checkbox"> Зөвхөн instrumental хөгжим</label><button id="music-generate" class="generate"><span>Music үүсгэх</span><span>↗</span></button></div>
       </section>
 
       <section id="sfx" class="page tool-page" hidden>
@@ -139,12 +139,15 @@
         <div class="credit-guide">
           <h3>Credit зарцуулалт</h3>
           <div class="credit-rate-grid">
-            <span><b>100</b> ≈ 1,000 TTS тэмдэгт</span>
-            <span><b>150</b> ≈ 1 минут Music</span>
-            <span><b>220</b> ≈ 1 цаг Speech to Text</span>
-            <span><b>100</b> = 15 минут Realtime STT token</span>
-            <span><b>120</b> ≈ 1 минут Voice Changer / SFX</span>
-            <span><b>2,200</b> ≈ 1 минут Dubbing v2</span>
+            <span><b>80</b> = 1,000 тэмдэгт · v4 / v3 / Multilingual v2</span>
+            <span><b>40</b> = 1,000 тэмдэгт · v4 Turbo / Flash / Turbo</span>
+            <span><b>220</b> = 1 цаг Speech to Text</span>
+            <span><b>390</b> = 1 цаг Realtime STT</span>
+            <span><b>150</b> = 1 минут Music</span>
+            <span><b>120</b> = 1 минут Voice Changer / Voice Isolator</span>
+            <span><b>120</b> = 1 Sound Effect generation</span>
+            <span><b>330</b> = 1 минут Dubbing v1</span>
+            <span><b>2,200</b> = 1 минут Dubbing v2</span>
           </div>
         </div>
         <div class="ledger-wrap"><h3>Credit түүх</h3><div id="credit-ledger" class="ledger-list"></div></div>
