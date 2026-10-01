@@ -204,7 +204,7 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(data["amount_mnt"],39900)
         self.assertEqual(data["pay_url"],"https://pay.wire.mn/test")
 
-        paid={"id":"pi_test","status":"succeeded","amount":29900,"currency":"MNT"}
+        paid={"id":"pi_test","status":"succeeded","amount":39900,"currency":"MNT"}
         with patch.object(server.wire_payment,"retrieve_payment_intent",new=AsyncMock(return_value=paid)):
             status=self.client.get("/api/billing/wire/status/"+data["order_id"])
         self.assertEqual(status.status_code,200,status.text)
