@@ -422,7 +422,7 @@ def logout(request:Request):
 def billing_plans():
     return {
         "plans":billing.public_plan_catalog(),
-        "rates":billing.RATES,
+        "rates":billing.public_rate_card(),
         "wire_configured":wire_payment.configured(),
         "margin_protected":True,
     }
@@ -801,10 +801,15 @@ async def create_tts(request:Request):
         active=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
     if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
     job_id=core.uid()
+    tts_model=ElevenLabsEngine().model_id
     multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
-    credits=max(1,math.ceil(billing.estimate("tts",chars=count)*multiplier))
-    charge_id=charge(sess["user_id"],credits,"tts",job_id,{"characters":count,"voice_multiplier":multiplier})
-    payload["billing"]={"credits":credits,"charge_id":charge_id,"voice_multiplier":multiplier}
+    base_credits=billing.estimate("tts",chars=count,model_id=tts_model)
+    credits=max(1,math.ceil(base_credits*multiplier))
+    charge_id=charge(
+        sess["user_id"],credits,"tts",job_id,
+        {"characters":count,"voice_multiplier":multiplier,"model_id":tts_model,"base_credits":base_credits}
+    )
+    payload["billing"]={"credits":credits,"charge_id":charge_id,"voice_multiplier":multiplier,"model_id":tts_model}
     try:
         with core.db() as db:
             db.execute(
@@ -904,8 +909,8 @@ async def music(request:Request):
     prompt=str(data.get("prompt","")).strip()
     try: length_ms=int(data.get("music_length_ms",30000))
     except Exception: raise HTTPException(422,"Music duration буруу байна.")
-    if not prompt or len(prompt)>4100 or not 3000<=length_ms<=300000:
-        raise HTTPException(422,"Music prompt 1–4100 тэмдэгт, хугацаа 3 секунд–5 минут байна.")
+    if not prompt or len(prompt)>4100 or not 3000<=length_ms<=600000:
+        raise HTTPException(422,"Music prompt 1–4100 тэмдэгт, хугацаа 3 секунд–10 минут байна.")
     model_id=str(data.get("model_id","music_v2_5"))
     if model_id not in {"music_v1","music_v2","music_v2_5"}:
         raise HTTPException(422,"Music model буруу байна.")
@@ -942,7 +947,7 @@ async def sound_effects(request:Request):
         request,sess,"sound_effects",title,
         lambda:tools.sound_effect(prompt,duration,loop,influence),"rainy-sfx.mp3","audio/mpeg",
         {"prompt":prompt[:300],"duration_seconds":duration,"loop":loop,"prompt_influence":influence},
-        billing.estimate("sound_effects",seconds=duration or 0,duration_known=duration is not None)
+        billing.estimate("sound_effects")
     )
 
 @app.post("/api/tools/stt")
