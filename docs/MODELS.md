@@ -18,11 +18,11 @@ RAINY is an ElevenLabs Creative Studio, not a local-model runtime.
 
 RAINY ships with 12 configured Mongolian ElevenLabs voice IDs. A user-created Instant Voice Clone is stored in the local `voices` table after ElevenLabs returns its Voice ID, then becomes available in TTS, Dialogue and Voice Changer selectors.
 
-`ELEVENLABS_VOICES_JSON` can override the built-in catalog.
+`ELEVENLABS_VOICES_JSON` can override the built-in catalog. TTS, Dialogue and Voice Changer pass these configured voice IDs directly to ElevenLabs; workspace sync is optional fallback behavior.
 
 ## Mongolian notes
 
-TTS uses Eleven v4 with `language_code=mn`.
+TTS uses Eleven v4 with `language_code=mn`. Multilingual v2 does not currently list Mongolian among its supported 29 languages, and `language_code` is ignored for that model, so it is not the Mongolian default.
 
 Scribe v2 accepts ISO-639-1 or ISO-639-3 language codes and is used with `mn` in the UI; automatic detection can be used by leaving the language field empty.
 
