@@ -1179,19 +1179,23 @@ def history(request:Request):
 @app.get("/api/analytics")
 async def analytics(request:Request):
     sess=session(request)
-    end=int(time.time()*1000); start=end-30*86400*1000
+    cutoff=time.time()-30*86400
     local={}
-    with core.db() as c:
-        local["tts"]=c.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND created>?",(sess["user_id"],time.time()-30*86400)).fetchone()[0]
-        for row in c.execute("SELECT tool_type,COUNT(*) count FROM tool_jobs WHERE user_id=? AND created>? GROUP BY tool_type",(sess["user_id"],time.time()-30*86400)):
+    with core.db() as db:
+        local["tts"]=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND created>?",(sess["user_id"],cutoff)).fetchone()[0]
+        for row in db.execute("SELECT tool_type,COUNT(*) count FROM tool_jobs WHERE user_id=? AND created>? GROUP BY tool_type",(sess["user_id"],cutoff)):
             local[row["tool_type"]]=row["count"]
-    result={"local_30d":local}
-    try:
-        result["subscription"]=await tools.subscription()
-        result["usage"]=await tools.usage(start,end,86400)
-    except ElevenAPIError as exc:
-        result["eleven_error"]=str(exc)
-    return result
+        spent=db.execute(
+            "SELECT COALESCE(SUM(-delta),0) FROM credit_ledger WHERE user_id=? AND kind='usage' AND created>?",
+            (sess["user_id"],cutoff)
+        ).fetchone()[0]
+    account=billing.wallet(sess["user_id"])
+    return {
+        "local_30d":local,
+        "credits_spent_30d":int(spent or 0),
+        "wallet":account["wallet"],
+        "subscription":account["subscription"],
+    }
 
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
