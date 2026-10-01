@@ -128,6 +128,65 @@ def allowed_voice_ids(user_id=None):
             ids.update(row["id"] for row in c.execute("SELECT id FROM voices WHERE user_id=?",(user_id,)))
     return ids
 
+def configured_voice_name(voice_id):
+    for voice in ElevenLabsEngine.configured_voices():
+        if voice["id"]==voice_id:
+            return voice["name"]
+    return None
+
+async def ensure_provider_voice(voice_id,user_id):
+    with core.db() as c:
+        custom=c.execute("SELECT id FROM voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
+        if custom:
+            return voice_id
+        alias=c.execute("SELECT provider_id FROM voice_aliases WHERE source_id=?",(voice_id,)).fetchone()
+    if alias:
+        return alias["provider_id"]
+
+    name=configured_voice_name(voice_id)
+    if not name:
+        raise HTTPException(422,"Voice ID RAINY catalog-д байхгүй байна.")
+
+    try:
+        subscription=await tools.subscription()
+    except Exception as exc:
+        raise api_exception(exc)
+
+    tier=str(subscription.get("tier","")).strip().lower()
+    if tier=="free":
+        raise HTTPException(
+            402,
+            "Эдгээр 12 Монгол voice нь ElevenLabs Voice Library voice тул Free plan дээр API-аар ашиглагдахгүй. Starter эсвэл түүнээс дээш plan шаардлагатай."
+        )
+
+    try:
+        saved=await tools.find_saved_shared_voice(voice_id)
+        if saved:
+            provider_id=saved.get("voice_id")
+            if not provider_id:
+                raise ValueError("Saved voice ID олдсонгүй.")
+        else:
+            shared=await tools.find_shared_voice(voice_id)
+            if not shared:
+                raise HTTPException(404,f"{name} Voice Library-аас олдсонгүй эсвэл устсан байна.")
+            owner=shared.get("public_owner_id")
+            if not owner:
+                raise HTTPException(502,"Voice Library owner ID буцаасангүй.")
+            added=await tools.add_shared_voice(owner,voice_id,name)
+            provider_id=added.get("voice_id")
+            if not provider_id:
+                raise HTTPException(502,"ElevenLabs shared voice нэмэх үед Voice ID буцаасангүй.")
+        with core.db() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO voice_aliases(source_id,provider_id,name,updated) VALUES(?,?,?,?)",
+                (voice_id,provider_id,name,time.time())
+            )
+        return provider_id
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise api_exception(exc)
+
 def validate_upload(upload:UploadFile, extensions, max_mb):
     ext=Path(upload.filename or "").suffix.lower()
     if ext not in extensions:
@@ -293,12 +352,53 @@ def logout(request:Request):
 @app.get("/api/voices")
 def voices(request:Request):
     sess=session(request,False)
-    result=[dict(v) for v in ElevenLabsEngine.configured_voices()]
+    with core.db() as c:
+        aliases={row["source_id"]:row["provider_id"] for row in c.execute("SELECT source_id,provider_id FROM voice_aliases")}
+    result=[]
+    for voice in ElevenLabsEngine.configured_voices():
+        item=dict(voice)
+        item["provider_id"]=aliases.get(voice["id"])
+        item["synced"]=voice["id"] in aliases
+        result.append(item)
     if sess:
         with core.db() as c:
             for row in c.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
-                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False})
+                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"]})
     return {"voices":result}
+
+@app.get("/api/provider/status")
+async def provider_status(request:Request):
+    session(request)
+    try:
+        sub=await tools.subscription()
+    except Exception as exc:
+        raise api_exception(exc)
+    with core.db() as c:
+        aliases={row["source_id"]:row["provider_id"] for row in c.execute("SELECT source_id,provider_id FROM voice_aliases")}
+    return {
+        "tier":sub.get("tier"),
+        "status":sub.get("status"),
+        "character_count":sub.get("character_count"),
+        "character_limit":sub.get("character_limit"),
+        "can_use_instant_voice_cloning":sub.get("can_use_instant_voice_cloning"),
+        "voice_library_api_available":str(sub.get("tier","")).lower()!="free",
+        "synced_voice_count":sum(1 for v in ElevenLabsEngine.configured_voices() if v["id"] in aliases),
+        "total_voice_count":len(ElevenLabsEngine.configured_voices())
+    }
+
+@app.post("/api/voices/sync")
+async def sync_voices(request:Request):
+    sess=session(request); mutation_guard(request,sess); throttle("voice-sync:"+sess["user_id"],20,3600)
+    results=[]
+    for voice in ElevenLabsEngine.configured_voices():
+        try:
+            provider_id=await ensure_provider_voice(voice["id"],sess["user_id"])
+            results.append({"id":voice["id"],"name":voice["name"],"provider_id":provider_id,"status":"ready"})
+        except HTTPException as exc:
+            results.append({"id":voice["id"],"name":voice["name"],"status":"failed","error":str(exc.detail)})
+            if exc.status_code in {401,402,403}:
+                break
+    return {"voices":results}
 
 @app.post("/api/voices/clone")
 async def clone_voice(
@@ -355,6 +455,15 @@ async def voice_preview(voice_id:str,request:Request):
     if voice_id not in allowed:
         raise HTTPException(404,"Voice олдсонгүй.")
     try:
+        if configured_voice_name(voice_id):
+            shared=await tools.find_shared_voice(voice_id)
+            if shared and shared.get("preview_url"):
+                audio,mime=await tools.download_url(shared["preview_url"])
+                return Response(audio,media_type=mime)
+            with core.db() as c:
+                alias=c.execute("SELECT provider_id FROM voice_aliases WHERE source_id=?",(voice_id,)).fetchone()
+            if alias:
+                voice_id=alias["provider_id"]
         info=await tools.get_voice(voice_id)
         url=info.get("preview_url")
         if not url:
@@ -389,6 +498,7 @@ async def create_tts(request:Request):
         raise HTTPException(422,"Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.")
     ready,reason=ElevenLabsEngine().readiness()
     if not ready: raise HTTPException(503,reason)
+    provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
     title=str(data.get("title","Шинэ бүтээл")).strip()[:100] or "Шинэ бүтээл"
     try: speed=float(data.get("speed",1))
     except Exception: raise HTTPException(422,"Хурд буруу байна.")
@@ -396,7 +506,7 @@ async def create_tts(request:Request):
     glossary=data.get("glossary",{})
     if not isinstance(glossary,dict) or len(glossary)>100:
         raise HTTPException(422,"Дуудлагын толь буруу байна.")
-    payload={"speed":speed}
+    payload={"speed":speed,"provider_voice_id":provider_voice_id}
     try:
         if data.get("srt"):
             cues=core.parse_srt(str(data["srt"]))
@@ -478,7 +588,8 @@ async def dialogue(request:Request):
         if not isinstance(item,dict): raise HTTPException(422,"Dialogue бүтэц буруу байна.")
         voice_id=str(item.get("voice_id","")).strip(); text=str(item.get("text","")).strip()
         if voice_id not in allowed or not text: raise HTTPException(422,"Speaker voice эсвэл текст буруу байна.")
-        total+=len(text); voices_used.add(voice_id); clean.append({"voice_id":voice_id,"text":text})
+        provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
+        total+=len(text); voices_used.add(voice_id); clean.append({"voice_id":provider_voice_id,"text":text})
     if total>2000 or len(voices_used)>10:
         raise HTTPException(422,"Dialogue нийт 2000 тэмдэгт, 10 unique voice-аас хэтрэхгүй.")
     title=str(data.get("title","Podcast / Dialogue"))[:100]
@@ -570,11 +681,12 @@ async def voice_changer(
     validate_upload(file,AUDIO_EXTS,MAX_AUDIO_MB)
     if voice_id not in allowed_voice_ids(sess["user_id"]):
         raise HTTPException(422,"Target voice буруу байна.")
+    provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
     title="Voice Changer"
     return await run_binary_tool(
         request,sess,"voice_changer",title,
-        lambda:tools.voice_changer(file,voice_id,remove_background_noise),
-        "rainy-voice-changer.mp3","audio/mpeg",{"voice_id":voice_id,"source":file.filename}
+        lambda:tools.voice_changer(file,provider_voice_id,remove_background_noise),
+        "rainy-voice-changer.mp3","audio/mpeg",{"voice_id":voice_id,"provider_voice_id":provider_voice_id,"source":file.filename}
     )
 
 @app.post("/api/tools/realtime-token")
