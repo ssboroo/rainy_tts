@@ -32,9 +32,15 @@ def run_job(job):
         cues = payload.get('cues')
         texts = [cue['text'] for cue in cues] if cues else core.chunks(payload['text'])
         parts = []
+        provider_meta=[]
+        model_id=(payload.get('billing') or {}).get('model_id') or payload.get('model_id') or engine.model_id
         for i, text in enumerate(texts):
             part = folder / f'{i}.wav'
-            engine.synthesize(text, part, payload['speed'], resolved_voice_id, trusted_voice=True)
+            meta=engine.synthesize(
+                text, part, payload['speed'], resolved_voice_id,
+                trusted_voice=True, model_id=model_id
+            ) or {}
+            provider_meta.append(meta)
             parts.append(part)
             with core.db() as c:
                 c.execute('UPDATE jobs SET progress=? WHERE id=?', (round((i+1)/len(texts)*90),job['id']))
@@ -43,8 +49,32 @@ def run_job(job):
             ['ffmpeg','-nostdin','-v','error','-y','-i',str(output),'-codec:a','libmp3lame','-q:a','2',str(output.with_suffix('.mp3'))],
             check=True, timeout=120, capture_output=True
         )
+        char_cost=0.0
+        request_ids=[]; trace_ids=[]
+        for meta in provider_meta:
+            try:
+                if meta.get('character_cost') not in (None,''):
+                    char_cost+=float(meta['character_cost'])
+            except (TypeError,ValueError):
+                pass
+            if meta.get('request_id'): request_ids.append(meta['request_id'])
+            if meta.get('trace_id'): trace_ids.append(meta['trace_id'])
+        usage_meta={
+            'model_id':model_id,
+            'character_cost':char_cost if char_cost else None,
+            'request_ids':request_ids,
+            'trace_ids':trace_ids,
+            'segments':len(provider_meta),
+        }
+        core.add_provider_usage(
+            job['user_id'],job['id'],'text_to_speech',
+            request_id=request_ids[0] if request_ids else None,
+            trace_id=trace_ids[0] if trace_ids else None,
+            metadata=usage_meta
+        )
+        result={'warnings':warnings,'provider_usage':usage_meta}
         with core.db() as c:
-            c.execute("UPDATE jobs SET status='done',progress=100,result=? WHERE id=?", (json.dumps({'warnings':warnings},ensure_ascii=False),job['id']))
+            c.execute("UPDATE jobs SET status='done',progress=100,result=? WHERE id=?", (json.dumps(result,ensure_ascii=False),job['id']))
     except Exception as exc:
         log.exception('Job %s failed',job['id'])
         output.unlink(missing_ok=True)
