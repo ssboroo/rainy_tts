@@ -233,8 +233,9 @@ async def upload_duration_seconds(upload:UploadFile):
         await upload.seek(0)
 
 def wire_order_matches(intent,order):
+    raw_amount=intent.get("amount",intent.get("amount_minor"))
     try:
-        amount=int(intent.get("amount"))
+        amount=int(raw_amount)
     except Exception:
         amount=-1
     return str(intent.get("currency","")).upper()=="MNT" and amount==int(order["amount_mnt"])
