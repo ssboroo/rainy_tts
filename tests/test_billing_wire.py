@@ -120,6 +120,27 @@ class BillingApiTests(unittest.TestCase):
         self.csrf=response.json()["user"]["csrf"]
         self.headers={"Origin":"http://testserver","X-CSRF-Token":self.csrf}
 
+    def test_tts_voice_library_multiplier_is_billed(self):
+        from app.engine import ElevenLabsEngine
+        with core.db() as db:
+            user=db.execute("SELECT id FROM users WHERE email=?",(self.email,)).fetchone()["id"]
+            db.execute("DELETE FROM voice_rates")
+        billing.grant(user,1000,"test_grant")
+        voice=ElevenLabsEngine.default_voice_catalog[0]["id"]
+        with patch.dict(os.environ,{"BILLING_ENABLED":"true"},clear=False), \
+             patch("app.server.ElevenLabsEngine.readiness",return_value=(True,"ready")), \
+             patch.object(server.tools,"find_shared_voice",new=AsyncMock(return_value={"voice_id":voice,"rate":2})):
+            response=self.client.post(
+                "/api/jobs",
+                json={"text":"x"*1000,"voice_id":voice,"speed":1},
+                headers=self.headers
+            )
+        self.assertEqual(response.status_code,202,response.text)
+        self.assertEqual(response.json()["credits_used"],200)
+        with core.db() as db:
+            rate=db.execute("SELECT multiplier FROM voice_rates WHERE source_id=?",(voice,)).fetchone()[0]
+        self.assertEqual(rate,2)
+
     def test_wire_checkout_then_status_activates_plan(self):
         intent={"id":"pi_test","status":"requires_payment_method","amount":29900,"currency":"MNT"}
         checkout={"id":"cs_test","url":"https://pay.wire.mn/test"}
