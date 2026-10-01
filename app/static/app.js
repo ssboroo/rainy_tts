@@ -150,7 +150,8 @@ function voiceOptions(select,selected){
   select.replaceChildren();
   state.voices.forEach(voice=>{
     const option=document.createElement('option');
-    option.value=voice.id;option.textContent=voice.name;
+    const multiplier=Number(voice.cost_multiplier||1);
+    option.value=voice.id;option.textContent=voice.name+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× credit':'');
     select.append(option);
   });
   if([...select.options].some(o=>o.value===current)) select.value=current;
@@ -183,8 +184,9 @@ function renderVoiceLibrary(){
     top.append(avatar,text);card.append(top);
     if(voice.builtin){
       const sync=document.createElement('span');
+      const multiplier=Number(voice.cost_multiplier||1);
       sync.className='voice-sync-state '+(voice.synced?'ready':'pending');
-      sync.textContent=voice.synced?'Synced':'Direct ID';
+      sync.textContent=(voice.synced?'Synced':'Direct ID')+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× credit':'');
       card.append(sync);
     }
     const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
