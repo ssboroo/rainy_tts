@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 
 import httpx
@@ -118,8 +119,8 @@ async def create_checkout_session(payment_intent_id,order_id,success_url=None):
         return response.json()
     except WireError as exc:
         # Some Wire deployments have required JSON for this endpoint.
-        # Retry only a 400 request-body format rejection.
-        if exc.status!=400:
+        # Retry only when the provider explicitly rejects the request-body JSON format.
+        if exc.status!=400 or not re.search(r"(request body|body).*?(not valid|invalid).*?json|json.*?(not valid|invalid)",str(exc),re.I):
             raise
     response=await _request(
         "POST","/checkout/sessions",
