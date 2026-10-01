@@ -19,19 +19,19 @@ PLANS = {
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":29900,
+        "id":"starter","name":"Starter","price_mnt":59900,
         "description":"Хөнгөн хэрэглээ · 1 clone slot","sort":1,
     },
     "creator": {
-        "id":"creator","name":"Creator","price_mnt":59900,
+        "id":"creator","name":"Creator","price_mnt":119900,
         "description":"Контент бүтээгч · 2 clone slot","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":129900,
+        "id":"pro","name":"Pro","price_mnt":249900,
         "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":249900,
+        "id":"studio","name":"Studio","price_mnt":499900,
         "description":"Баг, студи · 10 clone slot","sort":4,
     },
 }
@@ -50,13 +50,23 @@ def pricing_settings():
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
+    provider_base_usd=max(0.0,float(os.getenv("BILLING_PROVIDER_BASE_USD","6.0")))
     return {
         "usd_mnt_rate":fx,
         "target_markup":markup,
         "payment_fee":payment_fee,
         "overhead_reserve":overhead,
         "fx_buffer":fx_buffer,
+        "provider_base_usd":provider_base_usd,
     }
+
+def minimum_safe_plan_price_mnt():
+    settings=pricing_settings()
+    fixed_cost=settings["provider_base_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+    denominator=(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    if denominator<=0:
+        return math.inf
+    return math.ceil((fixed_cost*settings["target_markup"])/denominator)
 
 def safe_monthly_credits(price_mnt):
     settings=pricing_settings()
@@ -72,10 +82,21 @@ def get_plan(plan_id):
     plan=base.copy()
     if plan_id=="trial":
         plan["monthly_credits"]=max(0,int(os.getenv("BILLING_TRIAL_CREDITS","0")))
+        plan["profit_safe"]=True
     else:
         plan["monthly_credits"]=safe_monthly_credits(plan["price_mnt"])
+        plan["profit_safe"]=plan["price_mnt"]>=minimum_safe_plan_price_mnt()
     plan.update(PLAN_ENTITLEMENTS.get(plan_id,{}))
     return plan
+
+def public_plan_catalog():
+    public=[]
+    for plan in plan_catalog():
+        if plan["id"]!="trial" and not plan.get("profit_safe",False):
+            continue
+        item={k:v for k,v in plan.items() if k not in {"profit_safe","sort"}}
+        public.append(item)
+    return public
 
 # Integer RAINY credits. Rates mirror public ElevenAPI API pricing,
 # plus a platform fee for scarce custom-voice slots.
@@ -287,6 +308,8 @@ def create_order(user_id, plan_id, provider="manual"):
     plan=get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Plan буруу байна.")
+    if not plan.get("profit_safe",False):
+        raise ValueError("Plan pricing хамгаалалтын доод босгыг хангахгүй байна.")
     order_id=core.uid()
     now=time.time()
     with core.db() as c:
