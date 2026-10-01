@@ -59,6 +59,21 @@ class ElevenTools:
         response=await self._request("GET",f"/v1/voices/{voice_id}")
         return response.json()
 
+    async def find_shared_voice(self, voice_id):
+        response=await self._request(
+            "GET","/v1/shared-voices",
+            params={"search":voice_id,"page_size":100}
+        )
+        voices=response.json().get("voices",[])
+        return next((voice for voice in voices if voice.get("voice_id")==voice_id),None)
+
+    async def add_shared_voice(self, public_owner_id, voice_id, new_name):
+        response=await self._request(
+            "POST",f"/v1/voices/add/{public_owner_id}/{voice_id}",
+            json={"new_name":new_name[:100],"bookmarked":True}
+        )
+        return response.json()
+
     async def dialogue(self, inputs, language_code="mn"):
         payload={"inputs":inputs,"model_id":"eleven_v4","language_code":language_code or None}
         response=await self._request(
