@@ -135,6 +135,34 @@ def configured_voice_name(voice_id):
             return voice["name"]
     return None
 
+async def voice_cost_multiplier(voice_id,user_id):
+    if not billing.billing_enabled():
+        return 1.0
+    with core.db() as db:
+        custom=db.execute("SELECT 1 FROM voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
+        cached=db.execute("SELECT multiplier,updated FROM voice_rates WHERE source_id=?",(voice_id,)).fetchone()
+    if custom:
+        return 1.0
+    if cached and time.time()-float(cached["updated"])<86400:
+        return max(1.0,float(cached["multiplier"]))
+    if not configured_voice_name(voice_id):
+        return 1.0
+    multiplier=None
+    try:
+        shared=await tools.find_shared_voice(voice_id)
+        if shared:
+            multiplier=max(1.0,float(shared.get("rate",1) or 1))
+    except Exception:
+        logging.exception("Voice Library rate lookup failed for %s",voice_id)
+    if multiplier is None:
+        multiplier=max(1.0,float(os.getenv("BILLING_UNKNOWN_VOICE_MULTIPLIER","2.0")))
+    with core.db() as db:
+        db.execute(
+            "INSERT OR REPLACE INTO voice_rates(source_id,multiplier,updated) VALUES(?,?,?)",
+            (voice_id,multiplier,time.time())
+        )
+    return multiplier
+
 async def ensure_provider_voice(voice_id,user_id):
     with core.db() as c:
         custom=c.execute("SELECT id FROM voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
