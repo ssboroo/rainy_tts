@@ -641,19 +641,23 @@ async def clone_voice(
     for upload in files:
         validate_upload(upload,AUDIO_EXTS,MAX_AUDIO_MB)
     job_id=core.create_tool_job(sess["user_id"],"voice_clone",name,{"files":[f.filename for f in files]})
+    credits=billing.estimate("voice_clone")
+    charge_id=charge(sess["user_id"],credits,"voice_clone",job_id,{"samples":len(files)})
     try:
         result=await tools.clone_voice(name,files,description,remove_background_noise)
         voice_id=result.get("voice_id")
         if not voice_id:
             raise ValueError("ElevenLabs Voice ID буцаасангүй.")
-        with core.db() as c:
-            c.execute(
+        with core.db() as db:
+            db.execute(
                 "INSERT OR REPLACE INTO voices(id,user_id,name,transcript,created) VALUES(?,?,?,?,?)",
                 (voice_id,sess["user_id"],name[:100],description[:1000],time.time())
             )
+        result={**result,"credits_used":credits}
         core.update_tool_job(job_id,"done",result=result)
-        return {"job_id":job_id,**result}
+        return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
@@ -889,7 +893,10 @@ async def speech_to_text(
 ):
     sess=session(request); mutation_guard(request,sess); throttle("stt:"+sess["user_id"],20)
     validate_upload(file,MEDIA_EXTS,MAX_AUDIO_MB)
-    job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",{"language":language_code or "auto"})
+    duration=await upload_duration_seconds(file)
+    job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",{"language":language_code or "auto","duration_seconds":duration})
+    credits=billing.estimate("speech_to_text",seconds=duration)
+    charge_id=charge(sess["user_id"],credits,"speech_to_text",job_id,{"duration_seconds":duration})
     try:
         result=await tools.speech_to_text(file,language_code or None)
         text=str(result.get("text",""))
@@ -898,10 +905,11 @@ async def speech_to_text(
         srt=srt_from_words(result.get("words"))
         if srt:
             create_artifact_text(sess["user_id"],job_id,"subtitle","transcript.srt","application/x-subrip",srt)
-        summary={"text":text,"language_code":result.get("language_code"),"language_probability":result.get("language_probability")}
+        summary={"text":text,"language_code":result.get("language_code"),"language_probability":result.get("language_probability"),"credits_used":credits}
         core.update_tool_job(job_id,"done",result=summary)
-        return {"job_id":job_id,**summary}
+        return {"job_id":job_id,**summary,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
@@ -916,19 +924,27 @@ async def voice_changer(
     validate_upload(file,AUDIO_EXTS,MAX_AUDIO_MB)
     if voice_id not in allowed_voice_ids(sess["user_id"]):
         raise HTTPException(422,"Target voice буруу байна.")
+    duration=await upload_duration_seconds(file)
     title="Voice Changer"
     return await run_binary_tool(
         request,sess,"voice_changer",title,
         lambda:tools.voice_changer(file,voice_id,remove_background_noise),
-        "rainy-voice-changer.mp3","audio/mpeg",{"voice_id":voice_id,"source":file.filename}
+        "rainy-voice-changer.mp3","audio/mpeg",
+        {"voice_id":voice_id,"source":file.filename,"duration_seconds":duration},
+        billing.estimate("voice_changer",seconds=duration)
     )
 
 @app.post("/api/tools/realtime-token")
 async def realtime_token(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("realtime:"+sess["user_id"],20,3600)
+    credits=billing.estimate("realtime_stt")
+    reference="rt-"+core.uid()
+    charge_id=charge(sess["user_id"],credits,"realtime_stt",reference,{"token_window_minutes":15})
     try:
-        return await tools.realtime_token()
+        result=await tools.realtime_token()
+        return {**result,"credits_used":credits,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
         raise api_exception(exc)
 
 @app.post("/api/tools/realtime-save")
