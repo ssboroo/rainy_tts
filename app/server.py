@@ -978,8 +978,22 @@ async def dubbing(
         raise HTTPException(422,"Видео/аудио файл эсвэл URL шаардлагатай.")
     if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",target_language):
         raise HTTPException(422,"Target language code буруу байна.")
-    payload={"source":file.filename if file else source_url,"source_language":source_language or None,"target_language":target_language}
+    if billing.billing_enabled() and source_url.strip():
+        raise HTTPException(422,"Credit billing идэвхтэй үед Dubbing-д файл upload ашиглана уу.")
+    duration=await upload_duration_seconds(file) if file and billing.billing_enabled() else 0
+    payload={
+        "source":file.filename if file else source_url,
+        "source_language":source_language or None,
+        "target_language":target_language,
+        "duration_seconds":duration or None,
+    }
     job_id=core.create_tool_job(sess["user_id"],"dubbing",reference,payload,status="queued")
+    credits=billing.estimate("dubbing",seconds=duration) if billing.billing_enabled() else 0
+    charge_id=charge(sess["user_id"],credits,"dubbing",job_id,{"duration_seconds":duration}) if credits else None
+    payload["billing_charge_id"]=charge_id
+    payload["billing_credits"]=credits
+    with core.db() as db:
+        db.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
     source_path=None
     try:
         result=await tools.create_dubbing(file,source_url.strip() or None,reference,source_language or None,target_language)
@@ -987,13 +1001,15 @@ async def dubbing(
             source_path=core.DATA/"tmp"/f"{job_id}-source{Path(file.filename).suffix.lower()}"
             await persist_upload(file,source_path)
             payload["source_path"]=str(source_path)
-            with core.db() as c:
-                c.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
+            with core.db() as db:
+                db.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
+        result={**result,"credits_used":credits}
         core.update_tool_job(job_id,result=result,status=result.get("status","queued"))
-        return {"job_id":job_id,**result}
+        return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
         if source_path:
             source_path.unlink(missing_ok=True)
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
@@ -1043,8 +1059,11 @@ async def dubbing_status(job_id:str,request:Request):
                         core.add_artifact(job_id,sess["user_id"],"dubbed_video","rainy-dubbed-video.mp4","video/mp4",video_path)
                     finally:
                         source_path.unlink(missing_ok=True)
-        if status=="failed" and payload.get("source_path"):
-            Path(payload["source_path"]).unlink(missing_ok=True)
+        if status=="failed":
+            if payload.get("source_path"):
+                Path(payload["source_path"]).unlink(missing_ok=True)
+            billing.refund(sess["user_id"],payload.get("billing_charge_id"),"dubbing_failed")
+        merged["credits_used"]=payload.get("billing_credits",0)
         core.update_tool_job(job_id,status,result=merged,error="Dubbing failed" if status=="failed" else None)
         with core.db() as c:
             row=c.execute("SELECT * FROM tool_jobs WHERE id=?",(job_id,)).fetchone()
