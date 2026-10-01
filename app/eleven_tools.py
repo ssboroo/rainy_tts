@@ -199,6 +199,7 @@ class ElevenTools:
         return response.content, {
             "request_id":response.headers.get("request-id"),
             "trace_id":response.headers.get("x-trace-id"),
+            "mime":response.headers.get("content-type","audio/mpeg").split(";")[0],
         }
 
     async def pvc_create(self, name, language="mn", description=""):
@@ -224,7 +225,10 @@ class ElevenTools:
 
     async def pvc_get_captcha(self, voice_id):
         response=await self._request("GET",f"/v1/voices/pvc/{voice_id}/captcha",timeout=120)
-        data=response.json()
+        try:
+            data=response.json()
+        except Exception:
+            data=response.text
         if isinstance(data,str):
             return {"captcha":data}
         return data
