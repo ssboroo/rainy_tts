@@ -74,6 +74,25 @@ class ElevenTools:
         )
         return response.json()
 
+    async def find_saved_shared_voice(self, source_voice_id):
+        token=None
+        for _ in range(10):
+            params={"page_size":100,"voice_type":"community","include_total_count":"false"}
+            if token:
+                params["next_page_token"]=token
+            response=await self._request("GET","/v2/voices",params=params)
+            data=response.json()
+            for voice in data.get("voices",[]):
+                sharing=voice.get("sharing") or {}
+                if voice.get("voice_id")==source_voice_id or sharing.get("original_voice_id")==source_voice_id:
+                    return voice
+            if not data.get("has_more"):
+                break
+            token=data.get("next_page_token")
+            if not token:
+                break
+        return None
+
     async def dialogue(self, inputs, language_code="mn"):
         payload={"inputs":inputs,"model_id":"eleven_v4","language_code":language_code or None}
         response=await self._request(
