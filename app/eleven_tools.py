@@ -58,7 +58,10 @@ class ElevenTools:
             "remove_background_noise":"true" if remove_background_noise else "false",
         }
         response=await self._request("POST","/v1/voices/add",files=files,data=data,timeout=240)
-        return response.json()
+        result=response.json()
+        if isinstance(result,dict):
+            result["_provider_usage"]=self._meta(response)
+        return result
 
     async def delete_voice(self, voice_id):
         response=await self._request("DELETE",f"/v1/voices/{voice_id}")
@@ -180,7 +183,10 @@ class ElevenTools:
                 )
             multipart.append(("transcript_edit",(None,edit_instruction)))
         response=await self._request("POST","/v1/speech-to-text",files=multipart,timeout=360)
-        return response.json()
+        data=response.json()
+        if isinstance(data,dict):
+            data["_provider_usage"]=self._meta(response)
+        return data
 
     async def voice_changer(self, upload, voice_id, remove_background_noise=False):
         await upload.seek(0)
@@ -284,7 +290,10 @@ class ElevenTools:
         else:
             raise ValueError("Видео/аудио файл эсвэл URL шаардлагатай.")
         response=await self._request("POST","/v1/dubbing/project",files=files,data=data,timeout=360)
-        return response.json()
+        result=response.json()
+        if isinstance(result,dict):
+            result["_provider_usage"]=self._meta(response)
+        return result
 
     async def get_dubbing_project(self, project_id):
         response=await self._request("GET",f"/v1/dubbing/project/{project_id}")
