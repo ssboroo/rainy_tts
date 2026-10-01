@@ -16,14 +16,19 @@ def run_job(job):
     folder.mkdir(exist_ok=True)
     output = core.DATA / 'outputs' / (job['id'] + '.wav')
     try:
-        resolved_voice_id = ElevenLabsEngine.resolve_voice_id(job['voice_id'])
+        resolved_voice_id = payload.get('provider_voice_id')
+        if not resolved_voice_id:
+            resolved_voice_id = ElevenLabsEngine.resolve_voice_id(job['voice_id'])
         if not resolved_voice_id:
             with core.db() as c:
+                alias = c.execute('SELECT provider_id FROM voice_aliases WHERE source_id=?',(job['voice_id'],)).fetchone()
                 custom = c.execute('SELECT 1 FROM voices WHERE id=? AND user_id=?',(job['voice_id'],job['user_id'])).fetchone()
-            if custom:
+            if alias:
+                resolved_voice_id = alias['provider_id']
+            elif custom:
                 resolved_voice_id = job['voice_id']
         if not resolved_voice_id:
-            raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
+            raise ValueError('Сонгосон ElevenLabs voice workspace-д sync хийгдээгүй байна.')
         cues = payload.get('cues')
         texts = [cue['text'] for cue in cues] if cues else core.chunks(payload['text'])
         parts = []
