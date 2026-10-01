@@ -55,6 +55,15 @@ class BillingUnitTests(unittest.TestCase):
                 plan["monthly_credits"]*upstream_per_credit*settings["target_markup"]
             )
 
+    def test_every_paid_plan_covers_full_provider_base_cost_floor(self):
+        minimum=billing.minimum_safe_plan_price_mnt()
+        for plan in billing.plan_catalog():
+            if plan["id"]=="trial":
+                continue
+            self.assertTrue(plan["profit_safe"])
+            self.assertGreaterEqual(plan["price_mnt"],minimum)
+
+
     def test_subscription_payment_is_idempotent(self):
         billing.ensure_wallet("u")
         order=billing.create_order("u","starter","wire")
@@ -140,6 +149,26 @@ class BillingApiTests(unittest.TestCase):
         with core.db() as db:
             rate=db.execute("SELECT multiplier FROM voice_rates WHERE source_id=?",(voice,)).fetchone()[0]
         self.assertEqual(rate,2)
+
+    def test_queued_tts_delete_refunds_credits(self):
+        from app.engine import ElevenLabsEngine
+        with core.db() as db:
+            user=db.execute("SELECT id FROM users WHERE email=?",(self.email,)).fetchone()["id"]
+        billing.grant(user,1000,"test_grant")
+        voice=ElevenLabsEngine.default_voice_catalog[0]["id"]
+        with patch.dict(os.environ,{"BILLING_ENABLED":"true"},clear=False), \
+             patch("app.server.ElevenLabsEngine.readiness",return_value=(True,"ready")), \
+             patch.object(server.tools,"find_shared_voice",new=AsyncMock(return_value={"voice_id":voice,"rate":1})):
+            created=self.client.post(
+                "/api/jobs",
+                json={"text":"x"*1000,"voice_id":voice,"speed":1},
+                headers=self.headers
+            )
+        self.assertEqual(created.status_code,202,created.text)
+        after_charge=created.json()["balance"]
+        deleted=self.client.delete("/api/jobs/"+created.json()["id"],headers=self.headers)
+        self.assertEqual(deleted.status_code,200,deleted.text)
+        self.assertEqual(billing.wallet(user)["wallet"]["balance"],after_charge+100)
 
     def test_wire_checkout_then_status_activates_plan(self):
         intent={"id":"pi_test","status":"requires_payment_method","amount":29900,"currency":"MNT"}
