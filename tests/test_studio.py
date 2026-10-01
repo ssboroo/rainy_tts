@@ -7,13 +7,14 @@ import struct
 import tempfile
 import time
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import wave
 
 from fastapi.testclient import TestClient
 
 from app import core, server, worker
 from app.engine import ElevenLabsEngine, assemble, friendly_elevenlabs_error
+from app.eleven_tools import ElevenTools
 
 def wav_bytes(seconds=.2):
     buffer=io.BytesIO()
@@ -249,6 +250,36 @@ class APITests(unittest.TestCase):
         self.assertIn('subscription',data)
         self.assertIn('credits_spent_30d',data)
         self.assertNotIn('usage',data)
+
+class ElevenToolsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scribe_v2_accuracy_multipart(self):
+        class DummyUpload:
+            filename='voice.wav'
+            content_type='audio/wav'
+            file=io.BytesIO(b'RIFF')
+            async def seek(self,pos):
+                self.file.seek(pos)
+
+        tool=ElevenTools('test-key')
+        response=MagicMock()
+        response.json.return_value={'text':'ok'}
+        request_mock=AsyncMock(return_value=response)
+        with patch.object(tool,'_request',new=request_mock):
+            result=await tool.speech_to_text(
+                DummyUpload(),'mn',['RAINY','ElevenLabs'],True,False,1,True
+            )
+        self.assertEqual(result['text'],'ok')
+        kwargs=request_mock.await_args.kwargs
+        fields=kwargs['files']
+        names=[item[0] for item in fields]
+        self.assertEqual(names.count('keyterms'),2)
+        values={name:value[1] for name,value in fields if name!='keyterms' and name!='file'}
+        self.assertEqual(values['model_id'],'scribe_v2')
+        self.assertEqual(values['language_code'],'mn')
+        self.assertEqual(values['temperature'],'0')
+        self.assertEqual(values['diarize'],'false')
+        self.assertEqual(values['no_verbatim'],'true')
+        self.assertIn('Do not translate',values['transcript_edit'])
 
 class ProviderErrorTests(unittest.TestCase):
     def test_friendly_elevenlabs_errors(self):
