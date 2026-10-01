@@ -273,10 +273,17 @@ $('pvc-captcha-get').onclick=async()=>{
   const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Voice ID алга.');
   try{
     const data=await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha');
-    $('pvc-captcha').hidden=false;
-    const raw=data.captcha||data.image||data.data||JSON.stringify(data);
-    $('pvc-captcha').textContent=typeof raw==='string'?raw:JSON.stringify(raw,null,2);
-    notice('Verification CAPTCHA бэлэн.');
+    const box=$('pvc-captcha');box.hidden=false;box.replaceChildren();
+    const raw=data.captcha||data.image||data.data||'';
+    if(typeof raw==='string'&&raw.length>100){
+      const img=document.createElement('img');img.className='captcha-image';
+      img.alt='ElevenLabs PVC verification CAPTCHA';
+      img.src=raw.startsWith('data:')?raw:'data:image/png;base64,'+raw;
+      box.append(img);
+    }else{
+      box.textContent=raw||JSON.stringify(data,null,2);
+    }
+    notice('Verification CAPTCHA бэлэн. Доторх мөрүүдийг өөрийн хоолойгоор уншаад record хийнэ үү.');
   }catch(e){notice(e.message);}
 };
 
