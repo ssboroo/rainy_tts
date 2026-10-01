@@ -13,6 +13,31 @@ from . import core
 
 CREDIT_USD = 0.001
 
+# ElevenLabs subscription prices/allowances supplied on 2026-10-01.
+# Creator's $11 first-month offer is promotional; recurring cost is $22.
+ELEVENLABS_PROVIDER_PLANS = {
+    "free": {"price_usd":0, "monthly_credits":10_000},
+    "starter": {"price_usd":6, "monthly_credits":30_000},
+    "creator": {"price_usd":22, "monthly_credits":121_000},
+    "pro": {"price_usd":99, "monthly_credits":600_000},
+    "scale": {"price_usd":299, "monthly_credits":1_800_000},
+    "business": {"price_usd":990, "monthly_credits":6_000_000},
+}
+
+# Public API list prices converted to RAINY credits where 1 credit = $0.001.
+# Temporary v4 promo prices ($0.022 / $0.011 per 1K chars through Oct 12, 2026)
+# are intentionally NOT used for customer billing so pricing remains safe after promo expiry.
+TTS_MODEL_RATES = {
+    "eleven_v4": 80,
+    "eleven_v4_turbo": 40,
+    "eleven_v3": 80,
+    "eleven_v3_conversational": 40,
+    "eleven_multilingual_v2": 80,
+    "eleven_flash_v2_5": 40,
+    "eleven_turbo_v2_5": 40,
+}
+TTS_FALLBACK_RATE = 80
+
 PLANS = {
     "trial": {
         "id":"trial","name":"Trial","price_mnt":0,
@@ -50,14 +75,19 @@ def pricing_settings():
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
-    provider_base_usd=max(0.0,float(os.getenv("BILLING_PROVIDER_BASE_USD","6.0")))
+    provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","starter").strip().lower() or "starter"
+    provider_meta=ELEVENLABS_PROVIDER_PLANS.get(provider_plan,ELEVENLABS_PROVIDER_PLANS["starter"])
+    # Explicit override is kept for custom/enterprise contracts.
+    provider_base_usd=max(0.0,float(os.getenv("BILLING_PROVIDER_BASE_USD",str(provider_meta["price_usd"]))))
     return {
         "usd_mnt_rate":fx,
         "target_markup":markup,
         "payment_fee":payment_fee,
         "overhead_reserve":overhead,
         "fx_buffer":fx_buffer,
+        "provider_plan":provider_plan,
         "provider_base_usd":provider_base_usd,
+        "provider_monthly_credits":provider_meta["monthly_credits"],
     }
 
 def minimum_safe_plan_price_mnt():
@@ -98,19 +128,47 @@ def public_plan_catalog():
         public.append(item)
     return public
 
-# Integer RAINY credits. Rates mirror public ElevenAPI API pricing,
-# plus a platform fee for scarce custom-voice slots.
+# Integer RAINY credits. 1 RAINY credit models $0.001 of upstream API list cost.
 RATES = {
-    "tts_per_1000_chars": 100,       # ~$0.10
-    "dialogue_per_1000_chars": 100,  # conservative TTS-equivalent
-    "stt_per_hour": 220,             # ~$0.22/hour
-    "realtime_15min": 100,           # >= $0.0975, rounded
-    "music_per_min": 150,            # ~$0.15/min
-    "sfx_per_min": 120,              # ~$0.12/min
-    "voice_changer_per_min": 120,    # ~$0.12/min
-    "dubbing_v2_per_min": 2200,      # ~$2.20/min
-    "voice_clone_flat": 1000,        # RAINY platform fee; provider plan/slot limits also apply
+    "tts_default_per_1000_chars": 80,       # v4/v3/v2 Multilingual: $0.08
+    "dialogue_per_1000_chars": 80,          # v3 dialogue-equivalent: $0.08
+    "stt_per_hour": 220,                    # Scribe v1/v2/Medical: $0.22/hour
+    "realtime_stt_per_hour": 390,           # Scribe v2 Realtime: $0.39/hour
+    "agents_per_min": 80,                   # Speech Engine / Agents: $0.08/min
+    "music_per_min": 150,                   # Music: $0.15/min
+    "voice_isolator_per_min": 120,          # Voice Isolator: $0.12/min
+    "voice_changer_per_min": 120,           # Voice Changer: $0.12/min
+    "sound_effects_per_generation": 120,     # Sound Effects: $0.12/generation
+    "dubbing_v1_per_min": 330,              # Dubbing v1: $0.33/min
+    "dubbing_v2_per_min": 2200,             # Dubbing v2: $2.20/min
+    "voice_clone_flat": 1000,                # RAINY platform fee; provider slot rules still apply
 }
+
+def tts_rate(model_id=None):
+    model=(model_id or os.getenv("ELEVENLABS_TTS_MODEL","eleven_v4")).strip().lower()
+    return TTS_MODEL_RATES.get(model,TTS_FALLBACK_RATE)
+
+def public_rate_card():
+    return {
+        "tts": {
+            "eleven_v4":80,
+            "eleven_v4_turbo":40,
+            "eleven_v3":80,
+            "eleven_v3_conversational":40,
+            "eleven_multilingual_v2":80,
+            "flash_turbo":40,
+            "unit":"per_1000_chars",
+        },
+        "speech_to_text":{"credits":220,"unit":"per_hour"},
+        "realtime_stt":{"credits":390,"unit":"per_hour"},
+        "agents":{"credits":80,"unit":"per_min"},
+        "music":{"credits":150,"unit":"per_min"},
+        "voice_isolator":{"credits":120,"unit":"per_min"},
+        "voice_changer":{"credits":120,"unit":"per_min"},
+        "sound_effects":{"credits":120,"unit":"per_generation"},
+        "dubbing_v1":{"credits":330,"unit":"per_min"},
+        "dubbing_v2":{"credits":2200,"unit":"per_min"},
+    }
 
 def billing_enabled():
     return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
@@ -118,27 +176,31 @@ def billing_enabled():
 def plan_catalog():
     return [get_plan(key) for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
 
-def estimate(tool_type, *, chars=0, seconds=0, duration_known=True):
+def estimate(tool_type, *, chars=0, seconds=0, duration_known=True, model_id=None, version=None):
     chars=max(0,int(chars or 0))
     seconds=max(0,float(seconds or 0))
     if tool_type=="tts":
-        return max(1,math.ceil(chars*RATES["tts_per_1000_chars"]/1000))
+        return max(1,math.ceil(chars*tts_rate(model_id)/1000))
     if tool_type=="dialogue":
         return max(1,math.ceil(chars*RATES["dialogue_per_1000_chars"]/1000))
-    if tool_type=="speech_to_text":
+    if tool_type in {"speech_to_text","medical_stt"}:
         return max(1,math.ceil(seconds*RATES["stt_per_hour"]/3600))
     if tool_type=="realtime_stt":
-        return RATES["realtime_15min"]
+        window=seconds if seconds>0 else 15*60
+        return max(1,math.ceil(window*RATES["realtime_stt_per_hour"]/3600))
+    if tool_type=="agents":
+        return max(1,math.ceil(seconds*RATES["agents_per_min"]/60))
     if tool_type=="music":
         return max(1,math.ceil(seconds*RATES["music_per_min"]/60))
+    if tool_type=="voice_isolator":
+        return max(1,math.ceil(seconds*RATES["voice_isolator_per_min"]/60))
     if tool_type=="sound_effects":
-        if not duration_known:
-            return math.ceil(30*RATES["sfx_per_min"]/60)
-        return max(1,math.ceil(seconds*RATES["sfx_per_min"]/60))
+        return RATES["sound_effects_per_generation"]
     if tool_type=="voice_changer":
         return max(1,math.ceil(seconds*RATES["voice_changer_per_min"]/60))
     if tool_type=="dubbing":
-        return max(1,math.ceil(seconds*RATES["dubbing_v2_per_min"]/60))
+        key="dubbing_v1_per_min" if str(version or "v2").lower()=="v1" else "dubbing_v2_per_min"
+        return max(1,math.ceil(seconds*RATES[key]/60))
     if tool_type=="voice_clone":
         return RATES["voice_clone_flat"]
     raise ValueError("Unknown billable tool.")
