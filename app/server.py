@@ -393,10 +393,8 @@ def logout(request:Request):
 def billing_plans():
     return {
         "plans":billing.plan_catalog(),
-        "credit_usd":billing.CREDIT_USD,
         "rates":billing.RATES,
         "wire_configured":wire_payment.configured(),
-        "pricing_guard":billing.pricing_settings(),
         "margin_protected":True,
     }
 
