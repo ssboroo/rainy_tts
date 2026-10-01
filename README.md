@@ -7,7 +7,7 @@ RAINY is a Mongolian-first creative audio studio built on ElevenLabs APIs.
 - **Text to Speech** — Eleven v4, 12 built-in Mongolian voices, clone voices, Text/SRT, WAV + MP3.
 - **Voice Clone** — Instant Voice Clone from 1–10 consented audio samples.
 - **Podcast / Dialogue** — multi-speaker Text to Dialogue with up to 10 unique voices per generation.
-- **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 5 minutes.
+- **Music** — Music v2.5 by default, v2/v1 selector, instrumental mode, 3 seconds to 10 minutes.
 - **Sound Effects** — Sound Effects v2 with duration, seamless loop and prompt-influence controls.
 - **Speech to Text** — Scribe v2 batch transcription with TXT, JSON and SRT artifacts.
 - **Realtime STT** — browser microphone to Scribe v2 Realtime using a server-issued single-use token, with transcript save to History.
@@ -160,22 +160,29 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Starter | ₮59,900 | ~6,400 | 1 |
-| Creator | ₮119,900 | ~12,800 | 2 |
-| Pro | ₮249,900 | ~26,800 | 5 |
-| Studio | ₮499,900 | ~53,600 | 10 |
+| Starter | ₮29,900 | ~1,900 | 1 |
+| Creator | ₮59,900 | ~5,100 | 2 |
+| Pro | ₮129,900 | ~12,600 | 5 |
+| Studio | ₮249,900 | ~25,500 | 10 |
+| Agency | ₮499,900 | ~52,300 | 20 |
 
-\* Credit budgets are calculated at runtime, not hard-coded. With the default guard RAINY reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, requires at least 2× coverage of modeled upstream API cost, and refuses paid plans priced below the full ElevenLabs Starter fixed-cost recovery floor. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
+\* Credit budgets are calculated at runtime, not hard-coded. The default multi-user model uses a shared ElevenLabs backend, allocates a conservative $1.25 fixed provider cost per active paying user, reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 2× coverage of modeled total cost. This is 100% markup on modeled cost, equivalent to roughly 50% gross margin before taxes/refunds/chargebacks. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
 
 Usage rates currently modeled from ElevenAPI public API rates:
 
-- TTS / Dialogue: 100 RAINY credits per 1,000 standard-rate characters.
-- Scribe v2 STT: 220 credits per hour.
-- Realtime STT: 100 credits per 15-minute token window.
-- Music: 150 credits per minute.
-- Voice Changer / Sound Effects: 120 credits per minute.
+- Eleven v4 / v3 / Multilingual v2: 80 RAINY credits per 1,000 characters.
+- v4 Turbo / v3 Conversational / Flash / Turbo: 40 credits per 1,000 characters.
+- Scribe v1/v2/Medical STT: 220 credits per hour.
+- Scribe v2 Realtime: 390 credits per hour.
+- Speech Engine / Agents: 80 credits per minute.
+- Music: 150 credits per minute, up to 10 minutes.
+- Voice Isolator / Voice Changer: 120 credits per minute.
+- Sound Effects: 120 credits per generation.
+- Dubbing v1: 330 credits per minute.
 - Dubbing v2: 2,200 credits per source minute.
 - Instant Voice Clone: 1,000-credit platform charge plus plan clone-slot limits.
+
+The temporary Eleven v4 promotion through October 12, 2026 ($0.022/1K for v4 and $0.011/1K for v4 Turbo) is intentionally not passed through to RAINY customer rates. RAINY bills against the normal $0.08/$0.04 list prices so the promotion becomes extra temporary margin and customer pricing remains safe after it expires.
 
 Shared Voice Library voices may have a provider credit multiplier. RAINY requests the current shared-voice `rate`, caches it, and multiplies customer credit usage accordingly. If the provider rate cannot be retrieved, `BILLING_UNKNOWN_VOICE_MULTIPLIER` is used as a conservative fallback.
 
@@ -196,7 +203,9 @@ Configure:
 BILLING_ENABLED=true
 BILLING_USD_MNT_RATE=3700
 BILLING_TARGET_MARKUP=2.0
-BILLING_PROVIDER_BASE_USD=6
+ELEVENLABS_PROVIDER_PLAN=pro
+BILLING_EXPECTED_ACTIVE_USERS=100
+BILLING_FIXED_COST_PER_ACTIVE_USER_USD=1.25
 BILLING_PAYMENT_FEE_PERCENT=3
 BILLING_OVERHEAD_RESERVE_PERCENT=10
 BILLING_FX_BUFFER_PERCENT=10
@@ -211,6 +220,6 @@ WIRE_MN_ALLOWED_OPERATORS=sandbox
 
 For live Wire keys, do not keep `sandbox` in `WIRE_MN_ALLOWED_OPERATORS`. Use connected live operator IDs or leave the value empty if Wire should select the connected operator.
 
-Recommended ElevenLabs provider setup for an early commercial launch is **Starter ($6/month) + PAYG/top-ups**. Voice Library API access is not available to free-tier users, and a PAYG balance does not remove subscription-tier voice-slot/API restrictions. Starting on the lowest paid tier minimizes fixed cost; move to Creator/Pro/Scale only when concurrency, custom-voice slots or other plan limits require it. Keep provider credentials and PAYG controls server-side. Customer RAINY credit pricing remains independent of the provider subscription tier.
+Scale the shared ElevenLabs backend by active paying users and actual usage: roughly Starter for up to 5 users, Creator for up to 20, Pro for up to 100, Scale for up to 300, and Business for up to 1,000. These thresholds intentionally keep fixed provider subscription cost near ~$1 per active user before usage. If the average customer consumes more than the included provider credits imply, enable PAYG or move up earlier. Keep provider credentials and PAYG controls server-side. Customer RAINY credit pricing remains independent of the provider subscription tier.
 
 This margin guard protects modeled gross unit economics; it cannot guarantee accounting profit because taxes, refunds, chargebacks, infrastructure, support, changing provider prices and actual payment fees can differ from the configured reserves.
