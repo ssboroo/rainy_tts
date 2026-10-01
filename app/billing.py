@@ -41,15 +41,15 @@ PLANS = {
     },
     "pro": {
         "id":"pro","name":"Pro","price_mnt":139_900,
-        "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
+        "description":"Идэвхтэй хэрэглээ · 5 IVC + 1 PVC","sort":3,
     },
     "studio": {
         "id":"studio","name":"Studio","price_mnt":259_900,
-        "description":"Студи, баг · 10 clone slot","sort":4,
+        "description":"Студи, баг · 10 IVC + 2 PVC","sort":4,
     },
     "agency": {
         "id":"agency","name":"Agency","price_mnt":499_900,
-        "description":"Agency, өндөр хэрэглээ · 20 clone slot","sort":5,
+        "description":"Agency, өндөр хэрэглээ · 20 IVC + 4 PVC","sort":5,
     },
 }
 
