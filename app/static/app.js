@@ -288,14 +288,35 @@ $('sfx-generate').onclick=async()=>{
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
 };
 
+$('stt-diarize').onchange=()=>{
+  $('stt-speakers').disabled=!$('stt-diarize').checked;
+  if(!$('stt-diarize').checked)$('stt-speakers').value='1';
+};
+$('stt-speakers').disabled=true;
+
 $('stt-form').onsubmit=async event=>{
   event.preventDefault();if(!ensureUser())return;
-  const button=event.currentTarget.querySelector('button[type=submit]');setBusy(button,true,'Transcribe хийж байна…');
+  const formEl=event.currentTarget;
+  const button=formEl.querySelector('button[type=submit]');setBusy(button,true,'Scribe v2 · Монгол accuracy mode…');
   try{
-    const result=await api('/tools/stt',{method:'POST',body:new FormData(event.currentTarget),form:true});
+    const form=new FormData(formEl);
+    form.set('polish',formEl.querySelector('[name=polish]').checked?'true':'false');
+    form.set('no_verbatim',formEl.querySelector('[name=no_verbatim]').checked?'true':'false');
+    form.set('diarize',formEl.querySelector('[name=diarize]').checked?'true':'false');
+    form.set('num_speakers',formEl.querySelector('[name=num_speakers]').value||'1');
+    const result=await api('/tools/stt',{method:'POST',body:form,form:true});
     $('stt-result').hidden=false;
-    $('stt-result').textContent=result.text||'Transcript хоосон байна.';
-    notice('Transcript + JSON + SRT History-д хадгалагдлаа.');
+    const meta=[
+      result.polished?'Монгол зөв бичгийн polish ✓':'Raw transcript',
+      result.language_code?('Хэл: '+result.language_code):null,
+      result.language_probability!=null?('confidence '+Math.round(Number(result.language_probability)*100)+'%'):null,
+      result.keyterms_used?('keyterms '+result.keyterms_used):null,
+      result.credits_used?('credit '+result.credits_used):null
+    ].filter(Boolean).join(' · ');
+    $('stt-result').textContent=(meta?meta+'\n\n':'')+(result.text||'Transcript хоосон байна.')+
+      (result.edit_error?'\n\nPolish warning: '+result.edit_error:'');
+    notice(result.polished?'Монгол transcript засвартайгаар бэлэн боллоо.':'Transcript бэлэн боллоо.');
+    loadHistory();loadBilling(true);
   }catch(e){notice(e.message);}finally{setBusy(button,false);}
 };
 
