@@ -13,31 +13,42 @@ from . import core
 
 CREDIT_USD = 0.001
 
-# ElevenLabs subscription prices/allowances supplied on 2026-10-01.
+# ElevenLabs provider subscription prices/allowances supplied on 2026-10-01.
 # Creator's $11 first-month offer is promotional; recurring cost is $22.
 ELEVENLABS_PROVIDER_PLANS = {
+    "free": {"price_usd":0, "monthly_credits":10_000},
+    "starter": {"price_usd":6, "monthly_credits":30_000},
+    "creator": {"price_usd":22, "monthly_credits":121_000},
+    "pro": {"price_usd":99, "monthly_credits":600_000},
+    "scale": {"price_usd":299, "monthly_credits":1_800_000},
+    "business": {"price_usd":990, "monthly_credits":6_000_000},
+}
+
+# RAINY customer subscription plans. Monthly credits are computed dynamically
+# from price and the protected cost model rather than hard-coded.
+PLANS = {
     "trial": {
         "id":"trial","name":"Trial","price_mnt":0,
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":29900,
+        "id":"starter","name":"Starter","price_mnt":29_900,
         "description":"Эхлэх хэрэглээ · 1 clone slot","sort":1,
     },
     "creator": {
-        "id":"creator","name":"Creator","price_mnt":59900,
+        "id":"creator","name":"Creator","price_mnt":59_900,
         "description":"Контент бүтээгч · 2 clone slot","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":129900,
+        "id":"pro","name":"Pro","price_mnt":129_900,
         "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":249900,
+        "id":"studio","name":"Studio","price_mnt":249_900,
         "description":"Студи, баг · 10 clone slot","sort":4,
     },
     "agency": {
-        "id":"agency","name":"Agency","price_mnt":499900,
+        "id":"agency","name":"Agency","price_mnt":499_900,
         "description":"Agency, өндөр хэрэглээ · 20 clone slot","sort":5,
     },
 }
@@ -51,6 +62,35 @@ PLAN_ENTITLEMENTS = {
     "agency":{"clone_limit":20},
 }
 
+# API list prices mapped to RAINY credits: 1 RAINY credit = $0.001 upstream cost.
+# Temporary v4 promo prices ($0.022 / $0.011 through Oct 12, 2026) are
+# intentionally not used for customer billing; normal list prices keep the
+# customer price safe after the promotion expires.
+TTS_MODEL_RATES = {
+    "eleven_v4": 80,                    # $0.08 / 1K chars
+    "eleven_v4_turbo": 40,              # $0.04 / 1K chars
+    "eleven_v3": 80,
+    "eleven_v3_conversational": 40,
+    "eleven_multilingual_v2": 80,
+    "eleven_flash_v2_5": 40,
+    "eleven_turbo_v2_5": 40,
+}
+TTS_FALLBACK_RATE = 80
+
+RATES = {
+    "tts_default_per_1000_chars": 80,
+    "dialogue_per_1000_chars": 80,
+    "stt_per_hour": 220,
+    "realtime_stt_per_hour": 390,
+    "agents_per_min": 80,
+    "music_per_min": 150,
+    "voice_isolator_per_min": 120,
+    "voice_changer_per_min": 120,
+    "sound_effects_per_generation": 120,
+    "dubbing_v1_per_min": 330,
+    "dubbing_v2_per_min": 2200,
+    "voice_clone_flat": 1000,
+}
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
@@ -61,8 +101,6 @@ def pricing_settings():
     provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","pro").strip().lower() or "pro"
     provider_meta=ELEVENLABS_PROVIDER_PLANS.get(provider_plan,ELEVENLABS_PROVIDER_PLANS["pro"])
     expected_active=max(1,int(os.getenv("BILLING_EXPECTED_ACTIVE_USERS","100")))
-    # Conservative shared fixed-cost allocation. The plan ladder is ~ $1/user when
-    # backend tier scales near 5/20/100/300/1000 active customers.
     fixed_per_user=max(
         float(os.getenv("BILLING_FIXED_COST_PER_ACTIVE_USER_USD","1.25")),
         float(provider_meta["price_usd"])/expected_active,
@@ -121,6 +159,9 @@ def get_plan(plan_id):
     plan.update(PLAN_ENTITLEMENTS.get(plan_id,{}))
     return plan
 
+def plan_catalog():
+    return [get_plan(key) for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
+
 def public_plan_catalog():
     public=[]
     for plan in plan_catalog():
@@ -129,22 +170,6 @@ def public_plan_catalog():
         item={k:v for k,v in plan.items() if k not in {"profit_safe","sort"}}
         public.append(item)
     return public
-
-# Integer RAINY credits. 1 RAINY credit models $0.001 of upstream API list cost.
-RATES = {
-    "tts_default_per_1000_chars": 80,       # v4/v3/v2 Multilingual: $0.08
-    "dialogue_per_1000_chars": 80,          # v3 dialogue-equivalent: $0.08
-    "stt_per_hour": 220,                    # Scribe v1/v2/Medical: $0.22/hour
-    "realtime_stt_per_hour": 390,           # Scribe v2 Realtime: $0.39/hour
-    "agents_per_min": 80,                   # Speech Engine / Agents: $0.08/min
-    "music_per_min": 150,                   # Music: $0.15/min
-    "voice_isolator_per_min": 120,          # Voice Isolator: $0.12/min
-    "voice_changer_per_min": 120,           # Voice Changer: $0.12/min
-    "sound_effects_per_generation": 120,     # Sound Effects: $0.12/generation
-    "dubbing_v1_per_min": 330,              # Dubbing v1: $0.33/min
-    "dubbing_v2_per_min": 2200,             # Dubbing v2: $2.20/min
-    "voice_clone_flat": 1000,                # RAINY platform fee; provider slot rules still apply
-}
 
 def tts_rate(model_id=None):
     model=(model_id or os.getenv("ELEVENLABS_TTS_MODEL","eleven_v4")).strip().lower()
@@ -174,9 +199,6 @@ def public_rate_card():
 
 def billing_enabled():
     return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
-
-def plan_catalog():
-    return [get_plan(key) for key in sorted(PLANS,key=lambda k:PLANS[k]["sort"])]
 
 def estimate(tool_type, *, chars=0, seconds=0, duration_known=True, model_id=None, version=None):
     chars=max(0,int(chars or 0))
