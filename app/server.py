@@ -638,15 +638,13 @@ async def provider_status(request:Request):
         sub=await tools.subscription()
     except Exception as exc:
         raise api_exception(exc)
-    with core.db() as c:
-        aliases={row["source_id"]:row["provider_id"] for row in c.execute("SELECT source_id,provider_id FROM voice_aliases")}
+    with core.db() as db:
+        aliases={row["source_id"]:row["provider_id"] for row in db.execute("SELECT source_id,provider_id FROM voice_aliases")}
+    paid_ready=str(sub.get("tier","")).lower()!="free" and str(sub.get("status","active")).lower() in {"active","trialing"}
     return {
-        "tier":sub.get("tier"),
-        "status":sub.get("status"),
-        "character_count":sub.get("character_count"),
-        "character_limit":sub.get("character_limit"),
-        "can_use_instant_voice_cloning":sub.get("can_use_instant_voice_cloning"),
-        "voice_library_api_available":str(sub.get("tier","")).lower()!="free",
+        "provider_ready":paid_ready,
+        "voice_library_api_available":paid_ready,
+        "clone_available":bool(sub.get("can_use_instant_voice_cloning")),
         "synced_voice_count":sum(1 for v in ElevenLabsEngine.configured_voices() if v["id"] in aliases),
         "total_voice_count":len(ElevenLabsEngine.configured_voices())
     }
