@@ -727,6 +727,110 @@ async def clone_voice(
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
+@app.post("/api/voices/pvc")
+async def create_pvc(
+    request:Request,
+    name:str=Form(...),
+    description:str=Form(""),
+    language:str=Form("mn"),
+    remove_background_noise:bool=Form(False),
+    ownership:bool=Form(False),
+    files:list[UploadFile]=File(...)
+):
+    sess=session(request); mutation_guard(request,sess); throttle("pvc:"+sess["user_id"],4,3600)
+    if not ownership:
+        raise HTTPException(422,"Professional Voice Clone нь зөвхөн өөрийн хоолойд зориулагдана.")
+    if language.lower()!="mn":
+        raise HTTPException(422,"RAINY Professional Clone одоогоор Монгол хэл (mn)-ээр үүсгэнэ.")
+    if not 1<=len(files)<=20:
+        raise HTTPException(422,"Professional Clone-д 1–20 аудио sample оруулна уу.")
+    for upload in files:
+        validate_upload(upload,AUDIO_EXTS,MAX_AUDIO_MB)
+    account=billing.wallet(sess["user_id"])
+    sub=account.get("subscription") or {}
+    plan=billing.get_plan(sub.get("plan_id"))
+    pvc_limit=int((plan or {}).get("pvc_limit",0))
+    with core.db() as db:
+        count=db.execute("SELECT COUNT(*) FROM pvc_voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
+    if billing.billing_enabled() and (sub.get("status")!="active" or pvc_limit<=0):
+        raise HTTPException(402,"Professional Voice Clone нь Pro, Studio эсвэл Agency RAINY plan шаардлагатай.")
+    if billing.billing_enabled() and count>=pvc_limit:
+        raise HTTPException(409,f"Таны plan {pvc_limit} Professional Voice Clone хүртэл зөвшөөрнө.")
+    try:
+        created=await tools.pvc_create(name,"mn",description)
+        voice_id=str(created.get("voice_id") or "")
+        if not voice_id:
+            raise ValueError("PVC voice_id буцаасангүй.")
+        samples=await tools.pvc_add_samples(voice_id,files,remove_background_noise)
+        now=time.time()
+        metadata={"samples":samples,"description":description}
+        with core.db() as db:
+            db.execute(
+                "INSERT INTO pvc_voices(id,user_id,name,language,status,metadata,created,updated) VALUES(?,?,?,?,?,?,?,?)",
+                (voice_id,sess["user_id"],name[:100],"mn","verification_required",json.dumps(metadata,ensure_ascii=False),now,now)
+            )
+        return {"voice_id":voice_id,"status":"verification_required","samples":samples}
+    except Exception as exc:
+        raise api_exception(exc)
+
+def owned_pvc(user_id,voice_id):
+    with core.db() as db:
+        row=db.execute("SELECT * FROM pvc_voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
+    if not row:
+        raise HTTPException(404,"Professional Voice Clone олдсонгүй.")
+    return row
+
+@app.get("/api/voices/pvc/{voice_id}")
+async def pvc_status(voice_id:str,request:Request):
+    sess=session(request); owned_pvc(sess["user_id"],voice_id)
+    try:
+        info=await tools.pvc_status(voice_id)
+    except Exception as exc:
+        raise api_exception(exc)
+    verification=info.get("voice_verification") or {}
+    fine=info.get("fine_tuning") or {}
+    status="ready" if verification.get("is_verified") and any(v=="fine_tuned" for v in (fine.get("state") or {}).values()) else "processing"
+    with core.db() as db:
+        db.execute("UPDATE pvc_voices SET status=?,metadata=?,updated=? WHERE id=?",
+                   (status,json.dumps(info,ensure_ascii=False),time.time(),voice_id))
+        if status=="ready":
+            db.execute(
+                "INSERT OR REPLACE INTO voices(id,user_id,name,transcript,created) VALUES(?,?,?,?,?)",
+                (voice_id,sess["user_id"],info.get("name") or "Professional Voice","PVC · mn",time.time())
+            )
+    return {"voice_id":voice_id,"status":status,"voice":info}
+
+@app.get("/api/voices/pvc/{voice_id}/captcha")
+async def pvc_captcha(voice_id:str,request:Request):
+    sess=session(request); owned_pvc(sess["user_id"],voice_id)
+    try:
+        return await tools.pvc_get_captcha(voice_id)
+    except Exception as exc:
+        raise api_exception(exc)
+
+@app.post("/api/voices/pvc/{voice_id}/captcha")
+async def pvc_verify(voice_id:str,request:Request,recording:UploadFile=File(...)):
+    sess=session(request); mutation_guard(request,sess); owned_pvc(sess["user_id"],voice_id)
+    validate_upload(recording,AUDIO_EXTS,MAX_AUDIO_MB)
+    try:
+        result=await tools.pvc_verify_captcha(voice_id,recording)
+        with core.db() as db:
+            db.execute("UPDATE pvc_voices SET status='verified',updated=? WHERE id=?",(time.time(),voice_id))
+        return result
+    except Exception as exc:
+        raise api_exception(exc)
+
+@app.post("/api/voices/pvc/{voice_id}/train")
+async def pvc_train(voice_id:str,request:Request):
+    sess=session(request); mutation_guard(request,sess); owned_pvc(sess["user_id"],voice_id)
+    try:
+        result=await tools.pvc_train(voice_id,"eleven_v4")
+        with core.db() as db:
+            db.execute("UPDATE pvc_voices SET status='training',updated=? WHERE id=?",(time.time(),voice_id))
+        return {"voice_id":voice_id,"status":"training",**result}
+    except Exception as exc:
+        raise api_exception(exc)
+
 @app.delete("/api/voices/{voice_id}")
 async def delete_voice(voice_id:str,request:Request):
     sess=session(request); mutation_guard(request,sess)
@@ -792,6 +896,9 @@ async def create_tts(request:Request):
         raise HTTPException(422,"Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.")
     ready,reason=ElevenLabsEngine().readiness()
     if not ready: raise HTTPException(503,reason)
+    tts_model=str(data.get("model_id") or ElevenLabsEngine().model_id).strip()
+    if tts_model not in {"eleven_v4","eleven_v4_turbo"}:
+        raise HTTPException(422,"Монгол TTS-д Eleven v4 эсвэл v4 Turbo сонгоно уу.")
     title=str(data.get("title","Шинэ бүтээл")).strip()[:100] or "Шинэ бүтээл"
     try: speed=float(data.get("speed",1))
     except Exception: raise HTTPException(422,"Хурд буруу байна.")
@@ -799,7 +906,7 @@ async def create_tts(request:Request):
     glossary=data.get("glossary",{})
     if not isinstance(glossary,dict) or len(glossary)>100:
         raise HTTPException(422,"Дуудлагын толь буруу байна.")
-    payload={"speed":speed}
+    payload={"speed":speed,"model_id":tts_model}
     try:
         if data.get("srt"):
             cues=core.parse_srt(str(data["srt"]))
@@ -818,7 +925,6 @@ async def create_tts(request:Request):
         active=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
     if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
     job_id=core.uid()
-    tts_model=ElevenLabsEngine().model_id
     multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
     base_credits=billing.estimate("tts",chars=count,model_id=tts_model)
     credits=max(1,math.ceil(base_credits*multiplier))
@@ -1064,6 +1170,34 @@ async def voice_changer(
         max(1,math.ceil(billing.estimate("voice_changer",seconds=duration)*multiplier))
     )
 
+@app.post("/api/tools/voice-isolator")
+async def voice_isolator(request:Request,file:UploadFile=File(...)):
+    sess=session(request); mutation_guard(request,sess); throttle("isolator:"+sess["user_id"],20,3600)
+    validate_upload(file,MEDIA_EXTS,MAX_DUB_MB)
+    duration=await upload_duration_seconds(file)
+    credits=billing.estimate("voice_isolator",seconds=duration)
+    job_id=core.create_tool_job(
+        sess["user_id"],"voice_isolator",file.filename or "Voice Isolator",
+        {"source":file.filename,"duration_seconds":duration}
+    )
+    charge_id=charge(sess["user_id"],credits,"voice_isolator",job_id,{"duration_seconds":duration})
+    try:
+        audio,meta=await tools.voice_isolator(file)
+        artifact_id=create_artifact_bytes(
+            sess["user_id"],job_id,"audio","rainy-isolated-voice.mp3","audio/mpeg",audio
+        )
+        core.add_provider_usage(
+            sess["user_id"],job_id,"voice_isolator",
+            request_id=meta.get("request_id"),trace_id=meta.get("trace_id"),metadata=meta
+        )
+        result={"artifact_id":artifact_id,"credits_used":credits,"provider_usage":meta}
+        core.update_tool_job(job_id,"done",result=result)
+        return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
+    except Exception as exc:
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
+        core.update_tool_job(job_id,"failed",error=str(exc))
+        raise api_exception(exc)
+
 @app.post("/api/tools/realtime-token")
 async def realtime_token(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("realtime:"+sess["user_id"],20,3600)
@@ -1235,6 +1369,89 @@ def artifact(artifact_id:str,request:Request):
     path=Path(row["path"])
     if not path.is_file(): raise HTTPException(404,"Файл олдсонгүй.")
     return FileResponse(path,media_type=row["mime"],filename=row["filename"])
+
+@app.get("/api/reception/config")
+def reception_config(request:Request):
+    sess=session(request)
+    now=time.time()
+    with core.db() as db:
+        row=db.execute("SELECT * FROM reception_integrations WHERE user_id=?",(sess["user_id"],)).fetchone()
+        if not row:
+            token=secrets.token_urlsafe(24)
+            db.execute(
+                "INSERT INTO reception_integrations(user_id,token,active,created,updated) VALUES(?,?,?,?,?)",
+                (sess["user_id"],token,1,now,now)
+            )
+            row=db.execute("SELECT * FROM reception_integrations WHERE user_id=?",(sess["user_id"],)).fetchone()
+    base=ORIGIN
+    tools_config=[]
+    for name,description in [
+        ("create_lead","Caller-ийн нэр, утас, сонирхлыг RAINY-д lead болгон хадгална."),
+        ("take_message","Caller-ийн мессеж, priority-г хадгална."),
+        ("request_quote","Үнийн санал хүсэлтийг хадгална."),
+        ("create_order","Утасны захиалгын мэдээллийг хадгална."),
+    ]:
+        tools_config.append({
+            "name":name,"method":"POST","description":description,
+            "url":f"{base}/api/reception/hooks/{row['token']}/{name}"
+        })
+    return {"active":bool(row["active"]),"tools":tools_config}
+
+@app.post("/api/reception/hooks/{token}/{tool_name}")
+async def reception_hook(token:str,tool_name:str,request:Request):
+    allowed={"create_lead","take_message","request_quote","create_order"}
+    if tool_name not in allowed:
+        raise HTTPException(404,"Reception tool олдсонгүй.")
+    with core.db() as db:
+        integration=db.execute(
+            "SELECT * FROM reception_integrations WHERE token=? AND active=1",(token,)
+        ).fetchone()
+    if not integration:
+        raise HTTPException(401,"Reception.ai integration token буруу байна.")
+    try:
+        payload=await request.json()
+    except Exception:
+        payload={}
+    if not isinstance(payload,dict):
+        raise HTTPException(422,"Reception payload object байх ёстой.")
+    raw=json.dumps(payload,ensure_ascii=False)
+    if len(raw)>20000:
+        raise HTTPException(413,"Reception payload хэт том байна.")
+    event_id=core.uid()
+    with core.db() as db:
+        db.execute(
+            "INSERT INTO reception_events(id,user_id,tool_name,payload,created) VALUES(?,?,?,?,?)",
+            (event_id,integration["user_id"],tool_name,raw,time.time())
+        )
+    return {"ok":True,"event_id":event_id,"message":"RAINY-д амжилттай хадгаллаа."}
+
+@app.get("/api/reception/events")
+def reception_events(request:Request):
+    sess=session(request)
+    with core.db() as db:
+        rows=db.execute(
+            "SELECT id,tool_name,payload,created FROM reception_events WHERE user_id=? ORDER BY created DESC LIMIT 100",
+            (sess["user_id"],)
+        ).fetchall()
+    items=[]
+    for row in rows:
+        item=dict(row)
+        try:item["payload"]=json.loads(item["payload"])
+        except Exception:item["payload"]={}
+        items.append(item)
+    return {"items":items}
+
+@app.post("/api/reception/rotate-token")
+def reception_rotate(request:Request):
+    sess=session(request); mutation_guard(request,sess)
+    token=secrets.token_urlsafe(24); now=time.time()
+    with core.db() as db:
+        db.execute(
+            "INSERT INTO reception_integrations(user_id,token,active,created,updated) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,active=1,updated=excluded.updated",
+            (sess["user_id"],token,1,now,now)
+        )
+    return {"ok":True}
 
 @app.get("/api/history")
 def history(request:Request):
