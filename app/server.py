@@ -861,13 +861,17 @@ async def dialogue(request:Request):
     inputs=data.get("inputs")
     if not isinstance(inputs,list) or not 2<=len(inputs)<=30:
         raise HTTPException(422,"Podcast/Dialogue-д 2–30 мөр шаардлагатай.")
-    total=0; voices_used=set(); clean=[]
+    total=0; voices_used=set(); clean=[]; weighted_chars=0.0; voice_rates={}
     allowed=allowed_voice_ids(sess["user_id"])
     for item in inputs:
         if not isinstance(item,dict): raise HTTPException(422,"Dialogue бүтэц буруу байна.")
         voice_id=str(item.get("voice_id","")).strip(); text=str(item.get("text","")).strip()
         if voice_id not in allowed or not text: raise HTTPException(422,"Speaker voice эсвэл текст буруу байна.")
-        total+=len(text); voices_used.add(voice_id); clean.append({"voice_id":voice_id,"text":text})
+        multiplier=voice_rates.get(voice_id)
+        if multiplier is None:
+            multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
+            voice_rates[voice_id]=multiplier
+        total+=len(text); weighted_chars+=len(text)*multiplier; voices_used.add(voice_id); clean.append({"voice_id":voice_id,"text":text})
     if total>2000 or len(voices_used)>10:
         raise HTTPException(422,"Dialogue нийт 2000 тэмдэгт, 10 unique voice-аас хэтрэхгүй.")
     title=str(data.get("title","Podcast / Dialogue"))[:100]
@@ -875,8 +879,8 @@ async def dialogue(request:Request):
     return await run_binary_tool(
         request,sess,"dialogue",title,
         lambda:tools.dialogue(clean,language),"rainy-dialogue.mp3","audio/mpeg",
-        {"inputs":len(clean),"voices":len(voices_used),"language":language},
-        billing.estimate("dialogue",chars=total)
+        {"inputs":len(clean),"voices":len(voices_used),"language":language,"voice_multipliers":voice_rates},
+        max(1,math.ceil(weighted_chars*billing.RATES["dialogue_per_1000_chars"]/1000))
     )
 
 @app.post("/api/tools/music")
