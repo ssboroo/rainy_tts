@@ -7,7 +7,8 @@ import wave
 from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
 
-load_dotenv()
+load_dotenv(dotenv_path='.env.local', override=False)
+load_dotenv(dotenv_path='.env', override=False)
 
 def friendly_elevenlabs_error(exc):
     raw=str(exc or "").strip()
@@ -59,6 +60,7 @@ class ElevenLabsEngine:
     def __init__(self):
         self.api_key = os.getenv('ELEVENLABS_API_KEY', '').strip()
         self.language_code = os.getenv('ELEVENLABS_LANGUAGE_CODE', 'mn').strip() or 'mn'
+        self.model_id = os.getenv('ELEVENLABS_TTS_MODEL', 'eleven_v4').strip() or 'eleven_v4'
         self.client = ElevenLabs(api_key=self.api_key) if self.api_key else None
 
     @classmethod
@@ -109,7 +111,7 @@ class ElevenLabsEngine:
             return False, str(exc)
         if not voices:
             return False, 'ElevenLabs voice тохируулаагүй байна.'
-        return True, f'ElevenLabs SDK · Eleven v4 · {len(voices)} voice бэлэн'
+        return True, f'ElevenLabs SDK · {self.model_id} · {len(voices)} voice бэлэн'
 
     @staticmethod
     def _audio_bytes(audio):
