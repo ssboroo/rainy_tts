@@ -160,10 +160,10 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Starter | ₮29,900 | ~1,900 | 1 |
-| Creator | ₮59,900 | ~5,100 | 2 |
-| Pro | ₮129,900 | ~12,600 | 5 |
-| Studio | ₮249,900 | ~25,500 | 10 |
+| Starter | ₮39,900 | ~3,000 | 1 |
+| Creator | ₮69,900 | ~6,200 | 2 |
+| Pro | ₮139,900 | ~13,700 | 5 |
+| Studio | ₮259,900 | ~26,600 | 10 |
 | Agency | ₮499,900 | ~52,300 | 20 |
 
 \* Credit budgets are calculated at runtime, not hard-coded. The default multi-user model uses a shared ElevenLabs backend, allocates a conservative $1.25 fixed provider cost per active paying user, reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 2× coverage of modeled total cost. This is 100% markup on modeled cost, equivalent to roughly 50% gross margin before taxes/refunds/chargebacks. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
@@ -223,3 +223,18 @@ For live Wire keys, do not keep `sandbox` in `WIRE_MN_ALLOWED_OPERATORS`. Use co
 Scale the shared ElevenLabs backend by active paying users and actual usage: roughly Starter for up to 5 users, Creator for up to 20, Pro for up to 100, Scale for up to 300, and Business for up to 1,000. These thresholds intentionally keep fixed provider subscription cost near ~$1 per active user before usage. If the average customer consumes more than the included provider credits imply, enable PAYG or move up earlier. Keep provider credentials and PAYG controls server-side. Customer RAINY credit pricing remains independent of the provider subscription tier.
 
 This margin guard protects modeled gross unit economics; it cannot guarantee accounting profit because taxes, refunds, chargebacks, infrastructure, support, changing provider prices and actual payment fees can differ from the configured reserves.
+
+
+## Mongolian Speech-to-Text accuracy
+
+RAINY uses Scribe v2 with `language_code=mn` by default. For higher-quality Mongolian transcripts it supports:
+
+- user-supplied **keyterms** for names, brands and technical words,
+- deterministic low-temperature transcription,
+- optional speaker diarization only when there are multiple speakers,
+- `no_verbatim` cleanup for filler words and false starts,
+- optional transcript editing that explicitly keeps the text in Mongolian, does **not translate**, and only corrects obvious spelling, punctuation and formatting.
+
+Keyterm prompting adds 20% to the upstream STT cost. Transcript editing adds 30% and has a minimum 10-second billable duration. RAINY includes these surcharges in customer credit usage so the margin guard remains intact.
+
+When transcript editing succeeds, `transcript.txt` contains the polished Mongolian text and `transcript-raw.txt` preserves the original Scribe result. SRT timestamps remain based on the original word-aligned transcript.
