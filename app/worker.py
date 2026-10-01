@@ -3,7 +3,7 @@ import logging
 import shutil
 import subprocess
 import threading
-from . import core
+from . import core, billing
 from .engine import ElevenLabsEngine, assemble
 
 log = logging.getLogger(__name__)
@@ -57,6 +57,8 @@ def run_job(job):
             message='FFmpeg аудио боловсруулах үед алдаа гарлаа.'
         else:
             message='Дуу үүсгэж чадсангүй. Worker terminal дээрх log-ийг шалгана уу.'
+        billing_info=payload.get('billing') or {}
+        billing.refund(job['user_id'],billing_info.get('charge_id'),'tts_failed')
         with core.db() as c:
             c.execute("UPDATE jobs SET status='failed',error=? WHERE id=?", (message,job['id']))
     finally:
