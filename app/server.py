@@ -744,15 +744,23 @@ async def create_tts(request:Request):
     except ValueError as exc:
         raise HTTPException(422,str(exc))
     if count>12000: raise HTTPException(422,"Нэг ажил 12000 тэмдэгтээс хэтрэхгүй байна.")
-    with core.db() as c:
-        active=c.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
-        if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
-        job_id=core.uid()
-        c.execute(
-            "INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)",
-            (job_id,sess["user_id"],voice_id,title,json.dumps(payload,ensure_ascii=False),"queued",time.time())
-        )
-    return JSONResponse({"id":job_id},status_code=202)
+    with core.db() as db:
+        active=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
+    if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
+    job_id=core.uid()
+    credits=billing.estimate("tts",chars=count)
+    charge_id=charge(sess["user_id"],credits,"tts",job_id,{"characters":count})
+    payload["billing"]={"credits":credits,"charge_id":charge_id}
+    try:
+        with core.db() as db:
+            db.execute(
+                "INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)",
+                (job_id,sess["user_id"],voice_id,title,json.dumps(payload,ensure_ascii=False),"queued",time.time())
+            )
+    except Exception:
+        billing.refund(sess["user_id"],charge_id,"job_create_failed")
+        raise
+    return JSONResponse({"id":job_id,"credits_used":credits,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]},status_code=202)
 
 @app.get("/api/jobs/{job_id}")
 def get_tts_job(job_id:str,request:Request):
@@ -785,16 +793,18 @@ def tts_file(job_id:str,fmt:str,request:Request):
     path=core.DATA/"outputs"/f"{job_id}.{fmt}"
     return FileResponse(path,media_type="audio/wav" if fmt=="wav" else "audio/mpeg",filename=f"rainy-voice.{fmt}")
 
-async def run_binary_tool(request,sess,tool_type,title,runner,filename,mime,payload):
+async def run_binary_tool(request,sess,tool_type,title,runner,filename,mime,payload,credits=0):
     throttle("tool:"+sess["user_id"],30)
     job_id=core.create_tool_job(sess["user_id"],tool_type,title,payload)
+    charge_id=charge(sess["user_id"],credits,tool_type,job_id,{"title":title}) if credits else None
     try:
         data=await runner()
         artifact_id=create_artifact_bytes(sess["user_id"],job_id,"audio",filename,mime,data)
-        result={"artifact_id":artifact_id}
+        result={"artifact_id":artifact_id,"credits_used":credits}
         core.update_tool_job(job_id,"done",result=result)
-        return {"job_id":job_id,**result}
+        return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
+        billing.refund(sess["user_id"],charge_id,"provider_failed")
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
@@ -819,7 +829,8 @@ async def dialogue(request:Request):
     return await run_binary_tool(
         request,sess,"dialogue",title,
         lambda:tools.dialogue(clean,language),"rainy-dialogue.mp3","audio/mpeg",
-        {"inputs":len(clean),"voices":len(voices_used),"language":language}
+        {"inputs":len(clean),"voices":len(voices_used),"language":language},
+        billing.estimate("dialogue",chars=total)
     )
 
 @app.post("/api/tools/music")
@@ -839,7 +850,8 @@ async def music(request:Request):
     return await run_binary_tool(
         request,sess,"music",title,
         lambda:tools.music(prompt,length_ms,model_id,force_instrumental),"rainy-music.mp3","audio/mpeg",
-        {"prompt":prompt[:300],"music_length_ms":length_ms,"model_id":model_id,"force_instrumental":force_instrumental}
+        {"prompt":prompt[:300],"music_length_ms":length_ms,"model_id":model_id,"force_instrumental":force_instrumental},
+        billing.estimate("music",seconds=length_ms/1000)
     )
 
 @app.post("/api/tools/sound-effects")
@@ -865,7 +877,8 @@ async def sound_effects(request:Request):
     return await run_binary_tool(
         request,sess,"sound_effects",title,
         lambda:tools.sound_effect(prompt,duration,loop,influence),"rainy-sfx.mp3","audio/mpeg",
-        {"prompt":prompt[:300],"duration_seconds":duration,"loop":loop,"prompt_influence":influence}
+        {"prompt":prompt[:300],"duration_seconds":duration,"loop":loop,"prompt_influence":influence},
+        billing.estimate("sound_effects",seconds=duration or 0,duration_known=duration is not None)
     )
 
 @app.post("/api/tools/stt")
