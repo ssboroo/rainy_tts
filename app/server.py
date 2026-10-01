@@ -144,7 +144,7 @@ async def voice_cost_multiplier(voice_id,user_id):
         cached=db.execute("SELECT multiplier,updated FROM voice_rates WHERE source_id=?",(voice_id,)).fetchone()
     if custom:
         return 1.0
-    if cached and time.time()-float(cached["updated"])<86400:
+    if cached and time.time()-float(cached["updated"])<3600:
         return max(1.0,float(cached["multiplier"]))
     if not configured_voice_name(voice_id):
         return 1.0
