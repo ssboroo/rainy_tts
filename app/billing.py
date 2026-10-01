@@ -99,7 +99,9 @@ def pricing_settings():
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
     provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","pro").strip().lower() or "pro"
-    provider_meta=ELEVENLABS_PROVIDER_PLANS.get(provider_plan,ELEVENLABS_PROVIDER_PLANS["pro"])
+    if provider_plan not in ELEVENLABS_PROVIDER_PLANS:
+        provider_plan="pro"
+    provider_meta=ELEVENLABS_PROVIDER_PLANS[provider_plan]
     expected_active=max(1,int(os.getenv("BILLING_EXPECTED_ACTIVE_USERS","100")))
     fixed_per_user=max(
         float(os.getenv("BILLING_FIXED_COST_PER_ACTIVE_USER_USD","1.25")),
