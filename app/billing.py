@@ -16,48 +16,29 @@ CREDIT_USD = 0.001
 # ElevenLabs subscription prices/allowances supplied on 2026-10-01.
 # Creator's $11 first-month offer is promotional; recurring cost is $22.
 ELEVENLABS_PROVIDER_PLANS = {
-    "free": {"price_usd":0, "monthly_credits":10_000},
-    "starter": {"price_usd":6, "monthly_credits":30_000},
-    "creator": {"price_usd":22, "monthly_credits":121_000},
-    "pro": {"price_usd":99, "monthly_credits":600_000},
-    "scale": {"price_usd":299, "monthly_credits":1_800_000},
-    "business": {"price_usd":990, "monthly_credits":6_000_000},
-}
-
-# Public API list prices converted to RAINY credits where 1 credit = $0.001.
-# Temporary v4 promo prices ($0.022 / $0.011 per 1K chars through Oct 12, 2026)
-# are intentionally NOT used for customer billing so pricing remains safe after promo expiry.
-TTS_MODEL_RATES = {
-    "eleven_v4": 80,
-    "eleven_v4_turbo": 40,
-    "eleven_v3": 80,
-    "eleven_v3_conversational": 40,
-    "eleven_multilingual_v2": 80,
-    "eleven_flash_v2_5": 40,
-    "eleven_turbo_v2_5": 40,
-}
-TTS_FALLBACK_RATE = 80
-
-PLANS = {
     "trial": {
         "id":"trial","name":"Trial","price_mnt":0,
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":59900,
-        "description":"Хөнгөн хэрэглээ · 1 clone slot","sort":1,
+        "id":"starter","name":"Starter","price_mnt":29900,
+        "description":"Эхлэх хэрэглээ · 1 clone slot","sort":1,
     },
     "creator": {
-        "id":"creator","name":"Creator","price_mnt":119900,
+        "id":"creator","name":"Creator","price_mnt":59900,
         "description":"Контент бүтээгч · 2 clone slot","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":249900,
+        "id":"pro","name":"Pro","price_mnt":129900,
         "description":"Идэвхтэй хэрэглээ · 5 clone slot","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":499900,
-        "description":"Баг, студи · 10 clone slot","sort":4,
+        "id":"studio","name":"Studio","price_mnt":249900,
+        "description":"Студи, баг · 10 clone slot","sort":4,
+    },
+    "agency": {
+        "id":"agency","name":"Agency","price_mnt":499900,
+        "description":"Agency, өндөр хэрэглээ · 20 clone slot","sort":5,
     },
 }
 
@@ -67,7 +48,9 @@ PLAN_ENTITLEMENTS = {
     "creator":{"clone_limit":2},
     "pro":{"clone_limit":5},
     "studio":{"clone_limit":10},
+    "agency":{"clone_limit":20},
 }
+
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
@@ -75,10 +58,15 @@ def pricing_settings():
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
-    provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","starter").strip().lower() or "starter"
-    provider_meta=ELEVENLABS_PROVIDER_PLANS.get(provider_plan,ELEVENLABS_PROVIDER_PLANS["starter"])
-    # Explicit override is kept for custom/enterprise contracts.
-    provider_base_usd=max(0.0,float(os.getenv("BILLING_PROVIDER_BASE_USD",str(provider_meta["price_usd"]))))
+    provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","pro").strip().lower() or "pro"
+    provider_meta=ELEVENLABS_PROVIDER_PLANS.get(provider_plan,ELEVENLABS_PROVIDER_PLANS["pro"])
+    expected_active=max(1,int(os.getenv("BILLING_EXPECTED_ACTIVE_USERS","100")))
+    # Conservative shared fixed-cost allocation. The plan ladder is ~ $1/user when
+    # backend tier scales near 5/20/100/300/1000 active customers.
+    fixed_per_user=max(
+        float(os.getenv("BILLING_FIXED_COST_PER_ACTIVE_USER_USD","1.25")),
+        float(provider_meta["price_usd"])/expected_active,
+    )
     return {
         "usd_mnt_rate":fx,
         "target_markup":markup,
@@ -86,13 +74,24 @@ def pricing_settings():
         "overhead_reserve":overhead,
         "fx_buffer":fx_buffer,
         "provider_plan":provider_plan,
-        "provider_base_usd":provider_base_usd,
+        "provider_base_usd":provider_meta["price_usd"],
         "provider_monthly_credits":provider_meta["monthly_credits"],
+        "expected_active_users":expected_active,
+        "fixed_cost_per_active_user_usd":fixed_per_user,
     }
+
+def recommended_provider_plan(active_users):
+    users=max(1,int(active_users or 1))
+    if users<=5: return "starter"
+    if users<=20: return "creator"
+    if users<=100: return "pro"
+    if users<=300: return "scale"
+    if users<=1000: return "business"
+    return "business"
 
 def minimum_safe_plan_price_mnt():
     settings=pricing_settings()
-    fixed_cost=settings["provider_base_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+    fixed_cost=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
     denominator=(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
     if denominator<=0:
         return math.inf
@@ -100,9 +99,12 @@ def minimum_safe_plan_price_mnt():
 
 def safe_monthly_credits(price_mnt):
     settings=pricing_settings()
-    usable=float(price_mnt)*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    net_revenue=float(price_mnt)*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    total_cost_budget=net_revenue/settings["target_markup"]
+    fixed_cost_mnt=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+    variable_cost_budget=max(0.0,total_cost_budget-fixed_cost_mnt)
     upstream_mnt_per_credit=CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
-    max_credits=usable/(upstream_mnt_per_credit*settings["target_markup"])
+    max_credits=variable_cost_budget/upstream_mnt_per_credit
     return max(0,int(max_credits//100)*100)
 
 def get_plan(plan_id):
