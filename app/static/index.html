@@ -98,8 +98,20 @@
       </section>
 
       <section id="stt" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>SPEECH TO TEXT</p><h1>Audio-оос <em>текст.</em></h1><p>Audio/video upload хийгээд transcript, JSON, SRT гаргана.</p></div>
-        <form id="stt-form" class="tool-form"><div class="field"><label>Audio / Video</label><input name="file" type="file" accept="audio/*,video/*" required></div><div class="field"><label>Language code</label><input name="language_code" value="mn" placeholder="mn эсвэл хоосон = auto"></div><button class="generate" type="submit"><span>Текст болгох</span><span>↗</span></button></form>
+        <div class="tool-hero"><p class="kicker"><span></span>SPEECH TO TEXT · SCRIBE V2</p><h1>Монгол яриаг <em>зөв бичвэр.</em></h1><p>Scribe v2 + Монгол хэл force + keyterm prompting + зөв бичгийн polish. Translation хийхгүй, ярианы утгыг Монгол хэлээр нь хадгална.</p></div>
+        <form id="stt-form" class="tool-form">
+          <div class="field"><label>Audio / Video</label><input name="file" type="file" accept="audio/*,video/*" required></div>
+          <div class="field-grid">
+            <div class="field"><label>Хэл</label><select name="language_code"><option value="mn" selected>Монгол · mn</option><option value="">Auto detect</option><option value="en">English · en</option></select></div>
+            <div class="field"><label>Яригчдын тоо</label><input id="stt-speakers" name="num_speakers" type="number" min="1" max="32" value="1"></div>
+          </div>
+          <div class="field"><label>Нэр, бренд, тусгай нэр томьёо · Accuracy keyterms (+20%)</label><textarea name="keyterms" class="big-textarea small" placeholder="RAINY, ElevenLabs, OpenAI, байгууллагын нэр, хүний нэр…&#10;Таслал эсвэл шинэ мөрөөр тусгаарлана."></textarea><small class="field-help">Зөв бичих шаардлагатай нэрсийг энд оруулах нь танилтанд шууд нөлөөлнө. 100 хүртэл keyterm.</small></div>
+          <label class="check"><input name="polish" type="checkbox" checked> Монгол зөв бичиг, цэг тэмдэг, зайг засах High Accuracy polish (+30%)</label>
+          <label class="check"><input name="no_verbatim" type="checkbox" checked> “ээ”, “мм” зэрэг дүүргэгч үг, false start-ыг цэвэрлэх</label>
+          <label class="check"><input id="stt-diarize" name="diarize" type="checkbox"> Олон яригчийг ялгах (speaker diarization)</label>
+          <p class="tool-warning">SRT-ийн timestamp нь эх transcript-ийн word alignment дээр суурилна. Polish хийсэн цэвэр TXT болон эх raw transcript хоёул History-д хадгалагдана.</p>
+          <button class="generate" type="submit"><span>Нарийвчлалтай текст болгох</span><span>↗</span></button>
+        </form>
         <div id="stt-result" class="result-box" hidden></div>
       </section>
 
