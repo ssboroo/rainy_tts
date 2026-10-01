@@ -42,6 +42,11 @@ def init():
             name TEXT NOT NULL,
             updated REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS voice_rates(
+            source_id TEXT PRIMARY KEY,
+            multiplier REAL NOT NULL DEFAULT 1,
+            updated REAL NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS tool_jobs(
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL REFERENCES users(id),
