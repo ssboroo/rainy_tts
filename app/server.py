@@ -319,6 +319,23 @@ def mux_dubbed_video(source:Path, dubbed_audio:Path, output:Path):
             check=True,timeout=1200,capture_output=True
         )
 
+def parse_stt_keyterms(raw):
+    configured=os.getenv("STT_DEFAULT_KEYTERMS","")
+    combined="\n".join(part for part in (configured,str(raw or "")) if part)
+    terms=[]; seen=set()
+    for item in re.split(r"[,;\n]+",combined):
+        term=" ".join(item.strip().split())
+        if not term:
+            continue
+        if term in seen:
+            continue
+        if len(term)>=50 or len(term.split())>5 or re.search(r"[<>{}\[\]\\]",term):
+            raise HTTPException(422,f"STT keyterm буруу байна: {term[:40]}")
+        seen.add(term); terms.append(term)
+        if len(terms)>100:
+            raise HTTPException(422,"RAINY accuracy mode нэг хүсэлтэд 100 хүртэл keyterm авна.")
+    return terms
+
 def srt_from_words(words):
     tokens=words or []
     def stamp(seconds):
@@ -954,23 +971,70 @@ async def sound_effects(request:Request):
 async def speech_to_text(
     request:Request,
     file:UploadFile=File(...),
-    language_code:str=Form("")
+    language_code:str=Form("mn"),
+    keyterms:str=Form(""),
+    polish:bool=Form(True),
+    diarize:bool=Form(False),
+    num_speakers:int=Form(1),
+    no_verbatim:bool=Form(True),
 ):
     sess=session(request); mutation_guard(request,sess); throttle("stt:"+sess["user_id"],20)
     validate_upload(file,MEDIA_EXTS,MAX_AUDIO_MB)
+    language_code=language_code.strip().lower()
+    if language_code and not re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})?",language_code):
+        raise HTTPException(422,"STT language code буруу байна.")
+    if not 1<=int(num_speakers)<=32:
+        raise HTTPException(422,"Яригчдын тоо 1–32 байна.")
+    terms=parse_stt_keyterms(keyterms)
     duration=await upload_duration_seconds(file)
-    job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",{"language":language_code or "auto","duration_seconds":duration})
-    credits=billing.estimate("speech_to_text",seconds=duration)
-    charge_id=charge(sess["user_id"],credits,"speech_to_text",job_id,{"duration_seconds":duration})
+    effective_seconds=max(duration,10.0) if polish else duration
+    base_credits=billing.estimate("speech_to_text",seconds=effective_seconds)
+    surcharge=1.0+(0.20 if terms else 0.0)+(0.30 if polish else 0.0)
+    credits=max(1,math.ceil(base_credits*surcharge))
+    payload={
+        "language":language_code or "auto",
+        "duration_seconds":duration,
+        "accuracy_mode":True,
+        "keyterms":terms,
+        "polish":polish,
+        "diarize":diarize,
+        "num_speakers":num_speakers if diarize else 1,
+        "no_verbatim":no_verbatim,
+        "stt_surcharge":surcharge,
+    }
+    job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",payload)
+    charge_id=charge(
+        sess["user_id"],credits,"speech_to_text",job_id,
+        {"duration_seconds":duration,"keyterms":len(terms),"polish":polish,"surcharge":surcharge}
+    )
     try:
-        result=await tools.speech_to_text(file,language_code or None)
-        text=str(result.get("text",""))
+        result=await tools.speech_to_text(
+            file,language_code or None,terms,polish,diarize,num_speakers,no_verbatim
+        )
+        raw_text=str(result.get("text","")).strip()
+        edited=result.get("edited_transcript") or {}
+        edited_ok=isinstance(edited,dict) and edited.get("kind")=="transcript" and str(edited.get("text","")).strip()
+        text=str(edited.get("text","")).strip() if edited_ok else raw_text
         create_artifact_text(sess["user_id"],job_id,"transcript","transcript.txt","text/plain",text)
-        create_artifact_text(sess["user_id"],job_id,"json","transcript.json","application/json",json.dumps(result,ensure_ascii=False,indent=2))
+        if text!=raw_text and raw_text:
+            create_artifact_text(sess["user_id"],job_id,"raw_transcript","transcript-raw.txt","text/plain",raw_text)
+        create_artifact_text(
+            sess["user_id"],job_id,"json","transcript.json","application/json",
+            json.dumps(result,ensure_ascii=False,indent=2)
+        )
         srt=srt_from_words(result.get("words"))
         if srt:
             create_artifact_text(sess["user_id"],job_id,"subtitle","transcript.srt","application/x-subrip",srt)
-        summary={"text":text,"language_code":result.get("language_code"),"language_probability":result.get("language_probability"),"credits_used":credits}
+        summary={
+            "text":text,
+            "raw_text":raw_text if text!=raw_text else None,
+            "polished":bool(edited_ok),
+            "edit_error":edited.get("message") if isinstance(edited,dict) and edited.get("kind")=="error" else None,
+            "language_code":result.get("language_code"),
+            "language_probability":result.get("language_probability"),
+            "keyterms_used":len(terms),
+            "credits_used":credits,
+        }
         core.update_tool_job(job_id,"done",result=summary)
         return {"job_id":job_id,**summary,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
