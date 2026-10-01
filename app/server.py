@@ -17,7 +17,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from dotenv import load_dotenv
 import uvicorn
 
-load_dotenv()
+load_dotenv(dotenv_path='.env.local', override=False)
+load_dotenv(dotenv_path='.env', override=False)
 
 from . import core
 from .engine import ElevenLabsEngine
@@ -498,7 +499,6 @@ async def create_tts(request:Request):
         raise HTTPException(422,"Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.")
     ready,reason=ElevenLabsEngine().readiness()
     if not ready: raise HTTPException(503,reason)
-    provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
     title=str(data.get("title","Шинэ бүтээл")).strip()[:100] or "Шинэ бүтээл"
     try: speed=float(data.get("speed",1))
     except Exception: raise HTTPException(422,"Хурд буруу байна.")
@@ -506,7 +506,7 @@ async def create_tts(request:Request):
     glossary=data.get("glossary",{})
     if not isinstance(glossary,dict) or len(glossary)>100:
         raise HTTPException(422,"Дуудлагын толь буруу байна.")
-    payload={"speed":speed,"provider_voice_id":provider_voice_id}
+    payload={"speed":speed}
     try:
         if data.get("srt"):
             cues=core.parse_srt(str(data["srt"]))
@@ -588,8 +588,7 @@ async def dialogue(request:Request):
         if not isinstance(item,dict): raise HTTPException(422,"Dialogue бүтэц буруу байна.")
         voice_id=str(item.get("voice_id","")).strip(); text=str(item.get("text","")).strip()
         if voice_id not in allowed or not text: raise HTTPException(422,"Speaker voice эсвэл текст буруу байна.")
-        provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
-        total+=len(text); voices_used.add(voice_id); clean.append({"voice_id":provider_voice_id,"text":text})
+        total+=len(text); voices_used.add(voice_id); clean.append({"voice_id":voice_id,"text":text})
     if total>2000 or len(voices_used)>10:
         raise HTTPException(422,"Dialogue нийт 2000 тэмдэгт, 10 unique voice-аас хэтрэхгүй.")
     title=str(data.get("title","Podcast / Dialogue"))[:100]
@@ -681,12 +680,11 @@ async def voice_changer(
     validate_upload(file,AUDIO_EXTS,MAX_AUDIO_MB)
     if voice_id not in allowed_voice_ids(sess["user_id"]):
         raise HTTPException(422,"Target voice буруу байна.")
-    provider_voice_id=await ensure_provider_voice(voice_id,sess["user_id"])
     title="Voice Changer"
     return await run_binary_tool(
         request,sess,"voice_changer",title,
-        lambda:tools.voice_changer(file,provider_voice_id,remove_background_noise),
-        "rainy-voice-changer.mp3","audio/mpeg",{"voice_id":voice_id,"provider_voice_id":provider_voice_id,"source":file.filename}
+        lambda:tools.voice_changer(file,voice_id,remove_background_noise),
+        "rainy-voice-changer.mp3","audio/mpeg",{"voice_id":voice_id,"source":file.filename}
     )
 
 @app.post("/api/tools/realtime-token")
