@@ -38,24 +38,46 @@ class BillingUnitTests(unittest.TestCase):
             self.assertFalse(billing.refund("u",charge))
 
     def test_cost_estimates(self):
-        self.assertEqual(billing.estimate("tts",chars=1000),100)
+        self.assertEqual(billing.estimate("tts",chars=1000),80)
         self.assertEqual(billing.estimate("music",seconds=60),150)
         self.assertEqual(billing.estimate("speech_to_text",seconds=3600),220)
         self.assertEqual(billing.estimate("dubbing",seconds=60),2200)
+        self.assertEqual(billing.estimate("sound_effects"),120)
+        self.assertEqual(billing.estimate("realtime_stt",seconds=3600),390)
 
     def test_plan_credit_budget_preserves_markup_guard(self):
-        settings=billing.pricing_settings()
-        upstream_per_credit=billing.CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
-        for plan in billing.plan_catalog():
-            if plan["id"]=="trial":
-                continue
-            usable=plan["price_mnt"]*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
-            self.assertGreaterEqual(
-                usable,
-                plan["monthly_credits"]*upstream_per_credit*settings["target_markup"]
-            )
+        with patch.dict(os.environ,{
+            "BILLING_USD_MNT_RATE":"3700",
+            "BILLING_TARGET_MARKUP":"2.0",
+            "BILLING_PAYMENT_FEE_PERCENT":"3",
+            "BILLING_OVERHEAD_RESERVE_PERCENT":"10",
+            "BILLING_FX_BUFFER_PERCENT":"10",
+            "ELEVENLABS_PROVIDER_PLAN":"pro",
+            "BILLING_EXPECTED_ACTIVE_USERS":"100",
+            "BILLING_FIXED_COST_PER_ACTIVE_USER_USD":"1.25",
+        },clear=False):
+            settings=billing.pricing_settings()
+            upstream_per_credit=billing.CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+            fixed=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+            for plan in billing.plan_catalog():
+                if plan["id"]=="trial":
+                    continue
+                usable=plan["price_mnt"]*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+                modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
+                self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-    def test_every_paid_plan_covers_full_provider_base_cost_floor(self):
+            expected={"starter":1900,"creator":5100,"pro":12600,"studio":25500,"agency":52300}
+            for plan_id,credits in expected.items():
+                self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
+
+    def test_provider_plan_scales_with_active_users(self):
+        self.assertEqual(billing.recommended_provider_plan(5),"starter")
+        self.assertEqual(billing.recommended_provider_plan(20),"creator")
+        self.assertEqual(billing.recommended_provider_plan(100),"pro")
+        self.assertEqual(billing.recommended_provider_plan(300),"scale")
+        self.assertEqual(billing.recommended_provider_plan(1000),"business")
+
+    def test_every_paid_plan_covers_shared_fixed_cost_floor(self):
         minimum=billing.minimum_safe_plan_price_mnt()
         for plan in billing.plan_catalog():
             if plan["id"]=="trial":
@@ -145,7 +167,7 @@ class BillingApiTests(unittest.TestCase):
                 headers=self.headers
             )
         self.assertEqual(response.status_code,202,response.text)
-        self.assertEqual(response.json()["credits_used"],200)
+        self.assertEqual(response.json()["credits_used"],160)
         with core.db() as db:
             rate=db.execute("SELECT multiplier FROM voice_rates WHERE source_id=?",(voice,)).fetchone()[0]
         self.assertEqual(rate,2)
@@ -168,10 +190,10 @@ class BillingApiTests(unittest.TestCase):
         after_charge=created.json()["balance"]
         deleted=self.client.delete("/api/jobs/"+created.json()["id"],headers=self.headers)
         self.assertEqual(deleted.status_code,200,deleted.text)
-        self.assertEqual(billing.wallet(user)["wallet"]["balance"],after_charge+100)
+        self.assertEqual(billing.wallet(user)["wallet"]["balance"],after_charge+80)
 
     def test_wire_checkout_then_status_activates_plan(self):
-        intent={"id":"pi_test","status":"requires_payment_method","amount":59900,"currency":"MNT"}
+        intent={"id":"pi_test","status":"requires_payment_method","amount":29900,"currency":"MNT"}
         checkout={"id":"cs_test","url":"https://pay.wire.mn/test"}
         with patch.object(server.wire_payment,"configured",return_value=True), \
              patch.object(server.wire_payment,"create_payment_intent",new=AsyncMock(return_value=intent)), \
@@ -179,10 +201,10 @@ class BillingApiTests(unittest.TestCase):
             created=self.client.post("/api/billing/wire/create",json={"plan_id":"starter"},headers=self.headers)
         self.assertEqual(created.status_code,200,created.text)
         data=created.json()
-        self.assertEqual(data["amount_mnt"],59900)
+        self.assertEqual(data["amount_mnt"],29900)
         self.assertEqual(data["pay_url"],"https://pay.wire.mn/test")
 
-        paid={"id":"pi_test","status":"succeeded","amount":59900,"currency":"MNT"}
+        paid={"id":"pi_test","status":"succeeded","amount":29900,"currency":"MNT"}
         with patch.object(server.wire_payment,"retrieve_payment_intent",new=AsyncMock(return_value=paid)):
             status=self.client.get("/api/billing/wire/status/"+data["order_id"])
         self.assertEqual(status.status_code,200,status.text)
@@ -213,7 +235,7 @@ class BillingApiTests(unittest.TestCase):
         bad=self.client.post("/api/billing/wire/webhook",content=body,headers={"WirePayment-Signature":"bad"})
         self.assertEqual(bad.status_code,401,bad.text)
 
-        provider={"id":"pi_webhook","status":"succeeded","amount":119900,"currency":"MNT"}
+        provider={"id":"pi_webhook","status":"succeeded","amount":59900,"currency":"MNT"}
         with patch.dict(os.environ,{"WIRE_MN_WEBHOOK_SECRET":secret},clear=False), \
              patch.object(server.wire_payment,"retrieve_payment_intent",new=AsyncMock(return_value=provider)):
             first=self.client.post("/api/billing/wire/webhook",content=body,headers={"WirePayment-Signature":sig})
