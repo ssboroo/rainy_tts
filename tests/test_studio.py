@@ -96,14 +96,43 @@ class APITests(unittest.TestCase):
 
     def test_tts_queue_and_history(self):
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
-        with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')):
+        with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')), patch('app.server.ensure_provider_voice',new=AsyncMock(return_value='provider-voice')):
             response=self.client.post('/api/jobs',json={'text':'RAINY Voice 2026 сайн байна.','voice_id':voice,'speed':1},headers=self.headers)
         self.assertEqual(response.status_code,202,response.text)
         job_id=response.json()['id']
+        with core.db() as db:
+            payload=json.loads(db.execute('SELECT payload FROM jobs WHERE id=?',(job_id,)).fetchone()[0])
+        self.assertEqual(payload['provider_voice_id'],'provider-voice')
         self.assertEqual(self.client.get('/api/jobs').status_code,200)
         history=self.client.get('/api/history').json()['items']
         self.assertEqual(history[0]['id'],job_id)
         self.assertEqual(history[0]['tool_type'],'tts')
+
+    def test_free_plan_blocks_shared_voice_api(self):
+        voice=ElevenLabsEngine.default_voice_catalog[0]['id']
+        with core.db() as db:
+            db.execute('DELETE FROM voice_aliases WHERE source_id=?',(voice,))
+        with patch('app.server.ElevenLabsEngine.readiness',return_value=(True,'ready')), patch.object(server.tools,'subscription',new=AsyncMock(return_value={'tier':'free','status':'active'})):
+            response=self.client.post('/api/jobs',json={'text':'Сайн байна уу.','voice_id':voice,'speed':1},headers=self.headers)
+        self.assertEqual(response.status_code,402,response.text)
+        self.assertIn('Starter',response.json()['detail'])
+
+    def test_syncs_shared_voice_library(self):
+        with core.db() as db:
+            db.execute('DELETE FROM voice_aliases')
+        subscription=AsyncMock(return_value={'tier':'starter','status':'active'})
+        saved=AsyncMock(return_value=None)
+        shared=AsyncMock(side_effect=lambda voice_id:{'voice_id':voice_id,'public_owner_id':'owner-'+voice_id,'preview_url':'https://example.test/p.mp3'})
+        added=AsyncMock(side_effect=lambda owner,voice_id,name:{'voice_id':'saved-'+voice_id})
+        with patch.object(server.tools,'subscription',new=subscription), patch.object(server.tools,'find_saved_shared_voice',new=saved), patch.object(server.tools,'find_shared_voice',new=shared), patch.object(server.tools,'add_shared_voice',new=added):
+            response=self.client.post('/api/voices/sync',json={},headers=self.headers)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(len(response.json()['voices']),12)
+        self.assertTrue(all(v['status']=='ready' for v in response.json()['voices']))
+        with core.db() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM voice_aliases').fetchone()[0],12)
+        with core.db() as db:
+            db.execute('DELETE FROM voice_aliases')
 
     def test_clone_voice_and_delete(self):
         with patch.object(server.tools,'clone_voice',new=AsyncMock(return_value={'voice_id':'clone-test','requires_verification':False})):
@@ -122,7 +151,8 @@ class APITests(unittest.TestCase):
 
     def test_dialogue_music_and_sound_effects(self):
         ids=[v['id'] for v in ElevenLabsEngine.default_voice_catalog[:2]]
-        with patch.object(server.tools,'dialogue',new=AsyncMock(return_value=b'ID3dialogue')):
+        resolver=AsyncMock(side_effect=lambda voice_id,user_id:'provider-'+voice_id)
+        with patch.object(server.tools,'dialogue',new=AsyncMock(return_value=b'ID3dialogue')), patch('app.server.ensure_provider_voice',new=resolver):
             response=self.client.post('/api/tools/dialogue',json={'title':'Podcast','inputs':[{'voice_id':ids[0],'text':'Сайн байна уу.'},{'voice_id':ids[1],'text':'Сайн, баярлалаа.'}]},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
         music_mock=AsyncMock(return_value=b'ID3music')
@@ -149,7 +179,7 @@ class APITests(unittest.TestCase):
         srt_response=self.client.get(srt_artifact['url'])
         self.assertIn('Сайн байна уу',srt_response.text)
         voice=ElevenLabsEngine.default_voice_catalog[0]['id']
-        with patch.object(server.tools,'voice_changer',new=AsyncMock(return_value=b'ID3changed')):
+        with patch.object(server.tools,'voice_changer',new=AsyncMock(return_value=b'ID3changed')), patch('app.server.ensure_provider_voice',new=AsyncMock(return_value='provider-voice')):
             response=self.client.post('/api/tools/voice-changer',data={'voice_id':voice,'remove_background_noise':'false'},files={'file':('voice.wav',wav_bytes(),'audio/wav')},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
         with patch.object(server.tools,'realtime_token',new=AsyncMock(return_value={'token':'sutkn_test'})):
