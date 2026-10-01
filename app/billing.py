@@ -184,31 +184,42 @@ def grant(user_id, credits, kind="admin_grant", reference=None, metadata=None):
         )
     return ledger_id
 
-def activate_plan(user_id, plan_id, order_id=None):
+def _activate_plan_tx(c, user_id, plan_id, order_id=None, now=None):
     plan=PLANS.get(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Paid plan буруу байна.")
-    now=time.time()
+    now=time.time() if now is None else now
+    row=c.execute("SELECT balance FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
+    if not row:
+        starting=0
+        c.execute(
+            "INSERT INTO credit_wallets(user_id,balance,lifetime_in,lifetime_out,updated) VALUES(?,?,?,?,?)",
+            (user_id,starting,0,0,now)
+        )
+        old_balance=0
+    else:
+        old_balance=int(row["balance"])
+    new_balance=plan["monthly_credits"]
+    c.execute(
+        "UPDATE credit_wallets SET balance=?,lifetime_in=lifetime_in+?,updated=? WHERE user_id=?",
+        (new_balance,plan["monthly_credits"],now,user_id)
+    )
+    c.execute(
+        "INSERT OR REPLACE INTO subscriptions(user_id,plan_id,status,cycle_start,cycle_end,monthly_credits,auto_renew,updated) VALUES(?,?,?,?,?,?,?,?)",
+        (user_id,plan_id,"active",now,now+30*86400,plan["monthly_credits"],0,now)
+    )
+    c.execute(
+        "INSERT INTO credit_ledger(id,user_id,kind,delta,balance_after,tool_type,reference,metadata,created) VALUES(?,?,?,?,?,?,?,?,?)",
+        (core.uid(),user_id,"subscription_reset",new_balance-old_balance,new_balance,None,order_id,json.dumps({"plan":plan_id,"monthly_credits":plan["monthly_credits"]}),now)
+    )
+    return plan
+
+def activate_plan(user_id, plan_id, order_id=None):
     ensure_wallet(user_id)
-    # Monthly subscription credits reset at activation/renewal. Purchased top-up
-    # credits can be added separately through grant() and do not rely on this reset.
+    now=time.time()
     with core.db() as c:
         c.execute("BEGIN IMMEDIATE")
-        row=c.execute("SELECT balance FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
-        old_balance=int(row["balance"])
-        new_balance=plan["monthly_credits"]
-        c.execute(
-            "UPDATE credit_wallets SET balance=?,lifetime_in=lifetime_in+?,updated=? WHERE user_id=?",
-            (new_balance,plan["monthly_credits"],now,user_id)
-        )
-        c.execute(
-            "INSERT OR REPLACE INTO subscriptions(user_id,plan_id,status,cycle_start,cycle_end,monthly_credits,auto_renew,updated) VALUES(?,?,?,?,?,?,?,?)",
-            (user_id,plan_id,"active",now,now+30*86400,plan["monthly_credits"],0,now)
-        )
-        c.execute(
-            "INSERT INTO credit_ledger(id,user_id,kind,delta,balance_after,tool_type,reference,metadata,created) VALUES(?,?,?,?,?,?,?,?,?)",
-            (core.uid(),user_id,"subscription_reset",new_balance-old_balance,new_balance,None,order_id,json.dumps({"plan":plan_id,"monthly_credits":plan["monthly_credits"]}),now)
-        )
+        plan=_activate_plan_tx(c,user_id,plan_id,order_id,now)
     return plan.copy()
 
 def create_order(user_id, plan_id, provider="manual"):
@@ -235,13 +246,14 @@ def mark_order_paid(order_id, provider_ref=None):
             return dict(order)
         if order["status"]!="pending":
             raise ValueError("Order төлөв буруу байна.")
-        c.execute(
-            "UPDATE billing_orders SET status='paid',provider_ref=?,paid_at=? WHERE id=?",
+        changed=c.execute(
+            "UPDATE billing_orders SET status='paid',provider_ref=?,paid_at=? WHERE id=? AND status='pending'",
             (provider_ref,now,order_id)
         )
-        user_id,plan_id=order["user_id"],order["plan_id"]
-    activate_plan(user_id,plan_id,order_id)
-    with core.db() as c:
+        if changed.rowcount!=1:
+            current=c.execute("SELECT * FROM billing_orders WHERE id=?",(order_id,)).fetchone()
+            return dict(current)
+        _activate_plan_tx(c,order["user_id"],order["plan_id"],order_id,now)
         return dict(c.execute("SELECT * FROM billing_orders WHERE id=?",(order_id,)).fetchone())
 
 def ledger(user_id, limit=100):
