@@ -667,10 +667,13 @@ async function loadReception(){
       const card=document.createElement('article');card.className='reception-tool-card';
       const name=document.createElement('strong');name.textContent=tool.name;
       const desc=document.createElement('p');desc.textContent=tool.description;
+      const params=document.createElement('p');
+      params.className='reception-param-list';
+      params.textContent='Body: '+(tool.parameters||[]).map(x=>x.key+' ('+x.type+(x.required?', required':'')+')').join(', ');
       const url=document.createElement('code');url.textContent=tool.url;
       const copy=document.createElement('button');copy.className='secondary';copy.type='button';copy.textContent='URL copy';
       copy.onclick=async()=>{await navigator.clipboard.writeText(tool.url);notice(tool.name+' URL copy хийлээ.');};
-      card.append(name,desc,url,copy);root.append(card);
+      card.append(name,desc,params,url,copy);root.append(card);
     });
   }catch(e){notice(e.message);}
 }
