@@ -66,6 +66,47 @@ def init():
             created REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS artifacts_job ON artifacts(job_id,created);
+        CREATE TABLE IF NOT EXISTS credit_wallets(
+            user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            balance INTEGER NOT NULL DEFAULT 0,
+            lifetime_in INTEGER NOT NULL DEFAULT 0,
+            lifetime_out INTEGER NOT NULL DEFAULT 0,
+            updated REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS subscriptions(
+            user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            plan_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            cycle_start REAL NOT NULL,
+            cycle_end REAL NOT NULL,
+            monthly_credits INTEGER NOT NULL,
+            auto_renew INTEGER NOT NULL DEFAULT 0,
+            updated REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS credit_ledger(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL,
+            delta INTEGER NOT NULL,
+            balance_after INTEGER NOT NULL,
+            tool_type TEXT,
+            reference TEXT,
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS credit_ledger_user ON credit_ledger(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS billing_orders(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            plan_id TEXT NOT NULL,
+            amount_mnt INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            provider_ref TEXT,
+            created REAL NOT NULL,
+            paid_at REAL
+        );
+        CREATE INDEX IF NOT EXISTS billing_orders_user ON billing_orders(user_id,created DESC);
         ''')
 
 def uid():
