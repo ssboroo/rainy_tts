@@ -160,12 +160,12 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Starter | ₮29,900 | ~3,200 | 1 |
-| Creator | ₮59,900 | ~6,400 | 2 |
-| Pro | ₮129,900 | ~13,900 | 5 |
-| Studio | ₮249,900 | ~26,800 | 10 |
+| Starter | ₮59,900 | ~6,400 | 1 |
+| Creator | ₮119,900 | ~12,800 | 2 |
+| Pro | ₮249,900 | ~26,800 | 5 |
+| Studio | ₮499,900 | ~53,600 | 10 |
 
-\* Credit budgets are calculated at runtime, not hard-coded. With the default guard RAINY reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 2× coverage of modeled upstream API cost. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
+\* Credit budgets are calculated at runtime, not hard-coded. With the default guard RAINY reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, requires at least 2× coverage of modeled upstream API cost, and refuses paid plans priced below the full ElevenLabs Starter fixed-cost recovery floor. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
 
 Usage rates currently modeled from ElevenAPI public API rates:
 
@@ -196,6 +196,7 @@ Configure:
 BILLING_ENABLED=true
 BILLING_USD_MNT_RATE=3700
 BILLING_TARGET_MARKUP=2.0
+BILLING_PROVIDER_BASE_USD=6
 BILLING_PAYMENT_FEE_PERCENT=3
 BILLING_OVERHEAD_RESERVE_PERCENT=10
 BILLING_FX_BUFFER_PERCENT=10
