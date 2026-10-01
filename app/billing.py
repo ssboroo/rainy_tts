@@ -217,7 +217,8 @@ def debit(user_id, credits, tool_type, reference=None, metadata=None):
     return charge_id
 
 def refund(user_id, charge_id, reason="provider_failed"):
-    if not charge_id or not billing_enabled():
+    # A historical debit must remain refundable even if billing is later disabled.
+    if not charge_id:
         return False
     now=time.time()
     with core.db() as c:
