@@ -442,6 +442,13 @@ async def billing_wire_create(request:Request):
     plan=billing.get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise HTTPException(422,"Subscription plan буруу байна.")
+    account=billing.wallet(sess["user_id"])
+    current=account.get("subscription") or {}
+    current_plan=billing.get_plan(current.get("plan_id"))
+    if current.get("status")=="active" and float(current.get("cycle_end") or 0)>time.time() and current_plan and current_plan["id"]!="trial":
+        if int(plan.get("sort",0))<=int(current_plan.get("sort",0)):
+            until=time.strftime("%Y-%m-%d",time.localtime(float(current["cycle_end"])))
+            raise HTTPException(409,f"{current_plan['name']} plan {until} хүртэл идэвхтэй байна. Одоо зөвхөн upgrade хийж болно.")
     if not wire_payment.configured():
         raise HTTPException(503,"Wire.mn API тохируулаагүй байна.")
 
