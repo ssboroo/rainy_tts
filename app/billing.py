@@ -54,12 +54,12 @@ PLANS = {
 }
 
 PLAN_ENTITLEMENTS = {
-    "trial":{"clone_limit":0},
-    "starter":{"clone_limit":1},
-    "creator":{"clone_limit":2},
-    "pro":{"clone_limit":5},
-    "studio":{"clone_limit":10},
-    "agency":{"clone_limit":20},
+    "trial":{"clone_limit":0,"pvc_limit":0},
+    "starter":{"clone_limit":1,"pvc_limit":0},
+    "creator":{"clone_limit":2,"pvc_limit":0},
+    "pro":{"clone_limit":5,"pvc_limit":1},
+    "studio":{"clone_limit":10,"pvc_limit":2},
+    "agency":{"clone_limit":20,"pvc_limit":4},
 }
 
 # API list prices mapped to RAINY credits: 1 RAINY credit = $0.001 upstream cost.
