@@ -69,7 +69,7 @@ function page(name){
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
   $('breadcrumb').textContent=pageMeta[name][1];
   document.querySelector('.route-index').textContent=pageMeta[name][0];
-  if(name==='voices') refreshVoices(true);
+  if(name==='voices'){refreshVoices(true);loadProviderStatus();}
   if(name==='analytics') loadAnalytics();
   if(name==='history') loadHistory();
   window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
@@ -117,6 +117,7 @@ $('auth-form').onsubmit=async event=>{
     $('auth-dialog').close();
     renderAccount();
     await refreshVoices();
+    if(state.page==='voices')await loadProviderStatus();
     notice('RAINY Studio бэлэн.');
   }catch(e){$('auth-error').textContent=e.message;}
   finally{setBusy(button,false);}
@@ -174,8 +175,14 @@ function renderVoiceLibrary(){
     const avatar=document.createElement('span');avatar.className='voice-letter';avatar.textContent=(voice.name||'V').slice(0,1).toUpperCase();
     const text=document.createElement('div');text.innerHTML='<strong></strong><small></small>';
     text.querySelector('strong').textContent=voice.name;
-    text.querySelector('small').textContent=voice.builtin?'Mongolian · ElevenLabs':'My clone · ElevenLabs';
+    text.querySelector('small').textContent=voice.builtin?'Mongolian · ElevenLabs Voice Library':'My clone · ElevenLabs';
     top.append(avatar,text);card.append(top);
+    if(voice.builtin){
+      const sync=document.createElement('span');
+      sync.className='voice-sync-state '+(voice.synced?'ready':'pending');
+      sync.textContent=voice.synced?'Ready':'Sync required';
+      card.append(sync);
+    }
     const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Clone устгах';
@@ -403,6 +410,43 @@ $('realtime-save').onclick=async()=>{
 };
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function loadProviderStatus(){
+  if(!state.user){
+    $('provider-plan').textContent='Нэвтэрнэ үү';
+    $('provider-status-text').textContent='ElevenLabs workspace-ийн төлөв харахын тулд нэвтэрнэ үү.';
+    $('sync-voices').disabled=true;
+    return;
+  }
+  $('sync-voices').disabled=false;
+  try{
+    const data=await api('/provider/status');
+    const tier=(data.tier||'unknown').toUpperCase();
+    $('provider-plan').textContent=tier+' · '+(data.status||'unknown');
+    if(!data.voice_library_api_available){
+      $('provider-status-text').textContent='Free plan дээр Voice Library voice-ууд API-аар ашиглагдахгүй. Starter эсвэл түүнээс дээш plan шаардлагатай.';
+    }else{
+      const used=data.character_count!=null&&data.character_limit!=null?(' · '+Number(data.character_count).toLocaleString()+' / '+Number(data.character_limit).toLocaleString()+' credits'):'';
+      $('provider-status-text').textContent=(data.synced_voice_count||0)+' / '+(data.total_voice_count||12)+' Монгол voice sync хийгдсэн'+used;
+    }
+  }catch(e){
+    $('provider-plan').textContent='Provider error';
+    $('provider-status-text').textContent=e.message;
+  }
+}
+$('sync-voices').onclick=async()=>{
+  if(!ensureUser())return;
+  const button=$('sync-voices');button.disabled=true;button.textContent='Sync хийж байна…';
+  try{
+    const data=await api('/voices/sync',{method:'POST',body:{}});
+    const ready=data.voices.filter(v=>v.status==='ready').length;
+    const failed=data.voices.find(v=>v.status==='failed');
+    notice(failed?(ready+' voice бэлэн. '+failed.error):(ready+' voice амжилттай sync хийгдлээ.'));
+    await refreshVoices(true);
+    await loadProviderStatus();
+  }catch(e){notice(e.message);}
+  finally{button.disabled=false;button.textContent='12 voice sync ↻';}
+};
 
 async function loadAnalytics(){
   if(!state.user){$('analytics-content').innerHTML='<div class="empty">Analytics харахын тулд нэвтэрнэ үү.</div>';return;}
