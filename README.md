@@ -210,6 +210,6 @@ WIRE_MN_ALLOWED_OPERATORS=sandbox
 
 For live Wire keys, do not keep `sandbox` in `WIRE_MN_ALLOWED_OPERATORS`. Use connected live operator IDs or leave the value empty if Wire should select the connected operator.
 
-Recommended ElevenLabs provider setup for an early commercial launch is a **paid subscription tier that unlocks Voice Library API access plus PAYG/top-ups**. Keep provider credentials and PAYG controls server-side. Increase the provider tier only when concurrency or plan limits require it; customer RAINY credit pricing remains independent of the provider subscription tier.
+Recommended ElevenLabs provider setup for an early commercial launch is **Starter ($6/month) + PAYG/top-ups**. Voice Library API access is not available to free-tier users, and a PAYG balance does not remove subscription-tier voice-slot/API restrictions. Starting on the lowest paid tier minimizes fixed cost; move to Creator/Pro/Scale only when concurrency, custom-voice slots or other plan limits require it. Keep provider credentials and PAYG controls server-side. Customer RAINY credit pricing remains independent of the provider subscription tier.
 
 This margin guard protects modeled gross unit economics; it cannot guarantee accounting profit because taxes, refunds, chargebacks, infrastructure, support, changing provider prices and actual payment fees can differ from the configured reserves.
