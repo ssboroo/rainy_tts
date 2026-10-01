@@ -711,6 +711,7 @@ async def clone_voice(
     charge_id=charge(sess["user_id"],credits,"voice_clone",job_id,{"samples":len(files)})
     try:
         result=await tools.clone_voice(name,files,description,remove_background_noise)
+        provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
         voice_id=result.get("voice_id")
         if not voice_id:
             raise ValueError("ElevenLabs Voice ID буцаасангүй.")
@@ -719,7 +720,16 @@ async def clone_voice(
                 "INSERT OR REPLACE INTO voices(id,user_id,name,transcript,created) VALUES(?,?,?,?,?)",
                 (voice_id,sess["user_id"],name[:100],description[:1000],time.time())
             )
+        if provider_meta:
+            core.add_provider_usage(
+                sess["user_id"],job_id,"voice_clone",
+                request_id=provider_meta.get("request_id"),
+                trace_id=provider_meta.get("trace_id"),
+                metadata=provider_meta
+            )
         result={**result,"credits_used":credits}
+        if provider_meta: result["provider_usage"]=provider_meta
+        if provider_meta: result["provider_usage"]=provider_meta
         core.update_tool_job(job_id,"done",result=result)
         return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
@@ -1132,6 +1142,14 @@ async def speech_to_text(
         result=await tools.speech_to_text(
             file,language_code or None,terms,polish,diarize,num_speakers,no_verbatim
         )
+        provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
+        if provider_meta:
+            core.add_provider_usage(
+                sess["user_id"],job_id,"speech_to_text",
+                request_id=provider_meta.get("request_id"),
+                trace_id=provider_meta.get("trace_id"),
+                metadata=provider_meta
+            )
         raw_text=str(result.get("text","")).strip()
         edited=result.get("edited_transcript") or {}
         edited_ok=isinstance(edited,dict) and edited.get("kind")=="transcript" and str(edited.get("text","")).strip()
@@ -1155,6 +1173,7 @@ async def speech_to_text(
             "language_probability":result.get("language_probability"),
             "keyterms_used":len(terms),
             "credits_used":credits,
+            "provider_usage":provider_meta or None,
         }
         core.update_tool_job(job_id,"done",result=summary)
         return {"job_id":job_id,**summary,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
@@ -1278,6 +1297,14 @@ async def dubbing(
     source_path=None
     try:
         result=await tools.create_dubbing(file,source_url.strip() or None,reference,source_language or None,target_language)
+        provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
+        if provider_meta:
+            core.add_provider_usage(
+                sess["user_id"],job_id,"dubbing",
+                request_id=provider_meta.get("request_id"),
+                trace_id=provider_meta.get("trace_id"),
+                metadata=provider_meta
+            )
         if file and Path(file.filename or "").suffix.lower() in VIDEO_EXTS:
             source_path=core.DATA/"tmp"/f"{job_id}-source{Path(file.filename).suffix.lower()}"
             await persist_upload(file,source_path)
@@ -1401,15 +1428,36 @@ def reception_config(request:Request):
             )
             row=db.execute("SELECT * FROM reception_integrations WHERE user_id=?",(sess["user_id"],)).fetchone()
     base=ORIGIN
+    specs=[
+        ("create_lead","Caller-ийн нэр, утас, сонирхлыг RAINY-д lead болгон хадгална.",[
+            {"key":"name","type":"string","required":True},
+            {"key":"phone","type":"string","required":True},
+            {"key":"interest","type":"string","required":False},
+            {"key":"notes","type":"string","required":False},
+        ]),
+        ("take_message","Caller-ийн мессеж, priority-г хадгална.",[
+            {"key":"caller_name","type":"string","required":False},
+            {"key":"phone","type":"string","required":False},
+            {"key":"message","type":"string","required":True},
+            {"key":"priority","type":"string","required":False},
+        ]),
+        ("request_quote","Үнийн санал хүсэлтийг хадгална.",[
+            {"key":"name","type":"string","required":False},
+            {"key":"phone","type":"string","required":True},
+            {"key":"service","type":"string","required":True},
+            {"key":"details","type":"string","required":False},
+        ]),
+        ("create_order","Утасны захиалгын мэдээллийг хадгална.",[
+            {"key":"customer_name","type":"string","required":False},
+            {"key":"phone","type":"string","required":True},
+            {"key":"items","type":"string","required":True},
+            {"key":"notes","type":"string","required":False},
+        ]),
+    ]
     tools_config=[]
-    for name,description in [
-        ("create_lead","Caller-ийн нэр, утас, сонирхлыг RAINY-д lead болгон хадгална."),
-        ("take_message","Caller-ийн мессеж, priority-г хадгална."),
-        ("request_quote","Үнийн санал хүсэлтийг хадгална."),
-        ("create_order","Утасны захиалгын мэдээллийг хадгална."),
-    ]:
+    for name,description,parameters in specs:
         tools_config.append({
-            "name":name,"method":"POST","description":description,
+            "name":name,"method":"POST","description":description,"parameters":parameters,
             "url":f"{base}/api/reception/hooks/{row['token']}/{name}"
         })
     return {"active":bool(row["active"]),"tools":tools_config}
@@ -1419,6 +1467,7 @@ async def reception_hook(token:str,tool_name:str,request:Request):
     allowed={"create_lead","take_message","request_quote","create_order"}
     if tool_name not in allowed:
         raise HTTPException(404,"Reception tool олдсонгүй.")
+    throttle("reception:"+token,120,60)
     with core.db() as db:
         integration=db.execute(
             "SELECT * FROM reception_integrations WHERE token=? AND active=1",(token,)
