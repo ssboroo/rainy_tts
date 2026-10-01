@@ -384,3 +384,9 @@ select option{background:var(--panel-solid);color:var(--text)}
 @media(max-width:700px){.wallet-card{align-items:flex-start}.wallet-balance{text-align:left}.plan-grid,.credit-rate-grid{grid-template-columns:1fr}.wallet-card{flex-direction:column}}
 
 .field-help{display:block;color:var(--muted);font-size:.58rem;line-height:1.55;margin-top:2px}
+
+.reception-tools{display:grid;gap:12px;margin-top:18px}
+.reception-tool-card{padding:18px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.02)}
+.reception-tool-card strong{display:block;font-size:.76rem}.reception-tool-card p{color:var(--muted);font-size:.63rem;line-height:1.55}
+.reception-tool-card code{display:block;overflow-wrap:anywhere;padding:10px 12px;margin:10px 0;border:1px solid var(--line);border-radius:10px;font-size:.58rem;background:rgba(0,0,0,.18)}
+.reception-payload{display:block;max-width:760px;margin-top:6px;color:var(--muted);font-size:.58rem;overflow-wrap:anywhere}
