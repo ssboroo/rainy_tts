@@ -153,15 +153,23 @@ class ElevenTools:
         for term in keyterms or []:
             multipart.append(("keyterms",(None,term)))
         if polish:
-            multipart.append((
-                "transcript_edit",
-                (None,
-                 "Keep the transcript in Mongolian. Do not translate. Correct only obvious "
-                 "Mongolian spelling, punctuation, capitalization, spacing, and formatting. "
-                 "Preserve the spoken meaning exactly. Do not add, remove, summarize, or invent "
-                 "content. Preserve names, brands, technical terms, numbers, dates, URLs, and "
-                 "foreign words as spoken.")
-            ))
+            if (language_code or "").lower()=="mn":
+                edit_instruction=(
+                    "Keep the transcript in Mongolian. Do not translate. Correct only obvious "
+                    "Mongolian spelling, punctuation, capitalization, spacing, and formatting. "
+                    "Preserve the spoken meaning exactly. Do not add, remove, summarize, or invent "
+                    "content. Preserve names, brands, technical terms, numbers, dates, URLs, and "
+                    "foreign words as spoken."
+                )
+            else:
+                edit_instruction=(
+                    "Keep the transcript in the original spoken language. Do not translate. "
+                    "Correct only obvious spelling, punctuation, capitalization, spacing, and "
+                    "formatting. Preserve the spoken meaning exactly. Do not add, remove, summarize, "
+                    "or invent content. Preserve names, brands, technical terms, numbers, dates, URLs, "
+                    "and foreign words as spoken."
+                )
+            multipart.append(("transcript_edit",(None,edit_instruction)))
         response=await self._request("POST","/v1/speech-to-text",files=multipart,timeout=360)
         return response.json()
 
