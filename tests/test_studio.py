@@ -211,10 +211,13 @@ class APITests(unittest.TestCase):
         self.assertTrue(status.json()['artifacts'])
 
     def test_analytics(self):
-        with patch.object(server.tools,'subscription',new=AsyncMock(return_value={'tier':'starter','character_count':10,'character_limit':1000,'voice_slots_used':1,'voice_limit':10})), patch.object(server.tools,'usage',new=AsyncMock(return_value={'columns':['product_type'],'rows':[['tts']]})):
-            response=self.client.get('/api/analytics')
+        response=self.client.get('/api/analytics')
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(response.json()['subscription']['tier'],'starter')
+        data=response.json()
+        self.assertIn('wallet',data)
+        self.assertIn('subscription',data)
+        self.assertIn('credits_spent_30d',data)
+        self.assertNotIn('usage',data)
 
 class ProviderErrorTests(unittest.TestCase):
     def test_friendly_elevenlabs_errors(self):
