@@ -103,8 +103,27 @@ def ensure_wallet(user_id, trial=True):
         )
         return {"user_id":user_id,"balance":starting,"lifetime_in":starting,"lifetime_out":0,"updated":now}
 
+def _expire_if_needed(user_id):
+    now=time.time()
+    with core.db() as c:
+        c.execute("BEGIN IMMEDIATE")
+        sub=c.execute("SELECT * FROM subscriptions WHERE user_id=?",(user_id,)).fetchone()
+        if not sub or sub["status"]!="active" or float(sub["cycle_end"])>now:
+            return False
+        row=c.execute("SELECT balance FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
+        balance=int(row["balance"]) if row else 0
+        c.execute("UPDATE subscriptions SET status='expired',updated=? WHERE user_id=?",(now,user_id))
+        if row and balance:
+            c.execute("UPDATE credit_wallets SET balance=0,updated=? WHERE user_id=?",(now,user_id))
+            c.execute(
+                "INSERT INTO credit_ledger(id,user_id,kind,delta,balance_after,tool_type,reference,metadata,created) VALUES(?,?,?,?,?,?,?,?,?)",
+                (core.uid(),user_id,"cycle_expired",-balance,0,None,None,json.dumps({"plan":sub["plan_id"]}),now)
+            )
+        return True
+
 def wallet(user_id):
     ensure_wallet(user_id)
+    _expire_if_needed(user_id)
     with core.db() as c:
         row=c.execute("SELECT * FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
         sub=c.execute("SELECT * FROM subscriptions WHERE user_id=?",(user_id,)).fetchone()
@@ -115,6 +134,7 @@ def debit(user_id, credits, tool_type, reference=None, metadata=None):
     if not billing_enabled() or credits==0:
         return None
     ensure_wallet(user_id)
+    _expire_if_needed(user_id)
     now=time.time()
     with core.db() as c:
         c.execute("BEGIN IMMEDIATE")
