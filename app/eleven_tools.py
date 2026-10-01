@@ -62,7 +62,7 @@ class ElevenTools:
     async def find_shared_voice(self, voice_id):
         response=await self._request(
             "GET","/v1/shared-voices",
-            params={"search":voice_id,"page_size":100}
+            params={"search":voice_id,"page_size":100,"include_custom_rates":"true"}
         )
         voices=response.json().get("voices",[])
         return next((voice for voice in voices if voice.get("voice_id")==voice_id),None)
