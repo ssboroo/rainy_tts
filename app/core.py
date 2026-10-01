@@ -36,6 +36,12 @@ def init():
         CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),name TEXT NOT NULL,transcript TEXT NOT NULL,created REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),voice_id TEXT NOT NULL,title TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL,progress INTEGER DEFAULT 0,error TEXT,created REAL NOT NULL,result TEXT);
         CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status,created);
+        CREATE TABLE IF NOT EXISTS voice_aliases(
+            source_id TEXT PRIMARY KEY,
+            provider_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            updated REAL NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS tool_jobs(
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL REFERENCES users(id),
