@@ -132,13 +132,37 @@ class ElevenTools:
         )
         return response.content
 
-    async def speech_to_text(self, upload, language_code=None):
+    async def speech_to_text(
+        self, upload, language_code="mn", keyterms=None, polish=True,
+        diarize=False, num_speakers=1, no_verbatim=True
+    ):
         await upload.seek(0)
-        files={"file":(upload.filename,upload.file,upload.content_type or "application/octet-stream")}
-        data={"model_id":"scribe_v2","diarize":"true","tag_audio_events":"true"}
+        multipart=[
+            ("file",(upload.filename,upload.file,upload.content_type or "application/octet-stream")),
+            ("model_id",(None,"scribe_v2")),
+            ("timestamps_granularity",(None,"word")),
+            ("temperature",(None,"0")),
+            ("tag_audio_events",(None,"false")),
+            ("diarize",(None,"true" if diarize else "false")),
+            ("no_verbatim",(None,"true" if no_verbatim else "false")),
+        ]
         if language_code:
-            data["language_code"]=language_code
-        response=await self._request("POST","/v1/speech-to-text",files=files,data=data,timeout=360)
+            multipart.append(("language_code",(None,language_code)))
+        if diarize and num_speakers:
+            multipart.append(("num_speakers",(None,str(int(num_speakers)))))
+        for term in keyterms or []:
+            multipart.append(("keyterms",(None,term)))
+        if polish:
+            multipart.append((
+                "transcript_edit",
+                (None,
+                 "Keep the transcript in Mongolian. Do not translate. Correct only obvious "
+                 "Mongolian spelling, punctuation, capitalization, spacing, and formatting. "
+                 "Preserve the spoken meaning exactly. Do not add, remove, summarize, or invent "
+                 "content. Preserve names, brands, technical terms, numbers, dates, URLs, and "
+                 "foreign words as spoken.")
+            ))
+        response=await self._request("POST","/v1/speech-to-text",files=multipart,timeout=360)
         return response.json()
 
     async def voice_changer(self, upload, voice_id, remove_background_noise=False):
