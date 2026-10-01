@@ -844,6 +844,7 @@ async def delete_voice(voice_id:str,request:Request):
         raise api_exception(exc)
     with core.db() as c:
         c.execute("DELETE FROM voices WHERE id=? AND user_id=?",(voice_id,sess["user_id"]))
+        c.execute("DELETE FROM pvc_voices WHERE id=? AND user_id=?",(voice_id,sess["user_id"]))
     return {"ok":True}
 
 @app.get("/api/voices/{voice_id}/preview")
@@ -1183,8 +1184,10 @@ async def voice_isolator(request:Request,file:UploadFile=File(...)):
     charge_id=charge(sess["user_id"],credits,"voice_isolator",job_id,{"duration_seconds":duration})
     try:
         audio,meta=await tools.voice_isolator(file)
+        mime=meta.get("mime") or "audio/mpeg"
+        ext={"audio/wav":".wav","audio/flac":".flac","audio/ogg":".ogg"}.get(mime,".mp3")
         artifact_id=create_artifact_bytes(
-            sess["user_id"],job_id,"audio","rainy-isolated-voice.mp3","audio/mpeg",audio
+            sess["user_id"],job_id,"audio","rainy-isolated-voice"+ext,mime,audio
         )
         core.add_provider_usage(
             sess["user_id"],job_id,"voice_isolator",
