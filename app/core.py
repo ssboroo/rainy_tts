@@ -107,6 +107,21 @@ def init():
             paid_at REAL
         );
         CREATE INDEX IF NOT EXISTS billing_orders_user ON billing_orders(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS wire_payments(
+            order_id TEXT PRIMARY KEY REFERENCES billing_orders(id) ON DELETE CASCADE,
+            payment_intent_id TEXT,
+            checkout_session_id TEXT,
+            checkout_url TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            updated REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS wire_payment_intent_unique ON wire_payments(payment_intent_id) WHERE payment_intent_id IS NOT NULL;
+        CREATE TABLE IF NOT EXISTS wire_webhook_events(
+            event_key TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            payment_intent_id TEXT,
+            created REAL NOT NULL
+        );
         ''')
 
 def uid():
