@@ -122,7 +122,7 @@ class ElevenLabsEngine:
         except TypeError as exc:
             raise RuntimeError('ElevenLabs SDK-аас аудио өгөгдөл авч чадсангүй.') from exc
 
-    def synthesize(self, text, output, speed=1.0, voice_id=None, trusted_voice=False):
+    def synthesize(self, text, output, speed=1.0, voice_id=None, trusted_voice=False, model_id=None):
         ready, reason = self.readiness()
         if not ready:
             raise RuntimeError(reason)
@@ -132,15 +132,26 @@ class ElevenLabsEngine:
         if not resolved_voice:
             raise ValueError('Сонгосон ElevenLabs voice тохиргоонд байхгүй байна.')
 
+        selected_model=(model_id or self.model_id).strip()
+        if selected_model not in {'eleven_v4','eleven_v4_turbo'}:
+            raise ValueError('Монгол TTS-д Eleven v4 эсвэл v4 Turbo сонгоно уу.')
         try:
-            audio = self.client.text_to_speech.convert(
+            raw = self.client.text_to_speech.with_raw_response.convert(
                 text=text,
                 voice_id=resolved_voice,
-                model_id=self.model_id,
+                model_id=selected_model,
                 output_format='pcm_24000',
                 language_code=self.language_code,
             )
+            audio=getattr(raw,'data',raw)
             pcm = self._audio_bytes(audio)
+            headers=getattr(raw,'headers',{}) or {}
+            meta={
+                'model_id':selected_model,
+                'character_cost':headers.get('character-cost'),
+                'request_id':headers.get('request-id'),
+                'trace_id':headers.get('x-trace-id'),
+            }
         except Exception as exc:
             raise RuntimeError(friendly_elevenlabs_error(exc)) from exc
 
@@ -164,6 +175,7 @@ class ElevenLabsEngine:
                 adjusted.replace(output)
             finally:
                 adjusted.unlink(missing_ok=True)
+        return meta
 
 def assemble(parts, output, cues=None):
     """Preserve cue starts; flag overruns, never overlap speech silently."""
