@@ -427,13 +427,11 @@ async function loadProviderStatus(){
   $('sync-voices').disabled=false;
   try{
     const data=await api('/provider/status');
-    const tier=(data.tier||'unknown').toUpperCase();
-    $('provider-plan').textContent=tier+' · '+(data.status||'unknown');
+    $('provider-plan').textContent=data.provider_ready?'Voice API бэлэн':'Voice API тохиргоо шаардлагатай';
     if(!data.voice_library_api_available){
-      $('provider-status-text').textContent='Free plan дээр Voice Library voice-ууд API-аар ашиглагдахгүй. Starter эсвэл түүнээс дээш plan шаардлагатай.';
+      $('provider-status-text').textContent='Voice Library API одоогоор ашиглахад бэлэн биш байна. Админ provider subscription/API тохиргоог шалгана.';
     }else{
-      const used=data.character_count!=null&&data.character_limit!=null?(' · '+Number(data.character_count).toLocaleString()+' / '+Number(data.character_limit).toLocaleString()+' credits'):'';
-      $('provider-status-text').textContent=(data.synced_voice_count||0)+' / '+(data.total_voice_count||12)+' Монгол voice sync хийгдсэн'+used;
+      $('provider-status-text').textContent=(data.synced_voice_count||0)+' / '+(data.total_voice_count||12)+' Монгол voice workspace-д sync хийгдсэн · Direct ID мөн дэмжигдэнэ.';
     }
   }catch(e){
     $('provider-plan').textContent='Provider error';
