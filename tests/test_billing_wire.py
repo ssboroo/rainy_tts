@@ -29,7 +29,8 @@ class BillingUnitTests(unittest.TestCase):
     def test_trial_debit_and_refund(self):
         with patch.dict(os.environ,{"BILLING_ENABLED":"true"},clear=False):
             wallet=billing.ensure_wallet("u")
-            self.assertEqual(wallet["balance"],300)
+            self.assertEqual(wallet["balance"],0)
+            billing.grant("u",300,"test_grant")
             charge=billing.debit("u",100,"tts","job-1",{"characters":1000})
             self.assertEqual(billing.wallet("u")["wallet"]["balance"],200)
             self.assertTrue(billing.refund("u",charge))
@@ -42,6 +43,18 @@ class BillingUnitTests(unittest.TestCase):
         self.assertEqual(billing.estimate("speech_to_text",seconds=3600),220)
         self.assertEqual(billing.estimate("dubbing",seconds=60),2200)
 
+    def test_plan_credit_budget_preserves_markup_guard(self):
+        settings=billing.pricing_settings()
+        upstream_per_credit=billing.CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
+        for plan in billing.plan_catalog():
+            if plan["id"]=="trial":
+                continue
+            usable=plan["price_mnt"]*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+            self.assertGreaterEqual(
+                usable,
+                plan["monthly_credits"]*upstream_per_credit*settings["target_markup"]
+            )
+
     def test_subscription_payment_is_idempotent(self):
         billing.ensure_wallet("u")
         order=billing.create_order("u","starter","wire")
@@ -51,7 +64,7 @@ class BillingUnitTests(unittest.TestCase):
         self.assertEqual(second["status"],"paid")
         data=billing.wallet("u")
         self.assertEqual(data["subscription"]["plan_id"],"starter")
-        self.assertEqual(data["wallet"]["balance"],4000)
+        self.assertEqual(data["wallet"]["balance"],billing.get_plan("starter")["monthly_credits"])
         with core.db() as db:
             resets=db.execute("SELECT COUNT(*) FROM credit_ledger WHERE user_id='u' AND kind='subscription_reset'").fetchone()[0]
         self.assertEqual(resets,1)
@@ -125,7 +138,7 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(status.status_code,200,status.text)
         self.assertEqual(status.json()["status"],"paid")
         self.assertEqual(status.json()["subscription"]["plan_id"],"starter")
-        self.assertEqual(status.json()["wallet"]["balance"],4000)
+        self.assertEqual(status.json()["wallet"]["balance"],billing.get_plan("starter")["monthly_credits"])
 
     def test_webhook_paid_once_and_rejects_bad_signature(self):
         with core.db() as db:
@@ -163,7 +176,7 @@ class BillingApiTests(unittest.TestCase):
             order_status=db.execute("SELECT status FROM billing_orders WHERE id=?",(order["id"],)).fetchone()[0]
         self.assertEqual(order_status,"paid")
         self.assertEqual(resets,1)
-        self.assertEqual(billing.wallet(user)["wallet"]["balance"],10000)
+        self.assertEqual(billing.wallet(user)["wallet"]["balance"],billing.get_plan("creator")["monthly_credits"])
 
     def test_payment_amount_mismatch_is_not_activated(self):
         with core.db() as db:
