@@ -388,6 +388,191 @@ def logout(request:Request):
     response.delete_cookie("session",path="/",httponly=True,samesite="strict",secure=SECURE)
     return response
 
+@app.get("/api/billing/plans")
+def billing_plans():
+    return {
+        "plans":billing.plan_catalog(),
+        "credit_usd":billing.CREDIT_USD,
+        "rates":billing.RATES,
+        "wire_configured":wire_payment.configured(),
+    }
+
+@app.get("/api/billing/me")
+def billing_me(request:Request):
+    sess=session(request)
+    data=billing.wallet(sess["user_id"])
+    data["ledger"]=billing.ledger(sess["user_id"],50)
+    return data
+
+@app.post("/api/billing/wire/create")
+async def billing_wire_create(request:Request):
+    sess=session(request); mutation_guard(request,sess); throttle("wire-create:"+sess["user_id"],10,900)
+    data=await json_body(request)
+    plan_id=str(data.get("plan_id","")).strip()
+    plan=billing.PLANS.get(plan_id)
+    if not plan or plan_id=="trial":
+        raise HTTPException(422,"Subscription plan буруу байна.")
+    if not wire_payment.configured():
+        raise HTTPException(503,"Wire.mn API тохируулаагүй байна.")
+
+    # Reuse a recent pending order so repeated clicks cannot create duplicate charges.
+    with core.db() as db:
+        order=db.execute(
+            "SELECT * FROM billing_orders WHERE user_id=? AND plan_id=? AND provider='wire' AND status='pending' AND created>? ORDER BY created DESC LIMIT 1",
+            (sess["user_id"],plan_id,time.time()-1800)
+        ).fetchone()
+    if not order:
+        created=billing.create_order(sess["user_id"],plan_id,"wire")
+        order=billing_order_for_user(created["id"],sess["user_id"])
+
+    order_id=order["id"]
+    with core.db() as db:
+        payment=db.execute("SELECT * FROM wire_payments WHERE order_id=?",(order_id,)).fetchone()
+    if payment and payment["checkout_url"] and payment["status"]=="pending":
+        return {
+            "order_id":order_id,"plan_id":plan_id,"amount_mnt":order["amount_mnt"],
+            "pay_url":payment["checkout_url"],"status":"pending"
+        }
+
+    try:
+        intent_id=payment["payment_intent_id"] if payment and payment["payment_intent_id"] else None
+        if not intent_id:
+            intent=await wire_payment.create_payment_intent(
+                order_id,order["amount_mnt"],f"RAINY Voice {plan['name']} subscription"
+            )
+            intent_id=str(intent.get("id") or "")
+            if not intent_id:
+                raise wire_payment.WireError("Wire PaymentIntent ID буцаасангүй.",502,"invalid_response")
+            direct_url=intent.get("checkout_url")
+            with core.db() as db:
+                db.execute(
+                    "INSERT OR REPLACE INTO wire_payments(order_id,payment_intent_id,checkout_session_id,checkout_url,status,updated) VALUES(?,?,?,?,?,?)",
+                    (order_id,intent_id,None,direct_url,"pending",time.time())
+                )
+            if direct_url:
+                return {
+                    "order_id":order_id,"plan_id":plan_id,"amount_mnt":order["amount_mnt"],
+                    "pay_url":direct_url,"payment_intent_id":intent_id,"status":"pending"
+                }
+
+        checkout=await wire_payment.create_checkout_session(
+            intent_id,order_id,wire_payment.success_url(order_id)
+        )
+        pay_url=str(checkout.get("url") or checkout.get("checkout_url") or "")
+        if not pay_url.startswith("https://"):
+            raise wire_payment.WireError("Wire checkout URL буруу байна.",502,"checkout_url_invalid")
+        session_id=str(checkout.get("id") or "") or None
+        with core.db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO wire_payments(order_id,payment_intent_id,checkout_session_id,checkout_url,status,updated) VALUES(?,?,?,?,?,?)",
+                (order_id,intent_id,session_id,pay_url,"pending",time.time())
+            )
+        return {
+            "order_id":order_id,"plan_id":plan_id,"amount_mnt":order["amount_mnt"],
+            "pay_url":pay_url,"payment_intent_id":intent_id,"status":"pending"
+        }
+    except wire_payment.WireError as exc:
+        status=409 if exc.status==409 else 429 if exc.status==429 else 503
+        raise HTTPException(status,str(exc))
+
+@app.get("/api/billing/wire/status/{order_id}")
+async def billing_wire_status(order_id:str,request:Request):
+    sess=session(request)
+    order=billing_order_for_user(order_id,sess["user_id"])
+    if not order:
+        raise HTTPException(404,"Төлбөрийн order олдсонгүй.")
+    with core.db() as db:
+        payment=db.execute("SELECT * FROM wire_payments WHERE order_id=?",(order_id,)).fetchone()
+    if order["status"]=="paid":
+        return {"order_id":order_id,"status":"paid",**billing.wallet(sess["user_id"])}
+    if not payment or not payment["payment_intent_id"]:
+        return {"order_id":order_id,"status":order["status"]}
+
+    try:
+        intent=await wire_payment.retrieve_payment_intent(payment["payment_intent_id"])
+    except wire_payment.WireError as exc:
+        raise HTTPException(503,str(exc))
+    if not wire_order_matches(intent,order):
+        raise HTTPException(409,"Wire төлбөрийн дүн эсвэл валют захиалгатай зөрж байна.")
+
+    status=wire_payment.map_status(intent.get("status"))
+    if status=="paid":
+        billing.mark_order_paid(order_id,str(intent.get("id") or payment["payment_intent_id"]))
+    elif status in {"failed","expired"}:
+        with core.db() as db:
+            db.execute("UPDATE billing_orders SET status=? WHERE id=? AND status='pending'",(status,order_id))
+            db.execute("UPDATE wire_payments SET status=?,updated=? WHERE order_id=?",(status,time.time(),order_id))
+    return {"order_id":order_id,"status":status,**billing.wallet(sess["user_id"])}
+
+@app.post("/api/billing/wire/webhook")
+async def billing_wire_webhook(request:Request):
+    raw=await request.body()
+    signature=request.headers.get("wirepayment-signature","")
+    if not wire_payment.verify_webhook_signature(raw,signature):
+        raise HTTPException(401,"Wire webhook signature буруу байна.")
+    try:
+        body=json.loads(raw.decode("utf-8"))
+    except Exception:
+        raise HTTPException(400,"Webhook JSON буруу байна.")
+
+    event_type=str(body.get("type") or body.get("event_type") or "").lower()
+    if event_type=="endpoint.verification":
+        return {"ok":True,"verified":True}
+    if event_type not in {
+        "payment_intent.succeeded","payment_intent.failed",
+        "payment_intent.canceled","payment_intent.expired"
+    }:
+        return {"ok":True,"ignored":True}
+
+    envelope=body.get("data") or body.get("object") or body
+    if isinstance(envelope,dict) and isinstance(envelope.get("object"),dict):
+        event_data=envelope["object"]
+    else:
+        event_data=envelope if isinstance(envelope,dict) else {}
+    intent_id=str(
+        event_data.get("id") or event_data.get("payment_intent") or body.get("payment_intent_id") or ""
+    )
+    if not intent_id:
+        raise HTTPException(400,"payment_intent id олдсонгүй.")
+
+    event_key=str(body.get("id") or hashlib.sha256(raw).hexdigest())
+    with core.db() as db:
+        if db.execute("SELECT 1 FROM wire_webhook_events WHERE event_key=?",(event_key,)).fetchone():
+            return {"ok":True,"duplicate":True}
+        payment=db.execute(
+            "SELECT wp.*,bo.user_id,bo.amount_mnt,bo.status order_status FROM wire_payments wp JOIN billing_orders bo ON bo.id=wp.order_id WHERE wp.payment_intent_id=?",
+            (intent_id,)
+        ).fetchone()
+    if not payment:
+        return {"ok":True,"ignored":True}
+
+    mapped=wire_payment.map_status(event_data.get("status") or event_type.split(".")[-1])
+    if mapped=="paid":
+        try:
+            intent=await wire_payment.retrieve_payment_intent(intent_id)
+        except wire_payment.WireError as exc:
+            raise HTTPException(503,str(exc))
+        order={"amount_mnt":payment["amount_mnt"]}
+        if not wire_order_matches(intent,order) or wire_payment.map_status(intent.get("status"))!="paid":
+            raise HTTPException(409,"Wire төлбөрийн төлөв, дүн эсвэл валют зөрж байна.")
+        billing.mark_order_paid(payment["order_id"],intent_id)
+        with core.db() as db:
+            db.execute("UPDATE wire_payments SET status='paid',updated=? WHERE order_id=?",(time.time(),payment["order_id"]))
+    elif mapped in {"failed","expired"} and payment["order_status"]!="paid":
+        with core.db() as db:
+            db.execute("UPDATE billing_orders SET status=? WHERE id=? AND status='pending'",(mapped,payment["order_id"]))
+            db.execute("UPDATE wire_payments SET status=?,updated=? WHERE order_id=?",(mapped,time.time(),payment["order_id"]))
+
+    with core.db() as db:
+        try:
+            db.execute(
+                "INSERT INTO wire_webhook_events(event_key,event_type,payment_intent_id,created) VALUES(?,?,?,?)",
+                (event_key,event_type,intent_id,time.time())
+            )
+        except sqlite3.IntegrityError:
+            pass
+    return {"ok":True}
+
 @app.get("/api/voices")
 def voices(request:Request):
     sess=session(request,False)
