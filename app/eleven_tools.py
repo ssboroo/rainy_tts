@@ -187,6 +187,71 @@ class ElevenTools:
         )
         return response.content
 
+    async def voice_isolator(self, upload):
+        await upload.seek(0)
+        files={"audio":(upload.filename,upload.file,upload.content_type or "application/octet-stream")}
+        response=await self._request(
+            "POST","/v1/audio-isolation/stream",
+            files=files,
+            data={"file_format":"other"},
+            timeout=360
+        )
+        return response.content, {
+            "request_id":response.headers.get("request-id"),
+            "trace_id":response.headers.get("x-trace-id"),
+        }
+
+    async def pvc_create(self, name, language="mn", description=""):
+        response=await self._request(
+            "POST","/v1/voices/pvc",
+            json={"name":name[:100],"language":language,"description":description[:500] or None},
+            timeout=120
+        )
+        return response.json()
+
+    async def pvc_add_samples(self, voice_id, uploads, remove_background_noise=False):
+        files=[]
+        for upload in uploads:
+            await upload.seek(0)
+            files.append(("files[]",(upload.filename,upload.file,upload.content_type or "audio/mpeg")))
+        response=await self._request(
+            "POST",f"/v1/voices/pvc/{voice_id}/samples",
+            files=files,
+            data={"remove_background_noise":"true" if remove_background_noise else "false"},
+            timeout=600
+        )
+        return response.json()
+
+    async def pvc_get_captcha(self, voice_id):
+        response=await self._request("GET",f"/v1/voices/pvc/{voice_id}/captcha",timeout=120)
+        data=response.json()
+        if isinstance(data,str):
+            return {"captcha":data}
+        return data
+
+    async def pvc_verify_captcha(self, voice_id, recording):
+        await recording.seek(0)
+        files={"recording":(recording.filename,recording.file,recording.content_type or "audio/mpeg")}
+        response=await self._request(
+            "POST",f"/v1/voices/pvc/{voice_id}/captcha",
+            files=files,timeout=300
+        )
+        return response.json()
+
+    async def pvc_train(self, voice_id, model_id=None):
+        payload={}
+        if model_id:
+            payload["model_id"]=model_id
+        response=await self._request(
+            "POST",f"/v1/voices/pvc/{voice_id}/train",
+            json=payload,timeout=180
+        )
+        return response.json()
+
+    async def pvc_status(self, voice_id):
+        response=await self._request("GET",f"/v1/voices/{voice_id}",timeout=120)
+        return response.json()
+
     async def realtime_token(self):
         response=await self._request("POST","/v1/single-use-token/realtime_scribe")
         return response.json()
