@@ -8,4 +8,4 @@ COPY app ./app
 RUN mkdir /data && chown -R studio:studio /data
 USER studio
 EXPOSE 8080
-CMD ["python", "-m", "app.server"]
+CMD ["python", "-m", "app.railway"]

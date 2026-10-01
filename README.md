@@ -272,3 +272,21 @@ ElevenLabs PVC requires an eligible provider plan and only permits Professional 
 ## Provider cost metadata
 
 TTS uses the ElevenLabs raw SDK response and persists the provider `character-cost`, `request-id`, and `x-trace-id` headers with the completed job. Voice Isolator also persists request/trace IDs. These values are available through RAINY analytics/history data for auditing actual upstream requests without exposing the ElevenLabs API key.
+
+
+## Railway deployment
+
+RAINY uses SQLite-backed queues and local artifacts, so on Railway the web process and background worker run inside the **same service/container** through `python -m app.railway`. This lets both processes share one persistent volume.
+
+Recommended Railway setup:
+
+1. Deploy this GitHub repository as one service. Railway will build the included Dockerfile.
+2. Add a Railway Volume to the same service and mount it at `/data`.
+3. Because Railway volumes are mounted as root while this Docker image normally runs as the non-root `studio` user, set `RAILWAY_RUN_UID=0` on the Railway service when using the volume.
+4. Set `DATA_DIR=/data` and `HOST=0.0.0.0`. Railway supplies the public `PORT` variable automatically; the app also defaults to 8080.
+5. Set `PUBLIC_ORIGIN=https://YOUR_DOMAIN` after Railway or your custom domain is active.
+6. Configure the ElevenLabs, billing and Wire.mn secrets as service variables. Never expose them in the frontend.
+7. Set the Railway healthcheck path to `/api/health`.
+8. Under Networking, generate a Railway domain first, then attach your custom domain when ready.
+
+Do **not** create a separate worker service while RAINY is still using SQLite + local `/data`; separate Railway services do not share the same attached volume. Move the queue/database to PostgreSQL/object storage before splitting web and worker into separate services.
