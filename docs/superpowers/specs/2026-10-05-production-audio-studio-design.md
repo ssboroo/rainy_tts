@@ -117,3 +117,4 @@ Observe disk consumption, failed jobs, oldest queued job, payment reconciliation
 
 ## 11. External inputs
 The owner must activate an eligible paid ElevenLabs plan, configure live Wire API/webhook credentials, and select/configure a transactional email sender. These are external setup requirements; code and offline checks can continue independently after the design is approved.
+
