@@ -26,6 +26,7 @@ from . import core, billing, wire_payment, durable_jobs, operations, accounts, a
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 from .media_formats import dubbing_output
+from . import provider_catalog
 
 STATIC = Path(__file__).parent / "static"
 ORIGIN = os.getenv("PUBLIC_ORIGIN","http://localhost:8080").rstrip("/")
@@ -48,9 +49,10 @@ app=FastAPI(title="RAINY Voice API",docs_url=None,redoc_url=None)
 tools=ElevenTools()
 
 @app.on_event("startup")
-def startup():
+async def startup():
     core.init()
     durable_jobs.ensure_schema()
+    app.state.catalog_task=asyncio.create_task(provider_catalog.refresh(tools))
 
 @app.middleware("http")
 async def security_headers(request:Request, call_next):
@@ -151,6 +153,8 @@ async def voice_cost_multiplier(voice_id,user_id):
         return max(1.0,float(cached["multiplier"]))
     if not configured_voice_name(voice_id):
         return 1.0
+    catalog_voice=next((v for v in ElevenLabsEngine.configured_voices() if v['id']==voice_id),{})
+    if catalog_voice.get('source')=='default':return 1.0
     multiplier=None
     try:
         shared=await tools.find_shared_voice(voice_id)
@@ -176,6 +180,10 @@ async def ensure_provider_voice(voice_id,user_id):
     if alias:
         return alias["provider_id"]
 
+    catalog_voice=next((v for v in ElevenLabsEngine.configured_voices() if v['id']==voice_id),None)
+    if catalog_voice and catalog_voice.get('source')=='default':
+        return voice_id
+
     name=configured_voice_name(voice_id)
     if not name:
         raise HTTPException(422,"Voice ID RAINY catalog-д байхгүй байна.")
@@ -189,7 +197,7 @@ async def ensure_provider_voice(voice_id,user_id):
     if tier=="free":
         raise HTTPException(
             402,
-            "Эдгээр 12 Монгол voice нь ElevenLabs Voice Library voice тул Free plan дээр API-аар ашиглагдахгүй. Starter эсвэл түүнээс дээш plan шаардлагатай."
+            "Сонгосон Монгол хоолойг ашиглахад төлбөртэй багц шаардлагатай. Туршилтад стандарт хоолой сонгох эсвэл үйлчилгээний эрхээ идэвхжүүлнэ үү."
         )
 
     try:
@@ -645,13 +653,37 @@ def voices(request:Request):
         item=dict(voice)
         item["provider_id"]=aliases.get(voice["id"])
         item["synced"]=voice["id"] in aliases
-        item["cost_multiplier"]=rates.get(voice["id"],1.0)
+        item["cost_multiplier"]=rates.get(voice["id"],voice.get('cost_multiplier',1.0))
+        item.setdefault('native_mn',True)
+        item.setdefault('requires_paid',True)
         result.append(item)
     if sess:
         with core.db() as db:
             for row in db.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
                 result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"],"cost_multiplier":1.0})
     return {"voices":result}
+
+@app.get("/api/studio/catalog")
+def studio_catalog():
+    catalog=provider_catalog.read()
+    voices=ElevenLabsEngine.configured_voices()
+    return {"updated":catalog.get("updated"),"native_voices":sum(v.get("native_mn",True) for v in voices),
+            "default_voices":sum(v.get("source")=="default" for v in voices),
+            "models":[m for m in catalog.get("models",[]) if m.get("supports_mn")],
+            "recommendations":{"tts":"eleven_v4","fast_tts":"eleven_v4_turbo","dialogue":"eleven_v4",
+                               "stt":"scribe_v2","realtime":"scribe_v2_realtime","dubbing":"dubbing_v2"}}
+
+@app.post("/api/admin/studio/catalog/refresh")
+async def refresh_studio_catalog(request:Request):
+    sess=admin_user(request)
+    mutation_guard(request,sess)
+    throttle("catalog-refresh:"+sess["user_id"],2,300)
+    task=getattr(app.state,"catalog_task",None)
+    if task and not task.done():
+        raise HTTPException(409,"Хоолойн сан шинэчлэгдэж байна. Түр хүлээгээд дахин оролдоно уу.")
+    app.state.catalog_task=asyncio.create_task(provider_catalog.refresh(tools))
+    await app.state.catalog_task
+    return {**studio_catalog(),"errors":provider_catalog.read().get("errors",[])}
 
 @app.get("/api/provider/status")
 async def provider_status(request:Request):
@@ -869,7 +901,8 @@ async def voice_preview(voice_id:str,request:Request):
     if voice_id not in allowed:
         raise HTTPException(404,"Voice олдсонгүй.")
     try:
-        if configured_voice_name(voice_id):
+        catalog_voice=next((v for v in ElevenLabsEngine.configured_voices() if v['id']==voice_id),None)
+        if configured_voice_name(voice_id) and (not catalog_voice or catalog_voice.get('source')!='default'):
             shared=await tools.find_shared_voice(voice_id)
             if shared and shared.get("preview_url"):
                 audio,mime=await tools.download_url(shared["preview_url"])
