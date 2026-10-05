@@ -381,7 +381,6 @@ def static_file(name:str):
 def health():
     ready,reason=ElevenLabsEngine().readiness()
     return {
-        "operations":operations.inspect_readiness(),
         "ok":True,"engine_ready":ready,"engine_message":reason,"provider":"elevenlabs",
         "capabilities":{
             "tts":True,"voice_cloning":True,"dialogue":True,"music":True,"sound_effects":True,
@@ -396,7 +395,7 @@ def health():
 @app.get("/api/me")
 def me(request:Request):
     sess=session(request,False)
-    return {"user":{"email":sess["email"],"csrf":sess["csrf"]} if sess else None}
+    return {"user":{"email":sess["email"],"csrf":sess["csrf"],"admin":accounts._admin(sess["email"])} if sess else None}
 
 @app.post("/api/register")
 @app.post("/api/login")
@@ -411,6 +410,8 @@ async def auth(request:Request):
     is_register=request.url.path.endswith("/register")
     with core.db() as c:
         if is_register:
+            if accounts._admin(email):
+                raise HTTPException(403,"Энэ имэйлээр шинээр бүртгүүлэх боломжгүй. Өмнөх бүртгэлээрээ нэвтэрнэ үү.")
             if not env_flag("ALLOW_REGISTRATION",False):
                 raise HTTPException(403,"Одоогоор бүртгэл хаалттай байна.")
             try:
@@ -423,7 +424,7 @@ async def auth(request:Request):
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
         c.execute("DELETE FROM sessions WHERE expires<?",(time.time(),))
         c.execute("INSERT INTO sessions VALUES(?,?,?,?)",(hashlib.sha256(raw.encode()).hexdigest(),user["id"],csrf,time.time()+86400*7))
-    response=JSONResponse({"user":{"email":email,"csrf":csrf}})
+    response=JSONResponse({"user":{"email":email,"csrf":csrf,"admin":accounts._admin(email)}})
     response.set_cookie("session",raw,max_age=604800,httponly=True,samesite="strict",secure=SECURE,path="/")
     return response
 
@@ -652,7 +653,7 @@ def voices(request:Request):
 
 @app.get("/api/provider/status")
 async def provider_status(request:Request):
-    session(request)
+    admin_user(request)
     try:
         sub=await tools.subscription()
     except Exception as exc:
@@ -670,7 +671,7 @@ async def provider_status(request:Request):
 
 @app.post("/api/voices/sync")
 async def sync_voices(request:Request):
-    sess=session(request); mutation_guard(request,sess); throttle("voice-sync:"+sess["user_id"],20,3600)
+    sess=admin_user(request); mutation_guard(request,sess); throttle("voice-sync:"+sess["user_id"],20,3600)
     results=[]
     for voice in ElevenLabsEngine.configured_voices():
         try:

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#080a0d">
-  <meta name="description" content="RAINY Voice — Монгол төвтэй ElevenLabs Creative Studio">
+  <meta name="description" content="RAINY Voice — Монгол дуу хоолой, аудио, хадмал бүтээх студи">
   <title>RAINY Voice Studio</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
@@ -33,25 +33,25 @@
         <div class="rail-label inline">ВИДЕО БА ХООЛОЙ</div>
         <button class="nav" data-page="dubbing"><span class="nav-icon">▶</span><span>Видео орчуулах</span></button>
         <button class="nav" data-page="voices"><span class="nav-icon">♬</span><span>Хоолойн сан</span></button>
-        <div class="rail-label inline">БИЗНЕС</div>
-        <button class="nav" data-page="reception"><span class="nav-icon">☎</span><span>Reception.ai</span></button>
+        <div class="rail-label inline" hidden data-admin-only>БИЗНЕС</div>
+        <button class="nav" data-page="reception" hidden data-admin-only><span class="nav-icon">☎</span><span>Reception.ai</span></button>
         <div class="rail-label inline">МИНИЙ СТУДИ</div>
         <button class="nav" data-page="billing"><span class="nav-icon">₮</span><span>Сарын багц</span></button>
         <button class="nav" data-page="analytics"><span class="nav-icon">⌗</span><span>Хэрэглээний тайлан</span></button>
         <button class="nav" data-page="history"><span class="nav-icon">↗</span><span>Бүтээлийн түүх</span></button>
-      <button class="nav" data-page="voice-design"><span class="nav-icon">✧</span><span>Хоолой зохиох</span></button><button class="nav" data-page="voice-remix"><span class="nav-icon">↝</span><span>Хоолой шинэчлэх</span></button><button class="nav" data-page="alignment"><span class="nav-icon">≡</span><span>Хадмал тааруулах</span></button><button class="nav" data-page="settings"><span class="nav-icon">⚙</span><span>Бүртгэлийн тохиргоо</span></button><button class="nav" data-page="admin"><span class="nav-icon">⌘</span><span>Удирдлага</span></button></nav>
-      <div class="side-bottom"><div class="provider-mini"><span class="live-dot"></span><div><small>ХӨДӨЛГҮҮР</small><strong>ElevenLabs</strong></div></div><p>Дуу хоолой, хөгжим,<br>видео орчуулгын студи.</p><span class="edition">RAINY / 2026</span></div>
+      <button class="nav" data-page="voice-design"><span class="nav-icon">✧</span><span>Хоолой зохиох</span></button><button class="nav" data-page="voice-remix"><span class="nav-icon">↝</span><span>Хоолой шинэчлэх</span></button><button class="nav" data-page="alignment"><span class="nav-icon">≡</span><span>Хадмал тааруулах</span></button><button class="nav" data-page="settings"><span class="nav-icon">⚙</span><span>Бүртгэлийн тохиргоо</span></button><button class="nav" data-page="admin" hidden data-admin-only><span class="nav-icon">⌘</span><span>Удирдлага</span></button></nav>
+      <div class="side-bottom"><div class="provider-mini"><span class="live-dot"></span><div><small>ДУУ ХООЛОЙ</small><strong>RAINY Studio</strong></div></div><p>Дуу хоолой, хөгжим,<br>видео орчуулгын студи.</p><span class="edition">RAINY / 2026</span></div>
     </aside>
 
     <main>
       <header class="topbar">
         <div class="top-left"><span class="route-index">01</span><span id="breadcrumb">Дуу бүтээх / Текстээс дуу</span></div>
-        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><span class="engine-chip"><i></i> ElevenLabs</span><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
+        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><span class="engine-chip"><i></i> RAINY Studio</span><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
       </header>
-      <div id="notice" role="status" class="notice" hidden></div><div id="studio-readiness" class="studio-readiness" role="status">Үйлчилгээний төлөвийг шалгаж байна…</div>
+      <div id="notice" role="status" class="notice" hidden></div><div id="studio-readiness" class="studio-readiness" role="status" hidden data-admin-only>Үйлчилгээний төлөвийг шалгаж байна…</div>
 
       <section id="tts" class="page tool-page">
-        <div class="tool-hero"><p class="kicker"><span></span>ТЕКСТЭЭС ДУУ</p><h1>Текстээс <em>дуу хоолой.</em></h1><p>Монгол хоолой эсвэл өөрийн хувилбарыг сонгож WAV, MP3 үүсгэнэ.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>ТЕКСТЭЭС ДУУ</p><h1>Текстээс <em>дуу хоолой.</em></h1><p>Бичвэрээ оруулна → хоолойгоо сонгоно → “Дуу үүсгэх” дарна. Бэлэн дуугаа сонсож, татаж аваарай.</p></div>
         <div class="tool-grid">
           <div class="tool-card wide">
             <label class="field-label">Бүтээлийн нэр</label><input id="tts-title" class="field-input" placeholder="Шинэ бүтээл">
@@ -62,7 +62,7 @@
           </div>
           <aside class="tool-card">
             <label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
-            <label class="field-label">Загвар</label><select id="tts-model" class="field-input"><option value="eleven_v4">Eleven v4 · Чанар · 80 кредит / 1K</option><option value="eleven_v4_turbo">Eleven v4 Turbo · Шууд · 40 кредит / 1K</option></select>
+            <label class="field-label">Загвар</label><select id="tts-model" class="field-input"><option value="eleven_v4">Чанартай · 1,000 тэмдэгт / 80 кредит</option><option value="eleven_v4_turbo">Хурдан · 1,000 тэмдэгт / 40 кредит</option></select>
             <label class="field-label">Унших хурд <output id="speed-value">1.00×</output></label><input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1">
             <details class="pronunciation"><summary>Дуудлагын толь ＋</summary><textarea id="glossary" placeholder="RAINY = Рэйни"></textarea></details>
             <button id="generate" class="generate"><span class="generate-label">Дуу үүсгэх</span><span class="generate-arrow">↗</span></button>
@@ -85,7 +85,7 @@
       <section id="pvc" class="page tool-page" hidden>
         <div class="tool-hero"><p class="kicker"><span></span>МЭРГЭЖЛИЙН ХООЛОЙ · МОНГОЛ</p><h1>Өөрийн хоолойг <em>мэргэжлийн түвшинд.</em></h1><p>Монгол дээж байршуулах → эзэмшигчийг баталгаажуулах → сургалт. Зөвхөн өөрийн хоолойг PVC болгоно.</p></div>
         <form id="pvc-form" class="tool-form">
-          <p class="tool-warning">ElevenLabs Professional Voice Clone нь Creator буюу түүнээс дээш багц, хоолойн эзэмшигчийн баталгаажуулалт шаарддаг. RAINY-ийн Pro, Studio, Agency багцад ашиглана.</p>
+          <p class="tool-warning">Мэргэжлийн хоолой хувилахад хоолойн эзэмшигчийн баталгаажуулалт шаардлагатай. Pro, Studio, Agency багцад ашиглана.</p>
           <div class="field"><label>Хоолойн нэр</label><input name="name" maxlength="100" required placeholder="Миний мэргэжлийн Монгол хоолой"></div>
           <div class="field"><label>Тайлбар</label><input name="description" maxlength="500" placeholder="Дулаан өнгөтэй Монгол өгүүлэгч"></div>
           <div class="field"><label>Монгол дууны дээж</label><input name="files" type="file" accept="audio/*" multiple required></div>
@@ -117,7 +117,7 @@
 
       <section id="music" class="page tool-page" hidden>
         <div class="tool-hero"><p class="kicker"><span></span>ХӨГЖИМ</p><h1>Тайлбар-оос <em>хөгжим.</em></h1><p>3 секундээс 10 минут хүртэл шинэ хөгжим зохионо.</p></div>
-        <div class="tool-form"><div class="field"><label>Хөгжмийн тайлбар</label><textarea id="music-prompt" class="big-textarea small" placeholder="Морин хууртай, уудам талын мэдрэмж төрүүлэх Монгол цахим хөгжим…"></textarea></div><div class="field-grid"><div class="field"><label>Загвар</label><select id="music-model"><option value="music_v2_5">Хөгжим v2.5 · Шинэ</option><option value="music_v2">Хөгжим v2</option><option value="music_v1">Хөгжим v1</option></select></div><div class="field"><label>Урт — <span id="music-duration-label">30 секунд</span></label><input id="music-duration" type="range" min="3" max="600" value="30"></div></div><label class="check"><input id="music-instrumental" type="checkbox"> Зөвхөн үггүй хөгжим</label><button id="music-generate" class="generate"><span>Хөгжим үүсгэх</span><span>↗</span></button></div>
+        <div class="tool-form"><div class="field"><label>Хөгжмийн тайлбар</label><textarea id="music-prompt" class="big-textarea small" placeholder="Морин хууртай, уудам талын мэдрэмж төрүүлэх Монгол цахим хөгжим…"></textarea></div><div class="field-grid"><div class="field"><label>Загвар</label><select id="music-model"><option value="music_v2_5">Шинэ · Зөвлөмж</option><option value="music_v2">Стандарт</option><option value="music_v1">Сонгодог</option></select></div><div class="field"><label>Урт — <span id="music-duration-label">30 секунд</span></label><input id="music-duration" type="range" min="3" max="600" value="30"></div></div><label class="check"><input id="music-instrumental" type="checkbox"> Зөвхөн үггүй хөгжим</label><button id="music-generate" class="generate"><span>Хөгжим үүсгэх</span><span>↗</span></button></div>
       </section>
 
       <section id="sfx" class="page tool-page" hidden>
@@ -126,14 +126,14 @@
       </section>
 
       <section id="stt" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>ЯРИАНААС БИЧВЭР · SCRIBE V2</p><h1>Монгол яриаг <em>зөв бичвэр.</em></h1><p>Scribe v2 ашиглан Монгол яриаг таньж, тусгай нэрс болон зөв бичгийг засна. Ярианы утгыг эх хэлээр нь хадгална.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>ЯРИАНААС БИЧВЭР</p><h1>Монгол яриаг <em>зөв бичвэр.</em></h1><p>Аудио эсвэл видео файлаа оруулаад яриаг бичвэр болгоно. Бичвэр болон хадмалаа татаж авч болно.</p></div>
         <form id="stt-form" class="tool-form">
           <div class="field"><label>Аудио / Видео</label><input name="file" type="file" accept="audio/*,video/*" required></div>
           <div class="field-grid">
             <div class="field"><label>Хэл</label><select name="language_code"><option value="mn" selected>Монгол · mn</option><option value="">Автоматаар таних</option><option value="en">Англи · en</option></select></div>
             <div class="field"><label>Яригчдын тоо</label><input id="stt-speakers" name="num_speakers" type="number" min="1" max="32" value="1"></div>
           </div>
-          <div class="field"><label>Нэр, бренд, тусгай нэр томьёо · Танилтыг сайжруулах нэрс (+20%)</label><textarea name="keyterms" class="big-textarea small" placeholder="RAINY, ElevenLabs, OpenAI, байгууллагын нэр, хүний нэр…&#10;Таслал эсвэл шинэ мөрөөр тусгаарлана."></textarea><small class="field-help">Зөв бичих шаардлагатай нэрсийг энд оруулах нь танилтанд шууд нөлөөлнө. 100 хүртэл нэр томьёо.</small></div>
+          <div class="field"><label>Нэр, бренд, тусгай нэр томьёо · Танилтыг сайжруулах нэрс (+20%)</label><textarea name="keyterms" class="big-textarea small" placeholder="RAINY, байгууллагын нэр, хүний нэр…&#10;Таслал эсвэл шинэ мөрөөр тусгаарлана."></textarea><small class="field-help">Зөв бичих шаардлагатай нэрсийг энд оруулах нь танилтанд шууд нөлөөлнө. 100 хүртэл нэр томьёо.</small></div>
           <label class="check"><input name="polish" type="checkbox" checked> Монгол зөв бичиг, цэг тэмдэг, зайг засах (+30%)</label>
           <label class="check"><input name="no_verbatim" type="checkbox" checked> “ээ”, “мм” зэрэг дүүргэгч үг, дутуу эхэлсэн өгүүлбэр-ыг цэвэрлэх</label>
           <label class="check"><input id="stt-diarize" name="diarize" type="checkbox"> Олон яригчийг ялгах (яригч ялгах)</label>
@@ -144,7 +144,7 @@
       </section>
 
       <section id="realtime" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>ШУУД БИЧВЭР</p><h1>Яриаг <em>шууд бичнэ.</em></h1><p>Микрофоны яриаг Scribe Realtime v2 ашиглан шууд бичнэ. Нэг удаагийн сесс 15 минут хүртэл үргэлжилнэ. Эхлэхэд 15 минутын кредитийг тооцно; богино ашигласан ч бүтэн цонхны төлбөртэй.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>ШУУД БИЧВЭР</p><h1>Яриаг <em>шууд бичнэ.</em></h1><p>Микрофоноор ярьсан үгийг шууд бичвэр болгоно. Нэг удаа 15 минут хүртэл ашиглана. Эхлэхэд 15 минутын кредит суутгана; богино ашигласан ч энэ төлбөр өөрчлөгдөхгүй.</p></div>
         <div class="tool-form realtime-panel"><div class="realtime-controls"><button id="realtime-start" class="generate"><span>● Бичиж эхлэх</span><span>↗</span></button><button id="realtime-stop" class="secondary" disabled>Зогсоох</button><button id="realtime-save" class="secondary" disabled>Бичвэр хадгалах ↓</button></div><div class="live-state"><span id="realtime-dot"></span><strong id="realtime-status">Бэлэн</strong></div><div id="realtime-transcript" class="transcript-live">Энд шууд бичвэр харагдана…</div></div>
       </section>
 
@@ -159,7 +159,7 @@
 
       <section id="changer" class="page tool-page" hidden>
         <div class="tool-hero"><p class="kicker"><span></span>ХООЛОЙ СОЛИХ</p><h1>Яриаг <em>өөр хоолойгоор.</em></h1><p>Хэмнэл, сэтгэл хөдлөл, илэрхийлэл-г хадгалж сонгосон хоолой руу хувиргана.</p></div>
-        <form id="changer-form" class="tool-form"><p class="tool-warning">Анхаарах: ElevenLabs multilingual Speech-to-Speech v2-ийн албан ёсны дэмждэг эх хэл жагсаалтад Монгол хэл одоогоор байхгүй. Монгол эх яриа дээр үр дүн баталгаатай биш.</p><div class="field"><label>Аудио</label><input name="file" type="file" accept="audio/*,.mp4" required></div><div class="field"><label>Сонгох хоолой</label><select id="changer-voice" name="voice_id"></select></div><label class="check"><input name="remove_background_noise" type="checkbox"> Ар талын шуугианыг цэвэрлэх</label><button class="generate" type="submit"><span>Хоолой солих</span><span>↗</span></button></form>
+        <form id="changer-form" class="tool-form"><p class="tool-warning">Монгол эх ярианы үр дүн өөр байж болно. Эхлээд богино аудиогоор туршаарай.</p><div class="field"><label>Аудио</label><input name="file" type="file" accept="audio/*,.mp4" required></div><div class="field"><label>Сонгох хоолой</label><select id="changer-voice" name="voice_id"></select></div><label class="check"><input name="remove_background_noise" type="checkbox"> Ар талын шуугианыг цэвэрлэх</label><button class="generate" type="submit"><span>Хоолой солих</span><span>↗</span></button></form>
       </section>
 
       <section id="dubbing" class="page tool-page" hidden>
@@ -179,8 +179,8 @@
       </section>
 
       <section id="voices" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>ХООЛОЙН САН</p><h1>12 Монгол + <em>таны хоолой.</em></h1><p>Монгол хоолойн дээжийг сонсож өөрийн бүтээлд сонгоно уу. Нийтийн хоолой ашиглахад ElevenLabs-ийн төлбөртэй багц шаардлагатай.</p></div>
-        <div class="provider-status-card">
+        <div class="tool-hero"><p class="kicker"><span></span>ХООЛОЙН САН</p><h1>12 Монгол + <em>таны хоолой.</em></h1><p>Монгол хоолойн дээжийг сонсож өөрийн бүтээлд сонгоно уу.</p></div>
+        <div class="provider-status-card" hidden data-admin-only>
           <div><small>ELEVENLABS ҮЙЛЧИЛГЭЭ</small><strong id="provider-plan">Нэвтэрсний дараа шалгана</strong><p id="provider-status-text">Төлбөртэй багцын эрх болон хоолойн сангийн төлөв энд харагдана.</p></div>
           <button id="sync-voices" class="secondary" type="button">Хоолой шинэчлэх ↻</button>
         </div>
@@ -188,7 +188,7 @@
       </section>
 
       <section id="billing" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>САРЫН БАГЦ БА КРЕДИТ</p><h1>Хэрэглэсэн хэмжээгээрээ <em>кредит.</em></h1><p>Сарын багцаа Wire.mn-ээр төлнө. Төлбөр сервер талаас баталгаажмагц кредит автоматаар идэвхжинэ.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>САРЫН БАГЦ БА КРЕДИТ</p><h1>Хэрэглэсэн хэмжээгээрээ <em>кредит.</em></h1><p>Сарын багцаа QPay-ээр төлнө. Төлбөр баталгаажмагц кредит автоматаар нэмэгдэнэ.</p></div>
         <div class="wallet-card">
           <div><small>ОДООГИЙН БАГЦ</small><strong id="billing-plan">—</strong><p id="billing-cycle">Нэвтэрсний дараа харагдана.</p></div>
           <div class="wallet-balance"><small>ҮЛДЭГДЭЛ</small><strong id="billing-balance">0</strong><span>кредит</span></div>
@@ -198,15 +198,15 @@
         <div class="credit-guide">
           <h3>Кредит зарцуулалт</h3>
           <div class="credit-rate-grid">
-            <span><b>80</b> = 1,000 тэмдэгт · v4 / v3 / Multilingual v2</span>
-            <span><b>40</b> = 1,000 тэмдэгт · v4 Turbo / Flash / Turbo</span>
+            <span><b>80</b> = 1,000 тэмдэгт · Чанартай дуу</span>
+            <span><b>40</b> = 1,000 тэмдэгт · Хурдан дуу</span>
             <span><b>220</b> = 1 цаг Ярианаас бичвэр</span>
             <span><b>390</b> = 1 цаг Шууд бичвэр</span>
             <span><b>150</b> = 1 минут Хөгжим</span>
             <span><b>120</b> = 1 минут Хоолой солих / Яриа цэвэрлэх</span>
             <span><b>120</b> = 1 дууны эффект</span>
-            <span><b>330</b> = 1 минут Видео орчуулга v1</span>
-            <span><b>2,200</b> = 1 минут Видео орчуулга v2</span>
+            <span><b>330</b> = 1 минут Видео орчуулга</span>
+            <span><b>2,200</b> = 1 минут Чанартай видео орчуулга</span>
           </div>
         </div>
         <div class="ledger-wrap"><h3>Кредитийн түүх</h3><div id="credit-ledger" class="ledger-list"></div></div>
@@ -220,7 +220,7 @@
         <div class="tool-hero"><p class="kicker"><span></span>БҮТЭЭЛИЙН ТҮҮХ</p><h1>Бүх <em>бүтээл.</em></h1><p>Дуу хоолой, хөгжим, подкаст, бичвэр, видео орчуулга болон хадмал нэг дор.</p></div><button id="history-refresh" class="secondary">Шинэчлэх ↻</button><div id="history-list" class="jobs history-jobs"></div>
       </section>
 
-<section id="voice-design" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ХООЛОЙН УРЛАН</p><h1>Шинэ хоолой зохиох</h1><p>Хоолойн өнгө, нас, хэмнэлээ тайлбарлан дээж сонсож, таалагдсан хувилбараа хадгална.</p></div><form id="voice-design-form" class="tool-form"><label for="voice-design-prompt">Хоолойн тайлбар</label><textarea id="voice-design-prompt" name="prompt" required maxlength="1000" placeholder="Дулаан өнгөтэй, тайван хэмнэлтэй, тод дуудлагатай Монгол өгүүлэгч"></textarea><label for="voice-design-text">Сонсох жишээ текст</label><textarea id="voice-design-text" name="text" required maxlength="1000">Сайн байна уу. Манай шинэ хичээлд тавтай морил. Өнөөдөр бид жижиг алхам бүр том өөрчлөлтийн эхлэл болдгийг ярилцана.</textarea><p class="field-help">Дээж үүсгэх болон хоолой хадгалахад багцын эрх, кредитийг сервер шалгана.</p><button class="generate" type="submit"><span>Дээж сонсох</span><span>↗</span></button></form><div id="voice-design-previews" class="voice-grid" aria-live="polite"></div></section><section id="voice-remix" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ХООЛОЙН УРЛАН</p><h1>Хоолойгоо шинэчлэх</h1><p>Өөрийн хоолойн өнгө, хэв маягийг тайлбараар өөрчилж, шинэ хувилбар болгон хадгална.</p></div><form id="voice-remix-form" class="tool-form"><label for="remix-voice">Өөрийн хоолой</label><select id="remix-voice" name="voice_id" required></select><label for="voice-remix-prompt">Хоолойн тайлбар</label><textarea id="voice-remix-prompt" name="prompt" required maxlength="1000" placeholder="Дулаан өнгөтэй, тайван хэмнэлтэй, тод дуудлагатай Монгол өгүүлэгч"></textarea><label for="voice-remix-text">Сонсох жишээ текст</label><textarea id="voice-remix-text" name="text" required maxlength="1000">Сайн байна уу. Манай шинэ хичээлд тавтай морил. Өнөөдөр бид жижиг алхам бүр том өөрчлөлтийн эхлэл болдгийг ярилцана.</textarea><p class="field-help">Дээж үүсгэх болон хоолой хадгалахад багцын эрх, кредитийг сервер шалгана.</p><button class="generate" type="submit"><span>Дээж сонсох</span><span>↗</span></button></form><div id="voice-remix-previews" class="voice-grid" aria-live="polite"></div></section><section id="alignment" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ВИДЕО БА ХАДМАЛ</p><h1>Бичвэрийг <em>дуутай тааруулах.</em></h1><p>Бэлэн бичвэрийн үг бүрийг аудионы хугацаатай тааруулж JSON, SRT, VTT, TXT гаргана. Эх бичвэрээ өөрөө оруулна.</p></div><form id="alignment-form" class="tool-form"><label for="alignment-title">Бүтээлийн нэр</label><input id="alignment-title" name="title" value="Хичээлийн хадмал"><label for="alignment-file">Аудио файл</label><input id="alignment-file" name="file" type="file" accept="audio/*" required><label for="alignment-text">Аудионд уншсан бичвэр</label><textarea id="alignment-text" name="text" required maxlength="20000" placeholder="Аудионд яригдсан үгсийг дарааллаар нь оруулна уу"></textarea><button class="generate" type="submit"><span>Хугацаа тааруулах</span><span>↗</span></button></form><div id="alignment-result" class="result-box" hidden></div></section>
+<section id="voice-design" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ХООЛОЙН УРЛАН</p><h1>Шинэ хоолой зохиох</h1><p>Хоолойн өнгө, нас, хэмнэлээ тайлбарлан дээж сонсож, таалагдсан хувилбараа хадгална.</p></div><form id="voice-design-form" class="tool-form"><label for="voice-design-prompt">Хоолойн тайлбар</label><textarea id="voice-design-prompt" name="prompt" required minlength="20" maxlength="1000" placeholder="Дулаан өнгөтэй, тайван хэмнэлтэй, тод дуудлагатай Монгол өгүүлэгч"></textarea><label for="voice-design-text">Сонсох жишээ текст</label><textarea id="voice-design-text" name="text" required minlength="100" maxlength="1000">Сайн байна уу. Манай шинэ хичээлд тавтай морил. Өнөөдөр бид жижиг алхам бүр том өөрчлөлтийн эхлэл болдгийг ярилцана.</textarea><p class="field-help">Дээж үүсгэх болон хоолой хадгалахад багцын эрх, кредит шаардлагатай.</p><button class="generate" type="submit"><span>Дээж сонсох</span><span>↗</span></button></form><div id="voice-design-previews" class="voice-grid" aria-live="polite"></div></section><section id="voice-remix" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ХООЛОЙН УРЛАН</p><h1>Хоолойгоо шинэчлэх</h1><p>Өөрийн хоолойн өнгө, хэв маягийг тайлбараар өөрчилж, шинэ хувилбар болгон хадгална.</p></div><form id="voice-remix-form" class="tool-form"><label for="remix-voice">Өөрийн хоолой</label><select id="remix-voice" name="voice_id" required></select><label for="voice-remix-prompt">Хоолойн тайлбар</label><textarea id="voice-remix-prompt" name="prompt" required maxlength="1000" placeholder="Дулаан өнгөтэй, тайван хэмнэлтэй, тод дуудлагатай Монгол өгүүлэгч"></textarea><label for="voice-remix-text">Сонсох жишээ текст</label><textarea id="voice-remix-text" name="text" required minlength="100" maxlength="1000">Сайн байна уу. Манай шинэ хичээлд тавтай морил. Өнөөдөр бид жижиг алхам бүр том өөрчлөлтийн эхлэл болдгийг ярилцана.</textarea><p class="field-help">Дээж үүсгэх болон хоолой хадгалахад багцын эрх, кредит шаардлагатай.</p><button class="generate" type="submit"><span>Дээж сонсох</span><span>↗</span></button></form><div id="voice-remix-previews" class="voice-grid" aria-live="polite"></div></section><section id="alignment" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">ВИДЕО БА ХАДМАЛ</p><h1>Бичвэрийг <em>дуутай тааруулах.</em></h1><p>Аудио файл болон түүнд уншсан бичвэрээ оруулна. Хугацаатай хадмал үүсгэж, SRT эсвэл VTT файлаар татаж авна.</p></div><form id="alignment-form" class="tool-form"><label for="alignment-title">Бүтээлийн нэр</label><input id="alignment-title" name="title" value="Хичээлийн хадмал"><label for="alignment-file">Аудио файл</label><input id="alignment-file" name="file" type="file" accept="audio/*" required><label for="alignment-text">Аудионд уншсан бичвэр</label><textarea id="alignment-text" name="text" required maxlength="20000" placeholder="Аудионд яригдсан үгсийг дарааллаар нь оруулна уу"></textarea><button class="generate" type="submit"><span>Хугацаа тааруулах</span><span>↗</span></button></form><div id="alignment-result" class="result-box" hidden></div></section>
 <section id="settings" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">МИНИЙ СТУДИ</p><h1>Бүртгэлийн <em>тохиргоо.</em></h1><p id="settings-info">Нэвтэрсний дараа харагдана.</p></div><form id="password-form" class="tool-form"><h3>Нууц үг солих</h3><label for="current-password">Одоогийн нууц үг</label><input id="current-password" type="password" autocomplete="current-password" required><label for="new-password">Шинэ нууц үг</label><input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><button class="generate" type="submit"><span>Нууц үг шинэчлэх</span><span>↗</span></button></form><form id="delete-form" class="tool-form"><h3>Бүртгэл устгах</h3><p class="field-help">Устгасны дараа бүртгэл, хувийн бүтээлдээ хандах боломжгүй болно. Төлбөрийн бүртгэл хуульд заасан хугацаанд хадгалагдаж болно.</p><label for="delete-password">Нууц үг</label><input id="delete-password" type="password" autocomplete="current-password" required><label for="delete-confirmation">Баталгаажуулахын тулд УСТГАХ гэж бичнэ үү</label><input id="delete-confirmation" required pattern="УСТГАХ" autocomplete="off"><button class="secondary danger-text" type="submit">Бүртгэлээ устгах</button></form></section>
 <section id="reset" class="page tool-page" hidden><div class="tool-hero"><h1>Нууц үг <em>сэргээх.</em></h1><p>Имэйлд ирсэн холбоосоор шинэ нууц үг үүсгэнэ.</p></div><form id="reset-form" class="tool-form"><div id="reset-email-field"><label for="reset-email">Бүртгэлийн имэйл</label><input id="reset-email" type="email" autocomplete="email"></div><div id="reset-password-field" hidden><label for="reset-password">Шинэ нууц үг</label><input id="reset-password" type="password" autocomplete="new-password" minlength="12" maxlength="128"></div><button class="generate" type="submit"><span id="reset-submit-label">Сэргээх холбоос авах</span><span>↗</span></button><p id="reset-status" role="status"></p></form></section>
 <section id="admin" class="page tool-page" hidden><div class="tool-hero"><p class="kicker">УДИРДЛАГА</p><h1>Студийн <em>үйл ажиллагаа.</em></h1><p>Энэ хэсэгт зөвхөн эрхтэй админ хандана.</p></div><button id="admin-refresh" class="secondary">Шинэчлэх ↻</button><div id="admin-content" class="metrics"></div></section>

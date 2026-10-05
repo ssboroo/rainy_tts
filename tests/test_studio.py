@@ -73,8 +73,25 @@ class APITests(unittest.TestCase):
         email=f'user-{time.time_ns()}@example.com'
         response=self.client.post('/api/register',json={'email':email,'password':'strong-password-123'},headers={'Origin':'http://testserver'})
         self.assertEqual(response.status_code,200,response.text)
+        self.email=email
         self.csrf=response.json()['user']['csrf']
         self.headers={'Origin':'http://testserver','X-CSRF-Token':self.csrf}
+
+    def test_admin_role_is_returned_and_diagnostics_are_guarded(self):
+        self.assertFalse(self.client.get('/api/me').json()['user']['admin'])
+        self.assertEqual(self.client.get('/api/provider/status').status_code,403)
+        self.assertEqual(self.client.post('/api/voices/sync',json={},headers=self.headers).status_code,403)
+        with patch.dict(os.environ,{'ADMIN_EMAILS':self.email}), patch.object(server.tools,'subscription',new=AsyncMock(return_value={'tier':'starter','status':'active'})):
+            self.assertTrue(self.client.get('/api/me').json()['user']['admin'])
+            self.assertEqual(self.client.get('/api/provider/status').status_code,200)
+            result=self.client.post('/api/login',json={'email':self.email,'password':'strong-password-123'},headers={'Origin':'http://testserver'})
+            self.assertTrue(result.json()['user']['admin'])
+        self.assertNotIn('operations',self.client.get('/api/health').json())
+
+    def test_reserved_admin_email_cannot_be_registered_publicly(self):
+        with patch.dict(os.environ,{'ADMIN_EMAILS':'reserved-admin@example.com'}):
+            response=self.client.post('/api/register',json={'email':'reserved-admin@example.com','password':'strong-password-123'},headers={'Origin':'http://testserver'})
+        self.assertEqual(response.status_code,403)
 
     def test_health_reports_registration_open(self):
         with patch.dict(os.environ, {'ALLOW_REGISTRATION':'yes'}, clear=False):
@@ -128,7 +145,7 @@ class APITests(unittest.TestCase):
         saved=AsyncMock(return_value=None)
         shared=AsyncMock(side_effect=lambda voice_id:{'voice_id':voice_id,'public_owner_id':'owner-'+voice_id,'preview_url':'https://example.test/p.mp3'})
         added=AsyncMock(side_effect=lambda owner,voice_id,name:{'voice_id':'saved-'+voice_id})
-        with patch.object(server.tools,'subscription',new=subscription), patch.object(server.tools,'find_saved_shared_voice',new=saved), patch.object(server.tools,'find_shared_voice',new=shared), patch.object(server.tools,'add_shared_voice',new=added):
+        with patch.dict(os.environ,{'ADMIN_EMAILS':self.email}), patch.object(server.tools,'subscription',new=subscription), patch.object(server.tools,'find_saved_shared_voice',new=saved), patch.object(server.tools,'find_shared_voice',new=shared), patch.object(server.tools,'add_shared_voice',new=added):
             response=self.client.post('/api/voices/sync',json={},headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(len(response.json()['voices']),12)

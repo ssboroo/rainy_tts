@@ -173,4 +173,5 @@ def register_routes(app,session,mutation_guard,throttle):
             statuses={table:{r['status']:r['count'] for r in c.execute(f'SELECT status,COUNT(*) count FROM {table} GROUP BY status')} for table in ('jobs','tool_jobs')}
             usage=dict(c.execute('SELECT COUNT(*) requests,COALESCE(SUM(provider_cost),0) modeled_provider_cost FROM provider_usage').fetchone())
             pending=c.execute("SELECT COUNT(*) FROM account_provider_cleanup WHERE status='pending'").fetchone()[0]
-        return {'counts':counts,'job_statuses':statuses,'provider_usage':usage,'provider_cleanup_pending':pending,'email_configured':email_configured()}
+        from . import operations
+        return {'readiness':operations.inspect_readiness(),'counts':counts,'job_statuses':statuses,'provider_usage':usage,'provider_cleanup_pending':pending,'email_configured':email_configured()}
