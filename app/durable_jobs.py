@@ -28,7 +28,7 @@ def enqueue(user_id, tool_type, title, execution, filename, mime, credits,
     billing.ensure_wallet(user_id)
     billing._expire_if_needed(user_id)
     job_id, now = core.uid(), time.time()
-    credits = max(0, int(credits)) if billing.billing_enabled() else 0
+    credits = max(0, int(credits)) if billing.billing_enabled() and not billing.admin_test_mode(user_id) else 0
     with core.db() as db:
         db.execute('BEGIN IMMEDIATE')
         user=db.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
@@ -111,7 +111,7 @@ async def execute(job):
             args=[upload]+args
         if method=='forced_alignment':
             from .audio_extensions import execute_alignment
-            result=await execute_alignment(job['user_id'],job['id'],*args)
+            result=await execute_alignment(job['user_id'],job['id'],*args[:3],job['credits'])
             core.update_tool_job(job['id'],'done',result=result)
             return
         raw=await getattr(server.tools,method)(*args)

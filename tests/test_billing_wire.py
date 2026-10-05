@@ -26,6 +26,25 @@ class BillingUnitTests(unittest.TestCase):
         core.DATA=self.old_data
         self.temp.cleanup()
 
+    def test_admin_testing_does_not_grant_customer_credits(self):
+        with patch.dict(os.environ,{'BILLING_ENABLED':'true','ADMIN_TEST_MODE':'true','ADMIN_EMAILS':'u@example.com'}):
+            self.assertTrue(billing.admin_test_mode('u'))
+            self.assertIsNone(billing.debit('u',99999,'music'))
+            self.assertEqual(billing.wallet('u')['wallet']['balance'],0)
+            with core.db() as db:db.execute("INSERT INTO users VALUES('other','other@example.com','x',1)")
+            self.assertFalse(billing.admin_test_mode('other'))
+            with self.assertRaises(ValueError):billing.debit('other',1,'music')
+        with patch.dict(os.environ,{'ADMIN_TEST_MODE':'false','ADMIN_EMAILS':'u@example.com'}):
+            self.assertFalse(billing.admin_test_mode('u'))
+
+    def test_admin_durable_job_keeps_limits_without_credit_requirement(self):
+        from app import durable_jobs
+        with patch.dict(os.environ,{'BILLING_ENABLED':'true','ADMIN_TEST_MODE':'true','ADMIN_EMAILS':'u@example.com'}):
+            for i in range(3):durable_jobs.enqueue('u','music','test',{'method':'music','args':[]},'x.mp3','audio/mpeg',10000)
+            with self.assertRaises(ValueError):durable_jobs.enqueue('u','music','test',{'method':'music','args':[]},'x.mp3','audio/mpeg',10000)
+            self.assertEqual(billing.wallet('u')['wallet']['balance'],0)
+            with core.db() as db:self.assertEqual(db.execute('SELECT SUM(credits) FROM durable_jobs').fetchone()[0],0)
+
     def test_trial_debit_and_refund(self):
         with patch.dict(os.environ,{"BILLING_ENABLED":"true"},clear=False):
             wallet=billing.ensure_wallet("u")

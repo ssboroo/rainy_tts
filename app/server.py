@@ -138,7 +138,7 @@ def configured_voice_name(voice_id):
     return None
 
 async def voice_cost_multiplier(voice_id,user_id):
-    if not billing.billing_enabled():
+    if not billing.billing_enabled() or billing.admin_test_mode(user_id):
         return 1.0
     with core.db() as db:
         custom=db.execute("SELECT 1 FROM voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
@@ -395,7 +395,7 @@ def health():
 @app.get("/api/me")
 def me(request:Request):
     sess=session(request,False)
-    return {"user":{"email":sess["email"],"csrf":sess["csrf"],"admin":accounts._admin(sess["email"])} if sess else None}
+    return {"user":{"email":sess["email"],"csrf":sess["csrf"],"admin":accounts._admin(sess["email"]),"admin_test":billing.admin_test_mode(sess["user_id"])} if sess else None}
 
 @app.post("/api/register")
 @app.post("/api/login")
@@ -424,7 +424,7 @@ async def auth(request:Request):
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
         c.execute("DELETE FROM sessions WHERE expires<?",(time.time(),))
         c.execute("INSERT INTO sessions VALUES(?,?,?,?)",(hashlib.sha256(raw.encode()).hexdigest(),user["id"],csrf,time.time()+86400*7))
-    response=JSONResponse({"user":{"email":email,"csrf":csrf,"admin":accounts._admin(email)}})
+    response=JSONResponse({"user":{"email":email,"csrf":csrf,"admin":accounts._admin(email),"admin_test":billing.admin_test_mode(user["id"])}})
     response.set_cookie("session",raw,max_age=604800,httponly=True,samesite="strict",secure=SECURE,path="/")
     return response
 
@@ -705,9 +705,9 @@ async def clone_voice(
     clone_limit=int((plan or {}).get("clone_limit",0))
     with core.db() as db:
         clone_count=db.execute("SELECT COUNT(*) FROM voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
-    if billing.billing_enabled() and (sub.get("status")!="active" or clone_limit<=0):
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and (sub.get("status")!="active" or clone_limit<=0):
         raise HTTPException(402,"Voice Clone ашиглахын тулд clone эрхтэй subscription шаардлагатай.")
-    if billing.billing_enabled() and clone_count>=clone_limit:
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and clone_count>=clone_limit:
         raise HTTPException(409,f"Таны plan {clone_limit} clone voice хүртэл зөвшөөрнө.")
     job_id=core.create_tool_job(sess["user_id"],"voice_clone",name,{"files":[f.filename for f in files]})
     credits=billing.estimate("voice_clone")
@@ -765,9 +765,9 @@ async def create_pvc(
     pvc_limit=int((plan or {}).get("pvc_limit",0))
     with core.db() as db:
         count=db.execute("SELECT COUNT(*) FROM pvc_voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
-    if billing.billing_enabled() and (sub.get("status")!="active" or pvc_limit<=0):
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and (sub.get("status")!="active" or pvc_limit<=0):
         raise HTTPException(402,"Professional Voice Clone нь Pro, Studio эсвэл Agency RAINY plan шаардлагатай.")
-    if billing.billing_enabled() and count>=pvc_limit:
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and count>=pvc_limit:
         raise HTTPException(409,f"Таны plan {pvc_limit} Professional Voice Clone хүртэл зөвшөөрнө.")
     try:
         created=await tools.pvc_create(name,"mn",description)
@@ -1004,7 +1004,7 @@ async def enqueue_tool(sess,tool_type,title,execution,filename,mime,credits,uplo
             await persist_upload(upload,source)
         job_id=durable_jobs.enqueue(sess['user_id'],tool_type,title,execution,filename,mime,credits,
             source,upload.filename if upload else None,upload.content_type if upload else None)
-        return {'job_id':job_id,'status':'queued','credits_used':credits if billing.billing_enabled() else 0,
+        return {'job_id':job_id,'status':'queued','credits_used':credits if billing.billing_enabled() and not billing.admin_test_mode(sess['user_id']) else 0,
                 'balance':billing.wallet(sess['user_id'])['wallet']['balance']}
     except ValueError as exc:
         if source: source.unlink(missing_ok=True)
@@ -1300,7 +1300,7 @@ async def dubbing(
         raise HTTPException(422,"Видео/аудио файл эсвэл URL шаардлагатай.")
     if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",target_language):
         raise HTTPException(422,"Target language code буруу байна.")
-    if billing.billing_enabled() and source_url.strip():
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and source_url.strip():
         raise HTTPException(422,"Credit billing идэвхтэй үед Dubbing-д файл upload ашиглана уу.")
     duration=await upload_duration_seconds(file) if file and billing.billing_enabled() else 0
     payload={

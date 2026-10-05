@@ -279,9 +279,17 @@ def wallet(user_id):
         sub=c.execute("SELECT * FROM subscriptions WHERE user_id=?",(user_id,)).fetchone()
     return {"wallet":dict(row),"subscription":dict(sub) if sub else None}
 
+def admin_test_mode(user_id):
+    if os.getenv('ADMIN_TEST_MODE','false').strip().lower() not in {'1','true','yes','on'}:
+        return False
+    allowed={email.strip().lower() for email in os.getenv('ADMIN_EMAILS','').split(',') if email.strip()}
+    if not allowed:return False
+    with core.db() as db:row=db.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
+    return bool(row and row['email'].lower() in allowed)
+
 def debit(user_id, credits, tool_type, reference=None, metadata=None):
     credits=max(0,int(credits))
-    if not billing_enabled() or credits==0:
+    if not billing_enabled() or credits==0 or admin_test_mode(user_id):
         return None
     ensure_wallet(user_id)
     _expire_if_needed(user_id)

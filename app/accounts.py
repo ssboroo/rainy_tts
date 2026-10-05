@@ -15,7 +15,7 @@ from email.message import EmailMessage
 import time
 from fastapi import BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
-from . import core
+from . import core, billing
 
 RESET_TTL=1800
 GENERIC_RESET={'ok':True,'message':'Бүртгэлтэй имэйл бол нууц үг сэргээх холбоос илгээнэ.'}
@@ -83,7 +83,7 @@ def register_routes(app,session,mutation_guard,throttle):
     @app.get('/api/account')
     def account(request:Request):
         sess=session(request)
-        return {'id':sess['user_id'],'email':sess['email'],'email_configured':email_configured(),'admin':_admin(sess['email'])}
+        return {'id':sess['user_id'],'email':sess['email'],'email_configured':email_configured(),'admin':_admin(sess['email']),'admin_test':billing.admin_test_mode(sess['user_id'])}
 
     @app.post('/api/account/password')
     async def change_password(request:Request):

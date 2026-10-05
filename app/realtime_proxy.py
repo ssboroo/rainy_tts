@@ -48,7 +48,7 @@ def issue(user_id):
         except Exception:
             billing.refund(user_id,charge_id,'realtime_issue_failed');raise
     return {'token':token,'websocket_path':'/api/realtime','max_seconds':MAX_SECONDS,
-            'credits_used':credits if billing.billing_enabled() else 0,'balance':billing.wallet(user_id)['wallet']['balance']}
+            'credits_used':credits if billing.billing_enabled() and not billing.admin_test_mode(user_id) else 0,'balance':billing.wallet(user_id)['wallet']['balance']}
 
 
 def consume(token,user_id):

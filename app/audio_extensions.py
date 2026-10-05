@@ -273,7 +273,7 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
             plan = billing.get_plan(sub.get('plan_id')) or {}
             with core.db() as db:
                 count = db.execute('SELECT COUNT(*) FROM voices WHERE user_id=?', (user,)).fetchone()[0]
-            if billing.billing_enabled():
+            if billing.billing_enabled() and not billing.admin_test_mode(user):
                 limit = int(plan.get('clone_limit', 0))
                 if sub.get('status') != 'active' or limit <= 0:
                     raise HTTPException(402, 'Хоолой хадгалах эрхтэй идэвхтэй багц шаардлагатай.')
