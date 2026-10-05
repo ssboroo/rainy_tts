@@ -86,7 +86,7 @@ function page(name){
 document.querySelectorAll('.nav').forEach(button=>button.onclick=()=>page(button.dataset.page));
 
 function renderAccount(){
-  if(!state.user)document.querySelectorAll('.tool-output-items').forEach(el=>el.replaceChildren());
+  if(!state.user)document.querySelectorAll('.tool-output-items').forEach(el=>{const p=document.createElement('p');p.className='field-help';p.textContent='Нэвтэрсний дараа таны үр дүн энд харагдана.';el.replaceChildren(p);});
   if(!state.user?.admin){
     $('admin-content').replaceChildren();
     $('provider-plan').textContent='';$('provider-status-text').textContent='';$('studio-readiness').textContent='';
@@ -1069,6 +1069,6 @@ async function watchTtsResult(id){
 }
 buildToolWorkspaces();
 
-init().then(()=>{if(state.user)loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
+init().then(()=>{loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
