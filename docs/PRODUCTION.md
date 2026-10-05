@@ -40,3 +40,9 @@ Cleanup runs only when `RETENTION_POLICY_ENABLED=true` and the operator explicit
 `python -m app.operations readiness` checks configuration, database integrity, writable storage, persistent-storage confirmation and a fresh worker heartbeat. It returns no credentials and never performs expensive provider calls. `/api/health` is process liveness; readiness is separate. Worker heartbeats must remain fresh during long provider jobs; `WORKER_HEARTBEAT_MAX_AGE_SECONDS` defaults to 120.
 
 Observe disk usage, failed/uncertain jobs, oldest queued jobs, provider quota and payment reconciliation. An ambiguous upstream timeout requires operator review before retrying an expensive request. Do not describe release as production complete until the live acceptance checks above succeed.
+
+## Admin access
+
+Admin uses the ordinary site login with an existing account. Configure `ADMIN_EMAILS` as a comma-separated list of verified operator account emails. Login and `/api/me` return the server-computed role; the Admin menu appears immediately. Provider status, shared voice synchronization and operational diagnostics are admin-only. Public registration cannot create an account whose email is already reserved by `ADMIN_EMAILS`; create and verify the intended operator account before adding it to the allowlist. Never accept a user-supplied admin flag.
+
+Customer-facing payment text uses QPay as requested. The existing backend remains the Wire.mn hosted checkout integration; this UI change does not add or verify direct QPay API support. Live checkout remains unavailable until provider credentials and webhook acceptance are completed.

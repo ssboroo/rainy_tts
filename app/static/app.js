@@ -30,6 +30,7 @@ async function rawApi(path,{method='GET',body=null,form=false}={}){
   if(!response.ok){
     if(response.status===401){state.user=null;renderAccount();}
     const detail=data.detail||data.error;
+    if(!state.user?.admin&&typeof detail==='string'&&/ElevenLabs|API|webhook|FFmpeg|provider|api_key|quota|Wire\.mn/i.test(detail))throw new Error('Үйлчилгээ түр боломжгүй байна. Дараа дахин оролдох эсвэл тусламж авна уу.');
     throw new Error(typeof detail==='string'?detail:Array.isArray(detail)?detail.map(x=>x.msg||'Оруулсан утгыг шалгана уу.').join(' · '):detail?.message||'Үйлдэл амжилтгүй боллоо.');
   }
   return data;
@@ -62,12 +63,13 @@ const pageMeta={
 };
 
 function page(name){
+  if(['admin','reception'].includes(name)&&!state.user?.admin){notice('Энэ хэсэгт нэвтрэх эрхгүй байна.');return;}
   state.page=name;
   document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==name);
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
   $('breadcrumb').textContent=pageMeta[name][1];
   document.querySelector('.route-index').textContent=pageMeta[name][0];
-  if(name==='voices'){refreshVoices(true);loadProviderStatus();}
+  if(name==='voices')refreshVoices(true);
   if(name==='reception'){loadReception();loadReceptionEvents();}
   if(name==='settings')loadSettings();
   if(name==='admin')loadAdmin();
@@ -79,6 +81,12 @@ function page(name){
 document.querySelectorAll('.nav').forEach(button=>button.onclick=()=>page(button.dataset.page));
 
 function renderAccount(){
+  if(!state.user?.admin){
+    $('admin-content').replaceChildren();
+    $('provider-plan').textContent='';$('provider-status-text').textContent='';$('studio-readiness').textContent='';
+    if(['admin','reception'].includes(state.page))page('tts');
+  }
+  document.querySelectorAll('[data-admin-only]').forEach(el=>el.hidden=!state.user?.admin);
   $('account').textContent=state.user?state.user.email:'Нэвтрэх';
   $('logout').hidden=!state.user;
   document.querySelector('[data-page=admin]').hidden=!state.user?.admin;
@@ -148,6 +156,11 @@ function initTheme(){
 }
 $('theme-toggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
 
+function voiceDisplayName(voice){
+  if(!voice.builtin)return voice.name;
+  const names={Sarnai:'Сарнай',Bolor:'Болор',Bataar:'Баатар',Uyanga:'Уянга',Oyuna:'Оюуна',Temuulen:'Тэмүүлэн',Enkhtuya:'Энхтуяа',Munkhbat:'Мөнхбат',Naran:'Наран',Batbayar:'Батбаяр',Erdene:'Эрдэнэ',Ganbold:'Ганболд'};
+  const name=(voice.name||'').split(' - ')[0];return names[name]||name;
+}
 function voiceOptions(select,selected){
   if(!select) return;
   const current=selected||select.value;
@@ -155,7 +168,7 @@ function voiceOptions(select,selected){
   state.voices.forEach(voice=>{
     const option=document.createElement('option');
     const multiplier=Number(voice.cost_multiplier||1);
-    option.value=voice.id;option.textContent=voice.name+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× кредит':'');
+    option.value=voice.id;option.textContent=voiceDisplayName(voice)+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× кредит':'');
     select.append(option);
   });
   if([...select.options].some(o=>o.value===current)) select.value=current;
@@ -183,10 +196,10 @@ function renderVoiceLibrary(){
   state.voices.forEach(voice=>{
     const card=document.createElement('article');card.className='voice-library-card';
     const top=document.createElement('div');top.className='voice-card-head';
-    const avatar=document.createElement('span');avatar.className='voice-letter';avatar.textContent=(voice.name||'V').slice(0,1).toUpperCase();
+    const avatar=document.createElement('span');avatar.className='voice-letter';avatar.textContent=(voiceDisplayName(voice)||'Х').slice(0,1).toUpperCase();
     const text=document.createElement('div');text.innerHTML='<strong></strong><small></small>';
-    text.querySelector('strong').textContent=voice.name;
-    text.querySelector('small').textContent=voice.builtin?'Монгол · ElevenLabs хоолойн сан':'Миний хоолой · ElevenLabs';
+    text.querySelector('strong').textContent=voiceDisplayName(voice);
+    text.querySelector('small').textContent=voice.builtin?'Монгол хоолой':'Миний хоолой';
     top.append(avatar,text);card.append(top);
     if(voice.builtin){
       const sync=document.createElement('span');
@@ -198,7 +211,7 @@ function renderVoiceLibrary(){
     const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Хоолой устгах';
-      remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг ElevenLabs болон RAINY-гаас устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(e.message);}};
+      remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(e.message);}};
       card.append(remove);
     }
     root.append(card);
@@ -219,7 +232,7 @@ function updateCounter(){
   $('counter').textContent=$('text').value.length.toLocaleString('en-US')+' / 12,000';
 }
 $('text').oninput=updateCounter;
-$('example').onclick=()=>{$('text').value='Сайн байна уу. Энэ бол RAINY Хоолой 2026. OpenAI API болон Монгол хэлний дуу оруулалтыг туршиж байна.';updateCounter();};
+$('example').onclick=()=>{$('text').value='Сайн байна уу. RAINY студид тавтай морил. Та өөрийн бичвэрийг байгалийн дуу хоолойтой бүтээл болгоорой.';updateCounter();};
 $('speed').oninput=()=>$('speed-value').textContent=Number($('speed').value).toFixed(2)+'×';
 $('text-tab').onclick=()=>setTtsMode('text');
 $('srt-tab').onclick=()=>setTtsMode('srt');
@@ -279,15 +292,15 @@ $('pvc-captcha-get').onclick=async()=>{
     const data=await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha');
     const box=$('pvc-captcha');box.hidden=false;box.replaceChildren();
     const raw=data.captcha||data.image||data.data||'';
-    if(typeof raw==='string'&&raw.length>100){
+    if(typeof raw==='string'&&(raw.startsWith('data:image/')||(raw.length>100&&/^[A-Za-z0-9+/=\s]+$/.test(raw)))){
       const img=document.createElement('img');img.className='captcha-image';
-      img.alt='ElevenLabs PVC баталгаажуулалт CAPTCHA';
+      img.alt='Хоолойн эзэмшигчийг баталгаажуулах зураг';
       img.src=raw.startsWith('data:')?raw:'data:image/png;base64,'+raw;
       box.append(img);
     }else{
-      box.textContent=raw||JSON.stringify(data,null,2);
+      box.textContent=typeof raw==='string'&&raw?raw:state.user?.admin?JSON.stringify(data,null,2):'Баталгаажуулах мэдээлэл ирсэнгүй. Дахин оролдоно уу.';
     }
-    notice('Баталгаажуулалт CAPTCHA бэлэн. Доторх мөрүүдийг өөрийн хоолойгоор уншаад record хийнэ үү.');
+    notice('Баталгаажуулах өгүүлбэрийг өөрийн хоолойгоор уншиж, бичлэгээ оруулна уу.');
   }catch(e){notice(e.message);}
 };
 
@@ -373,7 +386,7 @@ $('stt-speakers').disabled=true;
 $('stt-form').onsubmit=async event=>{
   event.preventDefault();if(!ensureUser())return;
   const formEl=event.currentTarget;
-  const button=formEl.querySelector('button[type=submit]');setBusy(button,true,'Scribe v2 · Монгол яриаг таньж байна…');
+  const button=formEl.querySelector('button[type=submit]');setBusy(button,true,'Яриаг бичвэр болгож байна…');
   try{
     const form=new FormData(formEl);
     form.set('polish',formEl.querySelector('[name=polish]').checked?'true':'false');
@@ -470,10 +483,11 @@ async function startRealtime(){
   state.realtimeText='';
   $('realtime-transcript').textContent='Сонсож байна…';
   $('realtime-save').disabled=true;
+  let stream;
   try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
     const authorization=await api('/tools/realtime-token',{method:'POST',body:{}});
     const token=authorization.token;
-    const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
     const ws=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+authorization.websocket_path+'?token='+encodeURIComponent(token));
     const rt={ws,stream,ctx:null,source:null,processor:null,committed:'',partial:''};state.rt=rt;
     $('realtime-start').disabled=true;$('realtime-stop').disabled=false;$('realtime-status').textContent='Холбогдож байна…';$('realtime-dot').classList.add('live');
@@ -501,7 +515,7 @@ async function startRealtime(){
     };
     ws.onerror=()=>notice('Шууд бичвэр холболтын алдаа.');
     ws.onclose=()=>{if(state.rt===rt)stopRealtime(false);};
-  }catch(e){notice(e.name==='NotAllowedError'?'Микрофон ашиглах зөвшөөрөл олгоно уу.':e.message);stopRealtime(false);$('realtime-start').disabled=false;}
+  }catch(e){stream?.getTracks().forEach(track=>track.stop());notice(e.name==='NotAllowedError'?'Микрофон ашиглах зөвшөөрөл олгоно уу.':e.message);stopRealtime(true);$('realtime-start').disabled=false;}
 }
 function stopRealtime(closeSocket=true){
   const rt=state.rt;if(!rt)return;
@@ -528,7 +542,7 @@ $('realtime-save').onclick=async()=>{
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 async function loadProviderStatus(){
-  if(!state.user){
+  if(!state.user?.admin){
     $('provider-plan').textContent='Нэвтэрнэ үү';
     $('provider-status-text').textContent='ElevenLabs ажлын орчны төлөв харахын тулд нэвтэрнэ үү.';
     $('sync-voices').disabled=true;
@@ -537,6 +551,7 @@ async function loadProviderStatus(){
   $('sync-voices').disabled=false;
   try{
     const data=await api('/provider/status');
+    if(!state.user?.admin)return;
     $('studio-readiness').textContent=(state.health?.engine_ready?'Холболт тохируулсан':'Холболт шаардлагатай')+' · '+(data.provider_ready?'ElevenLabs төлбөртэй багцын эрх идэвхтэй.':'ElevenLabs төлбөртэй багцын эрх шаардлагатай. Нийтийн хоолой ашиглах боломжгүй.');
     $('provider-plan').textContent=data.provider_ready?'Төлбөртэй үйлчилгээний эрх идэвхтэй':'Төлбөртэй үйлчилгээний эрх шаардлагатай';
     if(!data.voice_library_api_available){
@@ -578,8 +593,9 @@ function renderPlans(plans,wireConfigured){
     const credits=document.createElement('h3');credits.textContent=Number(plan.monthly_credits).toLocaleString('en-US')+' кредит';
     const desc=document.createElement('p');desc.textContent=plan.description||'';
     const button=document.createElement('button');button.className='generate plan-buy';button.type='button';
-    button.innerHTML='<span>Wire.mn-ээр авах</span><span>↗</span>';
+    button.innerHTML='<span>QPay-ээр авах</span><span>↗</span>';
     button.disabled=!wireConfigured;
+    if(!wireConfigured){button.querySelector('span').textContent='Тун удахгүй';button.title='Төлбөр авах боломж түр хаалттай';}
     button.onclick=()=>buyPlan(plan.id,button);
     card.append(top,credits,desc,button);root.append(card);
   });
@@ -587,7 +603,7 @@ function renderPlans(plans,wireConfigured){
 
 function renderLedger(items){
   const root=$('credit-ledger');root.replaceChildren();
-  if(!items?.length){root.innerHTML='<div class="empty">Credit хөдөлгөөн хараахан алга.</div>';return;}
+  if(!items?.length){root.innerHTML='<div class="empty">Кредитийн хөдөлгөөн хараахан алга.</div>';return;}
   items.forEach(item=>{
     const row=document.createElement('div');row.className='ledger-row';
     const left=document.createElement('div');
@@ -625,7 +641,7 @@ async function loadBilling(silent=false){
     $('credit-chip').hidden=false;
     renderPlans(catalog.plans,catalog.wire_configured);
     renderLedger(account.ledger||[]);
-    if(!catalog.wire_configured&&!silent)notice('Wire.mn төлбөрийн үйлчилгээ хараахан тохируулагдаагүй байна.');
+    if(!catalog.wire_configured&&!silent)notice('Төлбөр авах боломж түр хаалттай байна. Дараа дахин оролдоно уу.');
   }catch(e){if(!silent)notice(e.message);}
 }
 
@@ -635,7 +651,7 @@ async function buyPlan(planId,button){
   try{
     const data=await api('/billing/wire/create',{method:'POST',body:{plan_id:planId}});
     $('payment-status').hidden=false;
-    $('payment-status').textContent=formatMnt(data.amount_mnt)+' төлбөр хүлээгдэж байна. Wire.mn төлбөрийн хуудас нээгдлээ.';
+    $('payment-status').textContent=formatMnt(data.amount_mnt)+' төлбөр хүлээгдэж байна. QPay төлбөрийн хуудас нээгдлээ.';
     const popup=window.open(data.pay_url,'_blank','noopener,noreferrer');
     if(!popup)window.location.href=data.pay_url;
     pollWirePayment(data.order_id);
@@ -659,7 +675,7 @@ async function pollWirePayment(orderId){
         $('payment-status').textContent='Төлбөр '+statusLabel(data.status)+'. Шинэ төлбөрийн хүсэлт үүсгэнэ үү.';
         return;
       }
-      $('payment-status').textContent='Wire.mn төлбөр хүлээгдэж байна…';
+      $('payment-status').textContent='QPay төлбөр хүлээгдэж байна…';
     }catch(e){$('payment-status').textContent=e.message;return;}
     setTimeout(tick,3000);
   };
@@ -716,7 +732,7 @@ async function loadAnalytics(){
     const sub=data.subscription||{},wallet=data.wallet||{},local=data.local_30d||{};
     const cards=[
       ['Багц',(sub.plan_id||'trial').toUpperCase()],
-      ['Credit үлдэгдэл',Number(wallet.balance||0).toLocaleString('en-US')],
+      ['Кредитийн үлдэгдэл',Number(wallet.balance||0).toLocaleString('en-US')],
       ['30 хоногт ашигласан',Number(data.credits_spent_30d||0).toLocaleString('en-US')],
       ['Cycle дуусах',sub.cycle_end?new Date(sub.cycle_end*1000).toLocaleDateString('mn-MN'):'—']
     ];
@@ -870,7 +886,7 @@ $('alignment-form').onsubmit=async event=>{
 };
 async function loadSettings(){
  if(!ensureUser())return;
- try{const data=await api('/account');$('settings-info').textContent=data.email+' · '+(data.email_configured?'Нууц үг сэргээх имэйл идэвхтэй.':'Нууц үг сэргээх имэйлийн үйлчилгээ хараахан тохируулагдаагүй.');document.querySelector('[data-page=admin]').hidden=!data.admin;}
+ try{const data=await api('/account');state.user={...state.user,admin:data.admin};renderAccount();$('settings-info').textContent=data.email;}
  catch(e){$('settings-info').textContent=e.message;}
 }
 async function accountMutation(formId,path,body,success){
@@ -897,10 +913,13 @@ $('reset-form').onsubmit=async e=>{
  }catch(err){$('reset-status').textContent=err.message;}finally{setBusy(button,false);}
 };
 async function loadAdmin(){
- if(!ensureUser())return;
+ if(!ensureUser()||!state.user.admin)return;
+ const adminEmail=state.user.email;
+ await loadProviderStatus();
  const root=$('admin-content');root.replaceChildren();
  try{
   const data=await api('/admin/overview');
+  if(!state.user?.admin||state.user.email!==adminEmail)return;
   const labels={users:'Бүртгэл',active_users:'Идэвхтэй бүртгэл',jobs:'Ажил',failed_jobs:'Амжилтгүй ажил',queued_jobs:'Дараалал дахь ажил',storage:'Хадгалалт',provider:'Үйлчилгээ',billing:'Төлбөр',readiness:'Бэлэн байдал',credits:'Кредит',usage:'Хэрэглээ',cost:'Зардал',worker:'Боловсруулагч',database:'Өгөгдлийн сан',status:'Төлөв',errors:'Алдаа',counts:'Тоо хэмжээ',payments:'Төлбөр',recent_failures:'Сүүлийн алдаа',storage_bytes:'Хадгалалтын хэмжээ',ok:'Хэвийн',configured:'Тохируулсан'};
   function show(value,container){
    Object.entries(value||{}).forEach(([key,item])=>{
@@ -933,10 +952,11 @@ function updateEstimate(){
  const text=state.mode==='srt'?$('srt-text').value:$('text').value;
  const multiplier=Number(state.voices.find(v=>v.id===$('voice').value)?.cost_multiplier||1);
  const rate=$('tts-model').value==='eleven_v4_turbo'?40:80;
- estimate.textContent='Ойролцоогоор '+Math.ceil(text.length/1000*rate*multiplier)+' кредит · Эцсийн төлбөрийг боловсруулсан бичвэрээр сервер тооцно.';
+ estimate.textContent='Ойролцоогоор '+Math.ceil(text.length/1000*rate*multiplier)+' кредит · Кредитийг бичвэрийн хэмжээгээр тооцно.';
 }
 for(const id of ['text','srt-text','tts-model','voice'])$(id).addEventListener('input',updateEstimate);
 $('music-duration').addEventListener('input',()=>{$('music-duration-label').textContent=$('music-duration').value+' секунд · ойролцоогоор '+Math.ceil(Number($('music-duration').value)/60*150)+' кредит';});
+$('admin').append($('studio-readiness'),document.querySelector('.provider-status-card'));
 init().then(()=>{updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
