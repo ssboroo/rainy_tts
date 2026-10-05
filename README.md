@@ -163,13 +163,13 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Starter | ₮39,900 | ~3,000 | 1 |
-| Creator | ₮69,900 | ~6,200 | 2 |
-| Pro | ₮139,900 | ~13,700 | 5 |
-| Studio | ₮259,900 | ~26,600 | 10 |
-| Agency | ₮499,900 | ~52,300 | 20 |
+| Starter | ₮39,900 | ~1,600 | 1 |
+| Creator | ₮69,900 | ~3,700 | 2 |
+| Pro | ₮139,900 | ~8,700 | 5 |
+| Studio | ₮259,900 | ~17,300 | 10 |
+| Agency | ₮499,900 | ~34,400 | 20 |
 
-\* Credit budgets are calculated at runtime, not hard-coded. The default multi-user model uses a shared ElevenLabs backend, allocates a conservative $1.25 fixed provider cost per active paying user, reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 2× coverage of modeled total cost. This is 100% markup on modeled cost, equivalent to roughly 50% gross margin before taxes/refunds/chargebacks. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
+\* Credit budgets are calculated at runtime, not hard-coded. The default multi-user model uses a shared ElevenLabs backend, allocates a conservative $1.25 fixed provider cost per active paying user, reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 3× coverage of modeled total cost. This is 200% markup on modeled cost; selling price equals modeled cost × 3 after reserves. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
 
 Usage rates currently modeled from ElevenAPI public API rates:
 
@@ -205,7 +205,7 @@ Configure:
 ```env
 BILLING_ENABLED=true
 BILLING_USD_MNT_RATE=3700
-BILLING_TARGET_MARKUP=2.0
+BILLING_TARGET_MARKUP=3.0
 ELEVENLABS_PROVIDER_PLAN=pro
 BILLING_EXPECTED_ACTIVE_USERS=100
 BILLING_FIXED_COST_PER_ACTIVE_USER_USD=1.25
@@ -281,7 +281,7 @@ RAINY uses SQLite-backed queues and local artifacts, so on Railway the web proce
 Recommended Railway setup:
 
 1. Deploy this GitHub repository as one service. Railway will build the included Dockerfile.
-2. Add a Railway Volume to the same service and mount it at `/data`.
+2. Before mounting storage, preserve the existing database and files using the migration procedure in `docs/PRODUCTION.md`. Add a Railway Volume to the same service and mount it at `/data`.
 3. Because Railway volumes are mounted as root while this Docker image normally runs as the non-root `studio` user, set `RAILWAY_RUN_UID=0` on the Railway service when using the volume.
 4. Set `DATA_DIR=/data` and `HOST=0.0.0.0`. Railway supplies the public `PORT` variable automatically; the app also defaults to 8080.
 5. Set `PUBLIC_ORIGIN=https://YOUR_DOMAIN` after Railway or your custom domain is active.
@@ -290,3 +290,7 @@ Recommended Railway setup:
 8. Under Networking, generate a Railway domain first, then attach your custom domain when ready.
 
 Do **not** create a separate worker service while RAINY is still using SQLite + local `/data`; separate Railway services do not share the same attached volume. Move the queue/database to PostgreSQL/object storage before splitting web and worker into separate services.
+
+## Production verification
+
+Metering defaults to enabled, and markup defaults to a minimum 3.0 multiplier (200% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
