@@ -232,6 +232,18 @@
     </main>
   </div>
 
-  <dialog id="auth-dialog"><form id="auth-form"><button type="button" id="close-auth" class="close">×</button><p class="kicker"><span></span>ХУВИЙН СТУДИ</p><h2 id="auth-title">RAINY-д нэвтрэх</h2><p class="muted">Бүтээлүүдээ хувийн сандаа хадгална.</p><label>Имэйл</label><input id="email" type="email" required autocomplete="email"><label>Нууц үг</label><input id="password" type="password" minlength="12" maxlength="128" required autocomplete="current-password"><p id="auth-error"></p><button class="generate auth-submit" type="submit" id="auth-submit"><span>Нэвтрэх</span><span>↗</span></button><button type="button" id="auth-toggle" class="ghost-link auth-toggle">Шинэ бүртгэл үүсгэх</button><button id="forgot-password" type="button" class="ghost-link">Нууц үгээ мартсан уу?</button></form></dialog>
+  <dialog id="auth-dialog" aria-labelledby="auth-title">
+    <button type="button" id="close-auth" class="close" aria-label="Цонх хаах">×</button>
+    <p class="kicker"><span></span>ХУВИЙН СТУДИ</p><h2 id="auth-title">RAINY-д нэвтрэх</h2>
+    <p id="auth-description" class="muted">Бүртгэлтэй имэйл, нууц үгээрээ нэвтэрнэ үү.</p>
+    <form id="auth-form">
+      <label for="email">Имэйл</label><input id="email" type="email" required autocomplete="email">
+      <label for="password">Нууц үг</label><input id="password" type="password" minlength="12" maxlength="128" required autocomplete="current-password">
+      <div class="auth-recovery"><button id="forgot-password" type="button" class="ghost-link">Нууц үгээ мартсан уу?</button></div>
+      <div id="confirm-password-field" hidden><label for="confirm-password">Нууц үгээ давтан оруулна уу</label><input id="confirm-password" type="password" minlength="12" maxlength="128" autocomplete="new-password"><small class="field-help">Нууц үг 12 буюу түүнээс олон тэмдэгттэй байна.</small></div>
+      <p id="auth-error" role="alert"></p><button class="generate auth-submit" type="submit" id="auth-submit"><span>Нэвтрэх</span><span>↗</span></button>
+    </form>
+    <div id="auth-switch" class="auth-switch"><p id="auth-switch-hint">Бүртгэлгүй юу?</p><button type="button" id="auth-toggle" class="secondary">Шинэ бүртгэл үүсгэх</button></div>
+  </dialog>
 </body>
 </html>
