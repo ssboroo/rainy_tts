@@ -67,7 +67,7 @@ function page(name){
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
   $('breadcrumb').textContent=pageMeta[name][1];
   document.querySelector('.route-index').textContent=pageMeta[name][0];
-  if(name==='voices'){refreshVoices(true);loadҮйлчилгээStatus();}
+  if(name==='voices'){refreshVoices(true);loadProviderStatus();}
   if(name==='reception'){loadReception();loadReceptionEvents();}
   if(name==='settings')loadSettings();
   if(name==='admin')loadAdmin();
@@ -124,7 +124,7 @@ $('auth-form').onsubmit=async event=>{
     await loadProviderStatus();
     await refreshVoices();
     await loadBilling(true);
-    if(state.page==='voices')await loadҮйлчилгээStatus();
+    if(state.page==='voices')await loadProviderStatus();
     notice('RAINY Studio бэлэн.');
   }catch(e){$('auth-error').textContent=e.message;}
   finally{setBusy(button,false);}
@@ -527,7 +527,7 @@ $('realtime-save').onclick=async()=>{
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-async function loadҮйлчилгээStatus(){
+async function loadProviderStatus(){
   if(!state.user){
     $('provider-plan').textContent='Нэвтэрнэ үү';
     $('provider-status-text').textContent='ElevenLabs ажлын орчны төлөв харахын тулд нэвтэрнэ үү.';
@@ -559,7 +559,7 @@ $('sync-voices').onclick=async()=>{
     const failed=data.voices.find(v=>v.status==='failed');
     notice(failed?(ready+' хоолой бэлэн. '+failed.error):(ready+' хоолой шинэчлэгдлээ.'));
     await refreshVoices(true);
-    await loadҮйлчилгээStatus();
+    await loadProviderStatus();
   }catch(e){notice(e.message);}
   finally{button.disabled=false;button.textContent='Хоолой шинэчлэх ↻';}
 };
