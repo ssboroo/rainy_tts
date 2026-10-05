@@ -96,6 +96,7 @@ function renderAccount(){
   document.querySelector('[data-page=admin]').hidden=!state.user?.admin;
   $('register').hidden=!!state.user||!state.health?.registration_open;
   $('auth-toggle').hidden=!state.health?.registration_open;
+  $('auth-switch').hidden=!state.health?.registration_open;
   $('credit-chip').hidden=!state.user;
 }
 
@@ -105,6 +106,14 @@ function openAuth(registerMode=false){
   $('auth-submit').querySelector('span').textContent=state.register?'Бүртгүүлэх':'Нэвтрэх';
   $('auth-toggle').textContent=state.register?'Бүртгэлтэй бол нэвтрэх':'Шинэ бүртгэл үүсгэх';
   $('auth-error').textContent='';
+  $('auth-description').textContent=state.register?'Имэйл болон шинэ нууц үгээрээ бүртгэл үүсгэнэ үү.':'Бүртгэлтэй имэйл, нууц үгээрээ нэвтэрнэ үү.';
+  $('auth-switch-hint').textContent=state.register?'Бүртгэлтэй юу?':'Бүртгэлгүй юу?';
+  $('forgot-password').hidden=state.register;
+  $('confirm-password-field').hidden=!state.register;
+  $('confirm-password').required=state.register;
+  $('confirm-password').value='';
+  $('password').value='';
+  $('password').autocomplete=state.register?'new-password':'current-password';
   if(!$('auth-dialog').open)$('auth-dialog').showModal();
 }
 
@@ -113,17 +122,13 @@ $('account').onclick=()=>state.user?page('settings'):openAuth(false);
 $('close-auth').onclick=()=>$('auth-dialog').close();
 $('auth-dialog').onclick=e=>{if(e.target===$('auth-dialog')) $('auth-dialog').close();};
 
-$('auth-toggle').onclick=()=>{
-  if(!state.health?.registration_open)return;
-  state.register=!state.register;
-  $('auth-title').textContent=state.register?'RAINY-д бүртгүүлэх':'RAINY-д нэвтрэх';
-  $('auth-submit').querySelector('span').textContent=state.register?'Бүртгүүлэх':'Нэвтрэх';
-  $('auth-toggle').textContent=state.register?'Бүртгэлтэй бол нэвтрэх':'Шинэ бүртгэл үүсгэх';
-};
+$('auth-toggle').onclick=()=>{if(state.health?.registration_open)openAuth(!state.register);};
 
 $('auth-form').onsubmit=async event=>{
   event.preventDefault();
   const button=$('auth-submit');
+  if(button.disabled)return;
+  if(state.register&&$('password').value!==$('confirm-password').value){$('auth-error').textContent='Нууц үгүүд таарахгүй байна. Давтан оруулсан нууц үгээ шалгана уу.';return;}
   setBusy(button,true,'Түр хүлээнэ үү…');
   $('auth-error').textContent='';
   try{
@@ -195,24 +200,55 @@ async function refreshVoices(renderLibrary=false){
   }catch(e){notice(customerMessage(e.message));}
 }
 
+function voiceAvatar(voice){
+  const name=(voice.name||'').split(' - ')[0];
+  const names=['Sarnai','Bolor','Bataar','Uyanga','Oyuna','Temuulen','Enkhtuya','Munkhbat','Naran','Batbayar','Erdene','Ganbold'];
+  let index=names.indexOf(name);if(index<0)index=[...(voice.id||'voice')].reduce((n,c)=>n+c.charCodeAt(0),0)%12;
+  const longHair=['Sarnai','Bolor','Uyanga','Oyuna','Enkhtuya','Naran'].includes(name);
+  const colors=['#dce9dd','#e9e0f2','#dbe4f0','#f5e3db','#e4e1ef','#dcebe8','#f3e8cf','#dde8ec','#e8dfd8','#e2e6f4','#f0e0d9','#dfe8d3'];
+  const shirts=['#537766','#806692','#536b8c','#ad746b','#706789','#497c79','#978154','#536c79','#936d66','#58648c','#94644c','#617853'];
+  const hair=['#24202b','#3b2526','#20252e','#352a26'][index%4];
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="${colors[index]}"/><circle cx="80" cy="18" r="25" fill="white" opacity=".35"/>${longHair?`<path d="M25 80V43c0-38 50-38 50 0v37Z" fill="${hair}"/>`:''}<path d="M13 100c0-34 74-34 74 0" fill="${shirts[index]}"/><path d="M42 62h16v16q-8 12-16 0" fill="#dba885"/><ellipse cx="50" cy="45" rx="23" ry="28" fill="#e8bd99"/><path d="M27 44V33q0-22 23-22t23 22v8q-17-3-23-16-8 15-23 19" fill="${hair}"/><path d="M35 43h9m12 0h9" stroke="${hair}" stroke-width="2.5" stroke-linecap="round"/><circle cx="40" cy="49" r="2" fill="#292934"/><circle cx="60" cy="49" r="2" fill="#292934"/><path d="M49 50l-2 8h5" stroke="#bd8e75" stroke-width="1.7" fill="none"/><path d="M43 64q7 5 14 0" stroke="#a46764" stroke-width="2" fill="none" stroke-linecap="round"/>${index%3===0?'<path d="M33 78l17 13 17-13" stroke="#f6f5ec" stroke-width="3" fill="none"/>':''}</svg>`;
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
+function selectVoice(voice){
+  page('tts');$('voice').value=voice.id;updateEstimate();
+  notice(voiceDisplayName(voice)+' хоолой сонгогдлоо. Бичвэрээ оруулаад “Дуу үүсгэх” дарна уу.');
+  $(state.mode==='srt'?'srt-text':'text').focus();
+}
 function renderVoiceLibrary(){
-  const root=$('voice-grid');root.replaceChildren();
+  const root=$('voice-grid');[...root.children].forEach(card=>card.releasePreview?.());root.replaceChildren();
   state.voices.forEach(voice=>{
     const card=document.createElement('article');card.className='voice-library-card';
     const top=document.createElement('div');top.className='voice-card-head';
-    const avatar=document.createElement('span');avatar.className='voice-letter';avatar.textContent=(voiceDisplayName(voice)||'Х').slice(0,1).toUpperCase();
+    const avatar=document.createElement('img');avatar.className='voice-avatar';avatar.src=voiceAvatar(voice);avatar.alt=voiceDisplayName(voice)+' хоолойн аватар';avatar.width=64;avatar.height=64;
     const text=document.createElement('div');text.innerHTML='<strong></strong><small></small>';
     text.querySelector('strong').textContent=voiceDisplayName(voice);
     text.querySelector('small').textContent=voice.builtin?'Монгол хоолой':'Миний хоолой';
     top.append(avatar,text);card.append(top);
-    if(voice.builtin){
-      const sync=document.createElement('span');
-      const multiplier=Number(voice.cost_multiplier||1);
-      sync.className='voice-шинэчлэх-state '+(voice.synced?'ready':'pending');
-      sync.textContent=(voice.synced?'Санд хадгалсан':'Шууд ашиглах')+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× кредит':'');
-      card.append(sync);
-    }
-    const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
+    const actions=document.createElement('div');actions.className='voice-actions';
+    const use=document.createElement('button');use.type='button';use.className='secondary voice-use';use.textContent='Энэ хоолойг ашиглах';use.onclick=()=>selectVoice(voice);
+    const listen=document.createElement('button');listen.type='button';listen.className='secondary voice-listen';listen.textContent='Дээж сонсох';
+    const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.hidden=true;
+    const feedback=document.createElement('p');feedback.className='field-help';feedback.setAttribute('role','status');feedback.hidden=true;
+    let previewUrl;
+    listen.onclick=async()=>{
+      if(listen.disabled)return;listen.disabled=true;listen.textContent='Дээж ачаалж байна…';feedback.hidden=true;
+      try{
+        if(!previewUrl){
+          const response=await fetch('/api/voices/'+encodeURIComponent(voice.id)+'/preview');
+          if(!response.ok||!(response.headers.get('content-type')||'').startsWith('audio/'))throw new Error('Дээж одоогоор сонсох боломжгүй байна. Хоолойг сонгож өөрийн бичвэрээр ашиглаж болно.');
+          const blob=await response.blob();if(!blob.size)throw new Error('Дээж хоосон байна. Дараа дахин оролдоно уу.');
+          if(!card.isConnected)return;
+          previewUrl=URL.createObjectURL(blob);audio.src=previewUrl;
+        }
+        audio.hidden=false;await audio.play();
+      }catch(e){feedback.textContent=customerMessage(e.message);feedback.hidden=false;}
+      finally{listen.disabled=false;listen.textContent='Дээж сонсох';}
+    };
+    audio.onerror=()=>{feedback.textContent='Дээжийг тоглуулах боломжгүй байна. Дараа дахин оролдоно уу.';feedback.hidden=false;audio.hidden=true;};
+    actions.append(use,listen);card.append(actions,audio,feedback);
+    card.releasePreview=()=>{audio.pause();if(previewUrl)URL.revokeObjectURL(previewUrl);};
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Хоолой устгах';
       remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(customerMessage(e.message));}};
@@ -903,7 +939,7 @@ $('delete-form').onsubmit=e=>{e.preventDefault();if(ensureUser())accountMutation
 let resetToken=new URLSearchParams(location.search).get('reset_token')||'';
 if(resetToken)history.replaceState({},'',location.pathname);
 function openReset(){
- $('auth-dialog').close();page('reset');$('reset-email-field').hidden=!!resetToken;$('reset-email').required=!resetToken;
+ $('auth-dialog').close();if(!resetToken)$('reset-email').value=$('email').value; $('reset-status').textContent='';page('reset');$('reset-email-field').hidden=!!resetToken;$('reset-email').required=!resetToken;
  $('reset-password-field').hidden=!resetToken;$('reset-password').required=!!resetToken;
  $('reset-submit-label').textContent=resetToken?'Шинэ нууц үг хадгалах':'Сэргээх холбоос авах';
 }

@@ -419,3 +419,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(min-width:901px){.full-sidebar nav{overflow-y:auto;min-height:0;padding-right:4px}.full-sidebar .side-bottom{padding-top:20px}.full-sidebar .rail-label{margin-top:20px}}
 @media(max-width:600px){.top-actions{gap:6px;flex-wrap:wrap}.top-actions .engine-chip:not(.credit-chip){display:none}.tool-hero h1{overflow-wrap:anywhere}.sample-actions .secondary{flex:1;white-space:nowrap}.tool-form{padding:20px}.voice-library-card{min-width:0}}
 .studio-readiness{margin:12px 0 26px;padding:12px 18px;border:1px solid var(--line);border-radius:14px;font-size:.78rem;color:var(--muted);background:var(--panel);line-height:1.6}
+
+/* Distinct authentication paths and voice library actions. */
+.auth-recovery{display:flex;justify-content:flex-end;margin:10px 0 0}.auth-recovery .ghost-link{padding:8px 0;color:var(--muted)}
+.auth-switch{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:24px;padding-top:22px;border-top:1px solid var(--line)}
+.auth-switch p{margin:0;color:var(--muted);font-size:.8rem}.auth-switch .secondary{font-size:.8rem;padding:12px 20px;min-height:44px}
+.voice-avatar{width:64px;height:64px;flex-shrink:0;border-radius:20px;object-fit:cover;border:1px solid var(--line)}
+.voice-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 12px}.voice-actions button{min-height:44px;font-size:.78rem}.voice-use{background:var(--lime);color:var(--bg);border-color:transparent}.voice-library-card audio{width:100%;margin-top:8px}
