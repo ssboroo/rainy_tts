@@ -33,23 +33,23 @@ PLANS = {
     },
     "starter": {
         "id":"starter","name":"Starter","price_mnt":39_900,
-        "description":"Эхлэх хэрэглээ · 1 clone slot","sort":1,
+        "description":"Эхлэх хэрэглээ · 1 хоолой хадгалах эрх","sort":1,
     },
     "creator": {
         "id":"creator","name":"Creator","price_mnt":69_900,
-        "description":"Контент бүтээгч · 2 clone slot","sort":2,
+        "description":"Контент бүтээгч · 2 хоолой хадгалах эрх","sort":2,
     },
     "pro": {
         "id":"pro","name":"Pro","price_mnt":139_900,
-        "description":"Идэвхтэй хэрэглээ · 5 IVC + 1 PVC","sort":3,
+        "description":"Идэвхтэй хэрэглээ · 5 энгийн + 1 мэргэжлийн хоолой","sort":3,
     },
     "studio": {
         "id":"studio","name":"Studio","price_mnt":259_900,
-        "description":"Студи, баг · 10 IVC + 2 PVC","sort":4,
+        "description":"Студи, баг · 10 энгийн + 2 мэргэжлийн хоолой","sort":4,
     },
     "agency": {
         "id":"agency","name":"Agency","price_mnt":499_900,
-        "description":"Agency, өндөр хэрэглээ · 20 IVC + 4 PVC","sort":5,
+        "description":"Байгууллага · 20 энгийн + 4 мэргэжлийн хоолой","sort":5,
     },
 }
 

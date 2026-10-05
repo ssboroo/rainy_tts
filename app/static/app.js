@@ -273,9 +273,9 @@ $('clone-form').onsubmit=async event=>{
 $('pvc-form').onsubmit=async event=>{
   event.preventDefault();if(!ensureUser())return;
   const formEl=event.currentTarget,button=formEl.querySelector('button[type=submit]');
-  setBusy(button,true,'PVC дээж байршуулж байна…');
+  setBusy(button,true,'Хоолойн дээж байршуулж байна…');
   try{
-    if(!formEl.querySelector('[name=ownership]').checked)throw new Error('PVC нь зөвхөн өөрийн хоолойд зориулагдана.');
+    if(!formEl.querySelector('[name=ownership]').checked)throw new Error('Энэ боломж нь зөвхөн өөрийн хоолойд зориулагдана.');
     const form=new FormData(formEl);
     form.set('language','mn');
     form.set('ownership','true');
@@ -283,7 +283,7 @@ $('pvc-form').onsubmit=async event=>{
     const result=await api('/voices/pvc',{method:'POST',body:form,form:true});
     $('pvc-voice-id').value=result.voice_id;
     $('pvc-result').hidden=false;
-    $('pvc-result').textContent='PVC ноорог үүслээ · '+result.voice_id+' · эзэмшигчийг баталгаажуулах шаардлагатай.';
+    $('pvc-result').textContent='Хоолойн ноорог үүслээ. Доорх заавраар өөрийн хоолойг баталгаажуулна уу.';
     $('pvc-verify-form').hidden=false;
     notice('Professional Хоолой Хувилбар ноорог үүслээ. Баталгаажуулалт хийнэ үү.');
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
@@ -291,7 +291,7 @@ $('pvc-form').onsubmit=async event=>{
 
 $('pvc-captcha-get').onclick=async()=>{
   if(!ensureUser())return;
-  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Хоолой ID алга.');
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('Эхлээд хоолойн ноорог үүсгэнэ үү.');
   try{
     const data=await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha');
     const box=$('pvc-captcha');box.hidden=false;box.replaceChildren();
@@ -311,7 +311,7 @@ $('pvc-captcha-get').onclick=async()=>{
 $('pvc-verify').onclick=async()=>{
   if(!ensureUser())return;
   const id=$('pvc-voice-id').value.trim(),file=$('pvc-recording').files[0];
-  if(!id||!file)return notice('PVC Хоолой ID болон баталгаажуулалт бичлэг шаардлагатай.');
+  if(!id||!file)return notice('Хоолойн ноорог үүсгээд баталгаажуулах бичлэгээ оруулна уу.');
   const form=new FormData();form.append('recording',file);
   try{
     await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha',{method:'POST',body:form,form:true});
@@ -321,22 +321,22 @@ $('pvc-verify').onclick=async()=>{
 
 $('pvc-train').onclick=async()=>{
   if(!ensureUser())return;
-  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Хоолой ID алга.');
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('Эхлээд хоолойн ноорог үүсгэнэ үү.');
   const button=$('pvc-train');setBusy(button,true,'Сургалт эхлүүлж байна…');
   try{
     const result=await api('/voices/pvc/'+encodeURIComponent(id)+'/train',{method:'POST',body:{}});
     $('pvc-result').hidden=false;$('pvc-result').textContent='Төлөв: '+statusLabel(result.status||'training');
-    notice('PVC сургалт эхэллээ. Дараа нь Төлөв шалгана уу.');
+    notice('Хоолой боловсруулах ажил эхэллээ. Дараа нь Төлөв шалгана уу.');
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('pvc-status').onclick=async()=>{
   if(!ensureUser())return;
-  const id=$('pvc-voice-id').value.trim();if(!id)return notice('PVC Хоолой ID алга.');
+  const id=$('pvc-voice-id').value.trim();if(!id)return notice('Эхлээд хоолойн ноорог үүсгэнэ үү.');
   try{
     const result=await api('/voices/pvc/'+encodeURIComponent(id));
     $('pvc-result').hidden=false;$('pvc-result').textContent='Төлөв: '+statusLabel(result.status);
-    if(result.status==='ready'){notice('PVC бэлэн. Хоолойн санд нэмэгдлээ.');await refreshVoices();}
+    if(result.status==='ready'){notice('Хоолой бэлэн. Хоолойн санд нэмэгдлээ.');await refreshVoices();}
   }catch(e){notice(customerMessage(e.message));}
 };
 

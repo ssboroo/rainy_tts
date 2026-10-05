@@ -83,7 +83,7 @@
       </section>
 
       <section id="pvc" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>МЭРГЭЖЛИЙН ХООЛОЙ · МОНГОЛ</p><h1>Өөрийн хоолойг <em>мэргэжлийн түвшинд.</em></h1><p>Монгол дээж байршуулах → эзэмшигчийг баталгаажуулах → сургалт. Зөвхөн өөрийн хоолойг PVC болгоно.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>МЭРГЭЖЛИЙН ХООЛОЙ · МОНГОЛ</p><h1>Өөрийн хоолойг <em>мэргэжлийн түвшинд.</em></h1><p>Монгол дээж байршуулах → эзэмшигчийг баталгаажуулах → сургалт. Зөвхөн өөрийн хоолойг хувилна.</p></div>
         <form id="pvc-form" class="tool-form">
           <p class="tool-warning">Мэргэжлийн хоолой хувилахад хоолойн эзэмшигчийн баталгаажуулалт шаардлагатай. Pro, Studio, Agency багцад ашиглана.</p>
           <div class="field"><label>Хоолойн нэр</label><input name="name" maxlength="100" required placeholder="Миний мэргэжлийн Монгол хоолой"></div>
@@ -91,14 +91,14 @@
           <div class="field"><label>Монгол дууны дээж</label><input name="files" type="file" accept="audio/*" multiple required></div>
           <label class="check"><input name="remove_background_noise" type="checkbox"> Дээжийн ар талын шуугианыг цэвэрлэх</label>
           <label class="check consent"><input name="ownership" type="checkbox" required> Энэ бол миний өөрийн хоолой бөгөөд би баталгаажуулалт хийх эрхтэй.</label>
-          <button class="generate" type="submit"><span>PVC ноорог үүсгэх</span><span>↗</span></button>
+          <button class="generate" type="submit"><span>Хоолойн ноорог үүсгэх</span><span>↗</span></button>
         </form>
         <div id="pvc-result" class="result-box" hidden></div>
         <form id="pvc-verify-form" class="tool-form" hidden>
-          <div class="field"><label>PVC Хоолойн ID</label><input id="pvc-voice-id" readonly></div>
-          <button id="pvc-captcha-get" class="secondary" type="button">Баталгаажуулалт CAPTCHA авах</button>
+          <div class="field" hidden><label>Хоолойн бүртгэл</label><input id="pvc-voice-id" readonly></div>
+          <button id="pvc-captcha-get" class="secondary" type="button">Баталгаажуулах өгүүлбэр авах</button>
           <div id="pvc-captcha" class="result-box" hidden></div>
-          <div class="field"><label>CAPTCHA-г уншсан бичлэг</label><input id="pvc-recording" type="file" accept="audio/*"></div>
+          <div class="field"><label>Өгүүлбэрийг уншсан бичлэг</label><input id="pvc-recording" type="file" accept="audio/*"></div>
           <button id="pvc-verify" class="secondary" type="button">Хоолойн эзэмшигчийг баталгаажуулах</button>
           <button id="pvc-train" class="generate" type="button"><span>Сургалт эхлүүлэх</span><span>↗</span></button>
           <button id="pvc-status" class="secondary" type="button">Төлөв шалгах ↻</button>
