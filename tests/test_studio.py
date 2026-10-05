@@ -374,7 +374,7 @@ class AudioTests(unittest.TestCase):
                     raw=MagicMock()
                     raw.data=[pcm]
                     raw.headers={'character-cost':'14','request-id':'req-tts','x-trace-id':'trace-tts'}
-                    convert.return_value=raw
+                    convert.return_value.__enter__.return_value=raw
                     engine=ElevenLabsEngine()
                     meta=engine.synthesize('Сайн байна уу.',output,1.0,'voice-123')
                     convert.assert_called_once_with(
