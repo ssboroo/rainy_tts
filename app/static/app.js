@@ -221,14 +221,18 @@ function selectVoice(voice){
 }
 function renderVoiceLibrary(){
   const root=$('voice-grid');[...root.children].forEach(card=>card.releasePreview?.());root.replaceChildren();
-  state.voices.forEach(voice=>{
+  const filter=$('voice-filter')?.value||'native';const query=($('voice-search')?.value||'').trim().toLowerCase();
+  const visible=state.voices.filter(v=>(filter==='all'||filter==='native'&&v.builtin&&v.native_mn!==false||filter==='default'&&v.source==='default'||filter==='mine'&&!v.builtin)&&voiceDisplayName(v).toLowerCase().includes(query));
+  if($('voice-count'))$('voice-count').textContent=visible.length+' хоолой · Дээжийг сонсож, өөрийн бичвэрт тохирохыг сонгоно уу.';
+  visible.forEach(voice=>{
     const card=document.createElement('article');card.className='voice-library-card';
     const top=document.createElement('div');top.className='voice-card-head';
     const avatar=document.createElement('img');avatar.className='voice-avatar';avatar.src=voiceAvatar(voice);avatar.alt=voiceDisplayName(voice)+' хоолойн аватар';avatar.width=64;avatar.height=64;
     const text=document.createElement('div');text.innerHTML='<strong></strong><small></small>';
     text.querySelector('strong').textContent=voiceDisplayName(voice);
-    text.querySelector('small').textContent=voice.builtin?'Монгол хоолой':'Миний хоолой';
+    text.querySelector('small').textContent=!voice.builtin?'Миний хоолой':voice.native_mn===false?'Үндсэн хоолой · дуудлагыг шалгана':'Монгол хэлээр сурсан';
     top.append(avatar,text);card.append(top);
+    const details=document.createElement('p');details.className='field-help';details.textContent=voice.requires_paid?'Төлбөртэй үйлчилгээний багцаар ашиглана.':'Ашиглах боломж нь үйлчилгээний эрхээс хамаарна.';card.append(details);
     const actions=document.createElement('div');actions.className='voice-actions';
     const use=document.createElement('button');use.type='button';use.className='secondary voice-use';use.textContent='Энэ хоолойг ашиглах';use.onclick=()=>selectVoice(voice);
     const listen=document.createElement('button');listen.type='button';listen.className='secondary voice-listen';listen.textContent='Дээж сонсох';
@@ -978,6 +982,9 @@ async function loadAdmin(){
  }catch(e){root.textContent=customerMessage(e.message);}
 }
 $('admin-refresh').onclick=loadAdmin;
+const catalogRefresh=document.createElement('button');catalogRefresh.type='button';catalogRefresh.className='secondary';catalogRefresh.textContent='Хоолой ба загварыг API-аас шинэчлэх';
+catalogRefresh.onclick=async()=>{catalogRefresh.disabled=true;try{const data=await api('/admin/studio/catalog/refresh',{method:'POST',body:{}});await refreshVoices();notice('Монгол хоолой: '+data.native_voices+' · Үндсэн хоолой: '+data.default_voices+(data.errors?.length?' · Зарим сан шинэчлэгдсэнгүй. Дараа дахин оролдоно уу.':''));}catch(e){notice(customerMessage(e.message));}finally{catalogRefresh.disabled=false;}};
+$('admin-refresh').after(catalogRefresh);
 // Attach accessible names to existing controls using their nearby visible labels.
 document.querySelectorAll('input,textarea,select').forEach((control,index)=>{
  if(!control.id)control.id='field-'+index;
@@ -1023,7 +1030,21 @@ const toolGuides={
 };
 const toolKinds={tts:'tts',dialogue:'dialogue',music:'music',sfx:'sound_effects',stt:'speech_to_text',realtime:'realtime_stt',isolator:'voice_isolator',changer:'voice_changer',dubbing:'dubbing','voice-design':'voice_design','voice-remix':'voice_remix',alignment:['alignment','forced_alignment']};
 const toolResultRequests=new Map();
+const studioAdvice={tts:'Чанартай сонголт нь өгүүлэмж, ном, сурталчилгаанд тохирно. Хурдан сонголтыг богино бичвэр болон шуурхай ажилд хэрэглэнэ.',dialogue:'Яригч бүрд өөр Монгол хоолой сонгоно. Нэг хэсэгт нэг яригчийн өгүүлбэр оруулбал хэмнэлээ удирдахад хялбар.',stt:'Монгол яриаг таних тохиргоо ашиглана. Цэвэр бичлэг, ойр микрофон танилтын чанарыг сайжруулна.',realtime:'Монгол яриаг шууд бичвэр болгоно. Чимээгүй орчинд тод ярьж, дууссаны дараа нэр болон тоог шалгана.',dubbing:'Монгол руу орчуулахад яригчийн өнгө ба цагийг хадгалах загвар ашиглана. Нэр томьёо, орчуулгын утгыг эцэст нь шалгана.',changer:'Монгол дуудлагын дэмжлэг хязгаарлагдмал. Эхлээд богино дээжээр шалгаарай; Монгол бичвэрээс дуу үүсгэх нь илүү тохиромжтой.',music:'Хөгжмийн төрөл, хэмнэл, хөгжмийн зэмсэг, уур амьсгалыг тодорхой бичнэ. Монгол үгтэй дууны дуудлагыг сонсож шалгана.',sfx:'Дууны эх үүсвэр, орчин, зай болон хөдөлгөөнийг тайлбарлаарай.',clone:'Монгол хэлээр тод, шуугиангүй ярьсан олон өгүүлбэртэй дээж ашиглаарай.',pvc:'Өөрийн Монгол хоолойн тогтвортой өнгө, өндөр чанартай урт бичлэг ашиглана.',isolator:'Яриаг тодруулах хэрэгсэл. Хэт шуугиантай эх бичлэгийн алдагдсан үгийг нөхөн үүсгэхгүй.',alignment:'Монгол аудиотой яг таарсан бичвэр хэрэглэнэ. Эхлээд аудиогоо бичвэр болгоод засаж болно.','voice-design':'Монгол дуудлагыг жишээ бичвэрээр шалгана. Хоолойг хадгалахаасаа өмнө бүх дээжийг сонсоорой.','voice-remix':'Өөрийн хоолойн шинэ өнгө үүсгэнэ. Монгол дуудлага болон эх хоолойтой төстэй байдлыг дээжээр шалгана.'};
+const studioPresets={story:{names:['Sarnai','Uyanga'],terms:/narrat|story|audiobook/i,speed:'0.95',label:'Тайван өгүүлэмж'},ad:{names:['Bolor','Temuulen'],terms:/advert|social|entertain/i,speed:'1.05',label:'Эрчтэй сурталчилгаа'},lesson:{names:['Bataar','Enkhtuya'],terms:/educat|narrat/i,speed:'1',label:'Тод тайлбар'},news:{names:['Munkhbat','Ganbold'],terms:/news|inform|narrat/i,speed:'1',label:'Тогтуун танилцуулга'}};
+function recommendedVoice(preset,voices){
+ const native=voices.filter(v=>v.builtin&&v.native_mn!==false);
+ return native.find(v=>preset.names.some(n=>(v.name||'').split(' - ')[0]===n))||native.find(v=>preset.terms.test(v.use_case||''))||native[0];
+}
+function applyStudioPreset(){
+ const preset=studioPresets[$('studio-preset').value];if(!preset)return;
+ const voice=recommendedVoice(preset,state.voices);if(!voice){notice('Монгол хоолойн сан ачаалсны дараа дахин сонгоно уу.');return;}
+ $('voice').value=voice.id;$('tts-model').value='eleven_v4';$('speed').value=preset.speed;$('speed-value').textContent=Number(preset.speed).toFixed(2)+'×';
+ $('preset-help').textContent=preset.label+' · '+voiceDisplayName(voice)+'. Дээжийг хоолойн сангаас сонсоод хүсвэл өөрчилнө үү.';updateEstimate();
+}
 function buildToolWorkspaces(){
+ $('studio-preset')?.addEventListener('change',applyStudioPreset);
+ $('voice-search')?.addEventListener('input',()=>renderVoiceLibrary());$('voice-filter')?.addEventListener('change',()=>renderVoiceLibrary());
  Object.entries(toolGuides).forEach(([name,steps])=>{
   const section=$(name);if(!section)return;
   const workspace=document.createElement('div');workspace.className='tool-workspace';
@@ -1032,7 +1053,7 @@ function buildToolWorkspaces(){
   const side=document.createElement('aside');side.className='tool-workspace-side';side.setAttribute('aria-label','Заавар ба үр дүн');
   const guide=document.createElement('section');guide.className='tool-guide';
   const title=document.createElement('h2');title.textContent='Хэрхэн ашиглах вэ?';guide.append(title);
-  const list=document.createElement('ol');steps.forEach(step=>{const li=document.createElement('li');li.textContent=step;list.append(li);});guide.append(list);side.append(guide);
+  const list=document.createElement('ol');steps.forEach(step=>{const li=document.createElement('li');li.textContent=step;list.append(li);});guide.append(list);const advice=document.createElement('p');advice.className='field-help';advice.textContent=studioAdvice[name]||'';guide.append(advice);side.append(guide);
   if(toolKinds[name]){
    const output=document.createElement('section');output.className='tool-output';
    const header=document.createElement('div');header.className='tool-output-head';

@@ -77,6 +77,14 @@ class APITests(unittest.TestCase):
         self.csrf=response.json()['user']['csrf']
         self.headers={'Origin':'http://testserver','X-CSRF-Token':self.csrf}
 
+    def test_catalog_refresh_is_admin_and_csrf_guarded(self):
+        self.assertEqual(self.client.post('/api/admin/studio/catalog/refresh',headers=self.headers).status_code,403)
+        with patch.dict(os.environ,{'ADMIN_EMAILS':self.email}):
+            self.assertEqual(self.client.post('/api/admin/studio/catalog/refresh',headers={'Origin':'http://testserver'}).status_code,403)
+            with patch.object(server.provider_catalog,'refresh',AsyncMock(return_value={})):
+                response=self.client.post('/api/admin/studio/catalog/refresh',headers=self.headers)
+                self.assertEqual(response.status_code,200,response.text)
+
     def test_admin_role_is_returned_and_diagnostics_are_guarded(self):
         self.assertFalse(self.client.get('/api/me').json()['user']['admin'])
         self.assertEqual(self.client.get('/api/provider/status').status_code,403)

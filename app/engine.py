@@ -92,7 +92,12 @@ class ElevenLabsEngine:
 
         if not voices:
             voices = [dict(voice) for voice in cls.default_voice_catalog]
-
+        from .provider_catalog import read
+        imported={v['id']:v for v in read().get('voices',[]) if isinstance(v,dict) and v.get('id')}
+        for voice in voices:
+            if voice['id'] in imported:
+                name=voice['name'];voice.update(imported.pop(voice['id']));voice['name']=name
+        voices.extend(imported.values())
         return voices
 
     @classmethod

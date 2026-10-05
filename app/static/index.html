@@ -61,7 +61,7 @@
             <div class="char-line"><button id="example" class="ghost-link">Жишээ текст ↗</button><span id="counter">0 / 12,000</span></div>
           </div>
           <aside class="tool-card">
-            <label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
+            <label for="studio-preset" class="field-label">Юунд дуу оруулах вэ?</label><select id="studio-preset" class="field-input"><option value="">Өөрөө сонгох</option value="story">Ном, өгүүлэмж</option><option value="ad">Сурталчилгаа, богино видео</option><option value="lesson">Хичээл, тайлбар</option><option value="news">Мэдээ, албан танилцуулга</option></select><p id="preset-help" class="field-help">Зориулалтаа сонговол хоолой болон хэмнэл санал болгоно.</p><label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
             <label class="field-label">Загвар</label><select id="tts-model" class="field-input"><option value="eleven_v4">Чанартай · 1,000 тэмдэгт / 80 кредит</option><option value="eleven_v4_turbo">Хурдан · 1,000 тэмдэгт / 40 кредит</option></select>
             <label class="field-label">Унших хурд <output id="speed-value">1.00×</output></label><input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1">
             <details class="pronunciation"><summary>Дуудлагын толь ＋</summary><textarea id="glossary" placeholder="RAINY = Рэйни"></textarea></details>
@@ -179,12 +179,12 @@
       </section>
 
       <section id="voices" class="page tool-page" hidden>
-        <div class="tool-hero"><p class="kicker"><span></span>ХООЛОЙН САН</p><h1>12 Монгол + <em>таны хоолой.</em></h1><p>Монгол хоолойн дээжийг сонсож өөрийн бүтээлд сонгоно уу.</p></div>
+        <div class="tool-hero"><p class="kicker"><span></span>ХООЛОЙН САН</p><h1>Монгол хоолой. <em>Таны студи.</em></h1><p>Монгол хоолойн дээжийг сонсож өөрийн бүтээлд сонгоно уу.</p></div>
         <div class="provider-status-card" hidden data-admin-only>
           <div><small>ELEVENLABS ҮЙЛЧИЛГЭЭ</small><strong id="provider-plan">Нэвтэрсний дараа шалгана</strong><p id="provider-status-text">Төлбөртэй багцын эрх болон хоолойн сангийн төлөв энд харагдана.</p></div>
           <button id="sync-voices" class="secondary" type="button">Хоолой шинэчлэх ↻</button>
         </div>
-        <div id="voice-grid" class="voice-grid"></div>
+        <label for="voice-search" class="field-label">Хоолой хайх</label><input id="voice-search" class="field-input" type="search" placeholder="Нэрээр хайх"><label for="voice-filter" class="field-label">Хоолойн төрөл</label><select id="voice-filter" class="field-input"><option value="native">Монгол хэлээр сурсан</option><option value="default">Үндсэн хоолой · Монгол дуудлагыг дээжээр шалгана</option><option value="mine">Миний хоолой</option><option value="all">Бүх хоолой</option></select><p id="voice-count" class="field-help" aria-live="polite"></p><div id="voice-grid" class="voice-grid"></div>
       </section>
 
       <section id="billing" class="page tool-page" hidden>
