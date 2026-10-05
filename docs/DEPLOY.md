@@ -48,17 +48,11 @@ Realtime STT also requires outbound WebSocket access to ElevenLabs.
 
 Never commit or embed `ELEVENLABS_API_KEY` in frontend JavaScript. Store it in `.env` locally or in the deployment platform's secret manager.
 
-## Production checklist
+## Production acceptance
 
-- Rotate any API key that was pasted into a public/shared chat or log.
-- Confirm ElevenLabs plan/permissions for TTS, IVC, Music, SFX, Scribe, Speech-to-Speech, Dubbing and Analytics.
-- Add payment/credit controls before opening expensive generation endpoints to the public.
-- Add password recovery and account deletion.
-- Add reverse-proxy rate limits, storage quotas and retention cleanup.
-- Monitor API errors, credit usage and artifact disk size.
-- Back up SQLite and required generated artifacts.
-- Test restore procedures.
-- Run a security review before a public paid launch.
+Follow [production operations](PRODUCTION.md) before public paid launch. Configure paid ElevenLabs access, live Wire credentials and transactional SMTP; retain `BILLING_ENABLED=true` and `BILLING_TARGET_MARKUP=3.0`. Verify real generation, payment, reset email, authorization and isolated restore. Configuration readiness alone is insufficient.
+
+For Railway use one service/replica through `python -m app.railway`, one persistent volume at `/data`, and `DATA_DIR=/data`. **Export and verify existing accounts/database/media before mounting storage.** An empty volume must never hide existing data. Keep `/api/health` as liveness; inspect readiness separately. Set `PERSISTENT_STORAGE_CONFIRMED=true` only after migration and redeploy survival checks.
 
 ## Dubbing
 
@@ -66,4 +60,4 @@ Dubbing project creation consumes ElevenLabs credits. Uploaded video sources are
 
 ## Backup
 
-Back up SQLite consistently and copy retained outputs to encrypted off-host storage if required. Never include the real `.env` file in backups shared outside the server.
+Use `python -m app.operations backup /backups/unique-snapshot.db` for a consistent SQLite snapshot. Copy retained media to encrypted off-host storage and verify an isolated restore with `python -m app.operations verify /restore/studio.db`. See the full preservation procedure in [production operations](PRODUCTION.md). Never include the real `.env` file in backups shared outside the server.

@@ -21,7 +21,7 @@ import uvicorn
 load_dotenv(dotenv_path='.env.local', override=False)
 load_dotenv(dotenv_path='.env', override=False)
 
-from . import core, billing, wire_payment
+from . import core, billing, wire_payment, durable_jobs, operations, accounts, audio_extensions, realtime_proxy
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 
@@ -48,6 +48,7 @@ tools=ElevenTools()
 @app.on_event("startup")
 def startup():
     core.init()
+    durable_jobs.ensure_schema()
 
 @app.middleware("http")
 async def security_headers(request:Request, call_next):
@@ -137,7 +138,7 @@ def configured_voice_name(voice_id):
     return None
 
 async def voice_cost_multiplier(voice_id,user_id):
-    if not billing.billing_enabled():
+    if not billing.billing_enabled() or billing.admin_test_mode(user_id):
         return 1.0
     with core.db() as db:
         custom=db.execute("SELECT 1 FROM voices WHERE id=? AND user_id=?",(voice_id,user_id)).fetchone()
@@ -394,7 +395,7 @@ def health():
 @app.get("/api/me")
 def me(request:Request):
     sess=session(request,False)
-    return {"user":{"email":sess["email"],"csrf":sess["csrf"]} if sess else None}
+    return {"user":{"email":sess["email"],"csrf":sess["csrf"],"admin":accounts._admin(sess["email"]),"admin_test":billing.admin_test_mode(sess["user_id"])} if sess else None}
 
 @app.post("/api/register")
 @app.post("/api/login")
@@ -409,6 +410,8 @@ async def auth(request:Request):
     is_register=request.url.path.endswith("/register")
     with core.db() as c:
         if is_register:
+            if accounts._admin(email):
+                raise HTTPException(403,"Энэ имэйлээр шинээр бүртгүүлэх боломжгүй. Өмнөх бүртгэлээрээ нэвтэрнэ үү.")
             if not env_flag("ALLOW_REGISTRATION",False):
                 raise HTTPException(403,"Одоогоор бүртгэл хаалттай байна.")
             try:
@@ -421,7 +424,7 @@ async def auth(request:Request):
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
         c.execute("DELETE FROM sessions WHERE expires<?",(time.time(),))
         c.execute("INSERT INTO sessions VALUES(?,?,?,?)",(hashlib.sha256(raw.encode()).hexdigest(),user["id"],csrf,time.time()+86400*7))
-    response=JSONResponse({"user":{"email":email,"csrf":csrf}})
+    response=JSONResponse({"user":{"email":email,"csrf":csrf,"admin":accounts._admin(email),"admin_test":billing.admin_test_mode(user["id"])}})
     response.set_cookie("session",raw,max_age=604800,httponly=True,samesite="strict",secure=SECURE,path="/")
     return response
 
@@ -650,7 +653,7 @@ def voices(request:Request):
 
 @app.get("/api/provider/status")
 async def provider_status(request:Request):
-    session(request)
+    admin_user(request)
     try:
         sub=await tools.subscription()
     except Exception as exc:
@@ -668,7 +671,7 @@ async def provider_status(request:Request):
 
 @app.post("/api/voices/sync")
 async def sync_voices(request:Request):
-    sess=session(request); mutation_guard(request,sess); throttle("voice-sync:"+sess["user_id"],20,3600)
+    sess=admin_user(request); mutation_guard(request,sess); throttle("voice-sync:"+sess["user_id"],20,3600)
     results=[]
     for voice in ElevenLabsEngine.configured_voices():
         try:
@@ -702,9 +705,9 @@ async def clone_voice(
     clone_limit=int((plan or {}).get("clone_limit",0))
     with core.db() as db:
         clone_count=db.execute("SELECT COUNT(*) FROM voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
-    if billing.billing_enabled() and (sub.get("status")!="active" or clone_limit<=0):
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and (sub.get("status")!="active" or clone_limit<=0):
         raise HTTPException(402,"Voice Clone ашиглахын тулд clone эрхтэй subscription шаардлагатай.")
-    if billing.billing_enabled() and clone_count>=clone_limit:
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and clone_count>=clone_limit:
         raise HTTPException(409,f"Таны plan {clone_limit} clone voice хүртэл зөвшөөрнө.")
     job_id=core.create_tool_job(sess["user_id"],"voice_clone",name,{"files":[f.filename for f in files]})
     credits=billing.estimate("voice_clone")
@@ -762,9 +765,9 @@ async def create_pvc(
     pvc_limit=int((plan or {}).get("pvc_limit",0))
     with core.db() as db:
         count=db.execute("SELECT COUNT(*) FROM pvc_voices WHERE user_id=?",(sess["user_id"],)).fetchone()[0]
-    if billing.billing_enabled() and (sub.get("status")!="active" or pvc_limit<=0):
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and (sub.get("status")!="active" or pvc_limit<=0):
         raise HTTPException(402,"Professional Voice Clone нь Pro, Studio эсвэл Agency RAINY plan шаардлагатай.")
-    if billing.billing_enabled() and count>=pvc_limit:
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and count>=pvc_limit:
         raise HTTPException(409,f"Таны plan {pvc_limit} Professional Voice Clone хүртэл зөвшөөрнө.")
     try:
         created=await tools.pvc_create(name,"mn",description)
@@ -992,8 +995,28 @@ def tts_file(job_id:str,fmt:str,request:Request):
     path=core.DATA/"outputs"/f"{job_id}.{fmt}"
     return FileResponse(path,media_type="audio/wav" if fmt=="wav" else "audio/mpeg",filename=f"rainy-voice.{fmt}")
 
-async def run_binary_tool(request,sess,tool_type,title,runner,filename,mime,payload,credits=0):
+async def enqueue_tool(sess,tool_type,title,execution,filename,mime,credits,upload=None):
+    source=None
+    try:
+        if upload:
+            suffix=Path(upload.filename or '').suffix.lower() or '.bin'
+            source=core.DATA/'tmp'/('queue-'+core.uid()+suffix)
+            await persist_upload(upload,source)
+        job_id=durable_jobs.enqueue(sess['user_id'],tool_type,title,execution,filename,mime,credits,
+            source,upload.filename if upload else None,upload.content_type if upload else None)
+        return {'job_id':job_id,'status':'queued','credits_used':credits if billing.billing_enabled() and not billing.admin_test_mode(sess['user_id']) else 0,
+                'balance':billing.wallet(sess['user_id'])['wallet']['balance']}
+    except ValueError as exc:
+        if source: source.unlink(missing_ok=True)
+        raise HTTPException(402 if 'Credit' in str(exc) else 429,str(exc))
+    except Exception:
+        if source: source.unlink(missing_ok=True)
+        raise
+
+async def run_binary_tool(request,sess,tool_type,title,runner,filename,mime,payload,credits=0,execution=None,upload=None):
     throttle("tool:"+sess["user_id"],30)
+    if execution and env_flag("DURABLE_TOOLS_ENABLED",True):
+        return await enqueue_tool(sess,tool_type,title,execution,filename,mime,credits,upload)
     job_id=core.create_tool_job(sess["user_id"],tool_type,title,payload)
     charge_id=charge(sess["user_id"],credits,tool_type,job_id,{"title":title}) if credits else None
     try:
@@ -1047,7 +1070,8 @@ async def dialogue(request:Request):
         request,sess,"dialogue",title,
         lambda:tools.dialogue(clean,language),"rainy-dialogue.mp3","audio/mpeg",
         {"inputs":len(clean),"voices":len(voices_used),"language":language,"voice_multipliers":voice_rates},
-        max(1,math.ceil(weighted_chars*billing.RATES["dialogue_per_1000_chars"]/1000))
+        max(1,math.ceil(weighted_chars*billing.RATES["dialogue_per_1000_chars"]/1000)),
+        execution={"method":"dialogue","args":[clean,language]}
     )
 
 @app.post("/api/tools/music")
@@ -1068,7 +1092,8 @@ async def music(request:Request):
         request,sess,"music",title,
         lambda:tools.music(prompt,length_ms,model_id,force_instrumental),"rainy-music.mp3","audio/mpeg",
         {"prompt":prompt[:300],"music_length_ms":length_ms,"model_id":model_id,"force_instrumental":force_instrumental},
-        billing.estimate("music",seconds=length_ms/1000)
+        billing.estimate("music",seconds=length_ms/1000),
+        execution={"method":"music","args":[prompt,length_ms,model_id,force_instrumental]}
     )
 
 @app.post("/api/tools/sound-effects")
@@ -1095,8 +1120,48 @@ async def sound_effects(request:Request):
         request,sess,"sound_effects",title,
         lambda:tools.sound_effect(prompt,duration,loop,influence),"rainy-sfx.mp3","audio/mpeg",
         {"prompt":prompt[:300],"duration_seconds":duration,"loop":loop,"prompt_influence":influence},
-        billing.estimate("sound_effects")
+        billing.estimate("sound_effects"),
+        execution={"method":"sound_effect","args":[prompt,duration,loop,influence]}
     )
+
+def save_transcript_result(user_id,job_id,result,credits,keyterms_count):
+    provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
+    if provider_meta:
+        core.add_provider_usage(
+            user_id,job_id,"speech_to_text",
+            request_id=provider_meta.get("request_id"),
+            trace_id=provider_meta.get("trace_id"),
+            metadata=provider_meta
+        )
+    raw_text=str(result.get("text","")).strip()
+    edited=result.get("edited_transcript") or {}
+    edited_ok=isinstance(edited,dict) and edited.get("kind")=="transcript" and str(edited.get("text","")).strip()
+    text=str(edited.get("text","")).strip() if edited_ok else raw_text
+    create_artifact_text(user_id,job_id,"transcript","transcript.txt","text/plain",text)
+    if text!=raw_text and raw_text:
+        create_artifact_text(user_id,job_id,"raw_transcript","transcript-raw.txt","text/plain",raw_text)
+    create_artifact_text(
+        user_id,job_id,"json","transcript.json","application/json",
+        json.dumps(result,ensure_ascii=False,indent=2)
+    )
+    srt=srt_from_words(result.get("words"))
+    if srt:
+        create_artifact_text(user_id,job_id,"subtitle","transcript.srt","application/x-subrip",srt)
+    summary={
+        "text":text,
+        "raw_text":raw_text if text!=raw_text else None,
+        "polished":bool(edited_ok),
+        "edit_error":edited.get("message") if isinstance(edited,dict) and edited.get("kind")=="error" else None,
+        "language_code":result.get("language_code"),
+        "language_probability":result.get("language_probability"),
+        "keyterms_used":keyterms_count,
+        "credits_used":credits,
+        "provider_usage":provider_meta or None,
+    }
+    if srt:
+        create_artifact_text(user_id,job_id,'subtitle','transcript.vtt','text/vtt',
+                             'WEBVTT\n\n'+re.sub(r'(\d{2}:\d{2}:\d{2}),(\d{3})',r'\1.\2',srt))
+    return summary
 
 @app.post("/api/tools/stt")
 async def speech_to_text(
@@ -1133,6 +1198,10 @@ async def speech_to_text(
         "no_verbatim":no_verbatim,
         "stt_surcharge":surcharge,
     }
+    if env_flag('DURABLE_TOOLS_ENABLED',True):
+        return await enqueue_tool(sess,'speech_to_text',file.filename or 'Бичвэр',
+            {'method':'speech_to_text','args':[language_code or None,terms,polish,diarize,num_speakers,no_verbatim],
+             'keyterms_count':len(terms)},'transcript.txt','text/plain',credits,file)
     job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",payload)
     charge_id=charge(
         sess["user_id"],credits,"speech_to_text",job_id,
@@ -1142,39 +1211,7 @@ async def speech_to_text(
         result=await tools.speech_to_text(
             file,language_code or None,terms,polish,diarize,num_speakers,no_verbatim
         )
-        provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
-        if provider_meta:
-            core.add_provider_usage(
-                sess["user_id"],job_id,"speech_to_text",
-                request_id=provider_meta.get("request_id"),
-                trace_id=provider_meta.get("trace_id"),
-                metadata=provider_meta
-            )
-        raw_text=str(result.get("text","")).strip()
-        edited=result.get("edited_transcript") or {}
-        edited_ok=isinstance(edited,dict) and edited.get("kind")=="transcript" and str(edited.get("text","")).strip()
-        text=str(edited.get("text","")).strip() if edited_ok else raw_text
-        create_artifact_text(sess["user_id"],job_id,"transcript","transcript.txt","text/plain",text)
-        if text!=raw_text and raw_text:
-            create_artifact_text(sess["user_id"],job_id,"raw_transcript","transcript-raw.txt","text/plain",raw_text)
-        create_artifact_text(
-            sess["user_id"],job_id,"json","transcript.json","application/json",
-            json.dumps(result,ensure_ascii=False,indent=2)
-        )
-        srt=srt_from_words(result.get("words"))
-        if srt:
-            create_artifact_text(sess["user_id"],job_id,"subtitle","transcript.srt","application/x-subrip",srt)
-        summary={
-            "text":text,
-            "raw_text":raw_text if text!=raw_text else None,
-            "polished":bool(edited_ok),
-            "edit_error":edited.get("message") if isinstance(edited,dict) and edited.get("kind")=="error" else None,
-            "language_code":result.get("language_code"),
-            "language_probability":result.get("language_probability"),
-            "keyterms_used":len(terms),
-            "credits_used":credits,
-            "provider_usage":provider_meta or None,
-        }
+        summary=save_transcript_result(sess["user_id"],job_id,result,credits,len(terms))
         core.update_tool_job(job_id,"done",result=summary)
         return {"job_id":job_id,**summary,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
@@ -1201,7 +1238,8 @@ async def voice_changer(
         lambda:tools.voice_changer(file,voice_id,remove_background_noise),
         "rainy-voice-changer.mp3","audio/mpeg",
         {"voice_id":voice_id,"source":file.filename,"duration_seconds":duration,"voice_multiplier":multiplier},
-        max(1,math.ceil(billing.estimate("voice_changer",seconds=duration)*multiplier))
+        max(1,math.ceil(billing.estimate("voice_changer",seconds=duration)*multiplier)),
+        execution={"method":"voice_changer","args":[voice_id,remove_background_noise]},upload=file
     )
 
 @app.post("/api/tools/voice-isolator")
@@ -1210,33 +1248,17 @@ async def voice_isolator(request:Request,file:UploadFile=File(...)):
     validate_upload(file,MEDIA_EXTS,MAX_DUB_MB)
     duration=await upload_duration_seconds(file)
     credits=billing.estimate("voice_isolator",seconds=duration)
-    job_id=core.create_tool_job(
-        sess["user_id"],"voice_isolator",file.filename or "Voice Isolator",
-        {"source":file.filename,"duration_seconds":duration}
-    )
-    charge_id=charge(sess["user_id"],credits,"voice_isolator",job_id,{"duration_seconds":duration})
-    try:
-        audio,meta=await tools.voice_isolator(file)
-        mime=meta.get("mime") or "audio/mpeg"
-        ext={"audio/wav":".wav","audio/flac":".flac","audio/ogg":".ogg"}.get(mime,".mp3")
-        artifact_id=create_artifact_bytes(
-            sess["user_id"],job_id,"audio","rainy-isolated-voice"+ext,mime,audio
-        )
-        core.add_provider_usage(
-            sess["user_id"],job_id,"voice_isolator",
-            request_id=meta.get("request_id"),trace_id=meta.get("trace_id"),metadata=meta
-        )
-        result={"artifact_id":artifact_id,"credits_used":credits,"provider_usage":meta}
-        core.update_tool_job(job_id,"done",result=result)
-        return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
-    except Exception as exc:
-        billing.refund(sess["user_id"],charge_id,"provider_failed")
-        core.update_tool_job(job_id,"failed",error=str(exc))
-        raise api_exception(exc)
+    return await run_binary_tool(request,sess,'voice_isolator',file.filename or 'Дуу цэвэрлэх',
+        lambda:tools.voice_isolator(file),'rainy-isolated-voice.mp3','audio/mpeg',
+        {'source':file.filename,'duration_seconds':duration},credits,
+        execution={'method':'voice_isolator','args':[]},upload=file)
 
 @app.post("/api/tools/realtime-token")
 async def realtime_token(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("realtime:"+sess["user_id"],20,3600)
+    if env_flag("REALTIME_PROXY_ENABLED",True):
+        try: return realtime_proxy.issue(sess["user_id"])
+        except Exception as exc: raise api_exception(exc)
     credits=billing.estimate("realtime_stt")
     reference="rt-"+core.uid()
     charge_id=charge(sess["user_id"],credits,"realtime_stt",reference,{"token_window_minutes":15})
@@ -1278,7 +1300,7 @@ async def dubbing(
         raise HTTPException(422,"Видео/аудио файл эсвэл URL шаардлагатай.")
     if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",target_language):
         raise HTTPException(422,"Target language code буруу байна.")
-    if billing.billing_enabled() and source_url.strip():
+    if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and source_url.strip():
         raise HTTPException(422,"Credit billing идэвхтэй үед Dubbing-д файл upload ашиглана уу.")
     duration=await upload_duration_seconds(file) if file and billing.billing_enabled() else 0
     payload={
@@ -1386,12 +1408,28 @@ def tool_jobs(request:Request):
         rows=c.execute("SELECT * FROM tool_jobs WHERE user_id=? ORDER BY created DESC LIMIT 100",(sess["user_id"],)).fetchall()
     return {"jobs":[public_tool_job_with_artifacts(row) for row in rows]}
 
+@app.get('/api/tool-jobs/{job_id}')
+def get_tool_job(job_id:str,request:Request):
+    sess=session(request)
+    with core.db() as db:
+        row=db.execute('SELECT * FROM tool_jobs WHERE id=? AND user_id=?',(job_id,sess['user_id'])).fetchone()
+    if not row: raise HTTPException(404,'Ажил олдсонгүй.')
+    return public_tool_job_with_artifacts(row)
+
+@app.post('/api/tool-jobs/{job_id}/cancel')
+def cancel_tool_job(job_id:str,request:Request):
+    sess=session(request); mutation_guard(request,sess)
+    try: return {'ok':durable_jobs.cancel(job_id,sess['user_id'])}
+    except ValueError as exc: raise HTTPException(409,str(exc))
+
 @app.delete("/api/tool-jobs/{job_id}")
 def delete_tool_job(job_id:str,request:Request):
     sess=session(request); mutation_guard(request,sess)
     with core.db() as c:
         row=c.execute("SELECT * FROM tool_jobs WHERE id=? AND user_id=?",(job_id,sess["user_id"])).fetchone()
         if not row: raise HTTPException(404,"Project олдсонгүй.")
+        if row['status'] in {'queued','running'}:
+            raise HTTPException(409,'Ажил хүлээгдэж эсвэл ажиллаж байна. Эхлээд цуцлах эсвэл дуусахыг хүлээнэ үү.')
         artifacts=c.execute("SELECT path FROM artifacts WHERE job_id=?",(job_id,)).fetchall()
         try:
             payload=json.loads(row["payload"] or "{}")
@@ -1583,6 +1621,10 @@ def admin_provider_usage(request:Request):
         except Exception:item["metadata"]={}
         items.append(item)
     return {"items":items}
+
+accounts.register_routes(app,session,mutation_guard,throttle)
+audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
+realtime_proxy.register_routes(app,session,allowed_origins)
 
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)

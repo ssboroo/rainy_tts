@@ -1,9 +1,11 @@
 import json
+import asyncio
+import time
 import logging
 import shutil
 import subprocess
 import threading
-from . import core, billing
+from . import core, billing, durable_jobs
 from .engine import ElevenLabsEngine, assemble
 
 log = logging.getLogger(__name__)
@@ -15,6 +17,7 @@ def run_job(job):
     folder = core.DATA / 'tmp' / job['id']
     folder.mkdir(exist_ok=True)
     output = core.DATA / 'outputs' / (job['id'] + '.wav')
+    parts = []
     try:
         resolved_voice_id = payload.get('provider_voice_id')
         if not resolved_voice_id:
@@ -76,7 +79,7 @@ def run_job(job):
         with core.db() as c:
             c.execute("UPDATE jobs SET status='done',progress=100,result=? WHERE id=?", (json.dumps(result,ensure_ascii=False),job['id']))
     except Exception as exc:
-        log.exception('Job %s failed',job['id'])
+        log.warning('TTS job %s failed (%s)',job['id'],type(exc).__name__)
         output.unlink(missing_ok=True)
         output.with_suffix('.mp3').unlink(missing_ok=True)
         if isinstance(exc,(ValueError,RuntimeError)):
@@ -88,16 +91,39 @@ def run_job(job):
         else:
             message='Дуу үүсгэж чадсангүй. Worker terminal дээрх log-ийг шалгана уу.'
         billing_info=payload.get('billing') or {}
-        billing.refund(job['user_id'],billing_info.get('charge_id'),'tts_failed')
+        import httpx
+        cause=exc; uncertain=bool(parts)
+        while cause:
+            uncertain=uncertain or isinstance(cause,(httpx.TimeoutException,httpx.NetworkError)) or (getattr(cause,'status_code',getattr(cause,'status',0)) or 0)>=500
+            cause=cause.__cause__
+        if not uncertain:
+            billing.refund(job['user_id'],billing_info.get('charge_id'),'tts_failed')
+        else:
+            message='Үүсгэлтийн хариу тасарсан. Давхар төлбөрөөс сэргийлж дахин илгээгээгүй. Хэрэглээг админ шалгана.'
         with core.db() as c:
             c.execute("UPDATE jobs SET status='failed',error=? WHERE id=?", (message,job['id']))
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
-def loop():
-    with core.db() as c:
-        c.execute("UPDATE jobs SET status='queued',progress=0 WHERE status='running'")
+def heartbeat():
     while not stop.is_set():
+        (core.DATA/'worker-heartbeat').write_text(str(time.time()))
+        stop.wait(15)
+
+def loop():
+    durable_jobs.ensure_schema()
+    durable_jobs.recover_interrupted()
+    durable_jobs.reconcile_cancelled()
+    from . import realtime_proxy
+    realtime_proxy.reconcile_unused()
+    last_reconcile=time.monotonic()
+    threading.Thread(target=heartbeat,daemon=True).start()
+    with core.db() as c:
+        c.execute("UPDATE jobs SET status='failed',error=? WHERE status='running'",('Сервер дахин ассан. Давхар үүсгэлтээс сэргийлж дахин илгээгээгүй. Хэрэглээг админ шалгана.',))
+    while not stop.is_set():
+        if time.monotonic()-last_reconcile>=60:
+            realtime_proxy.reconcile_unused()
+            last_reconcile=time.monotonic()
         with core.db() as c:
             c.execute('BEGIN IMMEDIATE')
             job = c.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
@@ -105,7 +131,11 @@ def loop():
                 c.execute("UPDATE jobs SET status='running' WHERE id=?",(job['id'],))
         if job:
             run_job(job)
-        else:
+        if stop.is_set(): break
+        creative=durable_jobs.claim_next()
+        if creative:
+            asyncio.run(durable_jobs.execute(creative))
+        if not job and not creative:
             stop.wait(1)
 
 if __name__ == '__main__':

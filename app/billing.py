@@ -33,23 +33,23 @@ PLANS = {
     },
     "starter": {
         "id":"starter","name":"Starter","price_mnt":39_900,
-        "description":"Эхлэх хэрэглээ · 1 clone slot","sort":1,
+        "description":"Эхлэх хэрэглээ · 1 хоолой хадгалах эрх","sort":1,
     },
     "creator": {
         "id":"creator","name":"Creator","price_mnt":69_900,
-        "description":"Контент бүтээгч · 2 clone slot","sort":2,
+        "description":"Контент бүтээгч · 2 хоолой хадгалах эрх","sort":2,
     },
     "pro": {
         "id":"pro","name":"Pro","price_mnt":139_900,
-        "description":"Идэвхтэй хэрэглээ · 5 IVC + 1 PVC","sort":3,
+        "description":"Идэвхтэй хэрэглээ · 5 энгийн + 1 мэргэжлийн хоолой","sort":3,
     },
     "studio": {
         "id":"studio","name":"Studio","price_mnt":259_900,
-        "description":"Студи, баг · 10 IVC + 2 PVC","sort":4,
+        "description":"Студи, баг · 10 энгийн + 2 мэргэжлийн хоолой","sort":4,
     },
     "agency": {
         "id":"agency","name":"Agency","price_mnt":499_900,
-        "description":"Agency, өндөр хэрэглээ · 20 IVC + 4 PVC","sort":5,
+        "description":"Байгууллага · 20 энгийн + 4 мэргэжлийн хоолой","sort":5,
     },
 }
 
@@ -94,7 +94,7 @@ RATES = {
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
-    markup=max(2.0,float(os.getenv("BILLING_TARGET_MARKUP","2.0")))
+    markup=max(3.0,float(os.getenv("BILLING_TARGET_MARKUP","3.0")))
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
@@ -200,7 +200,7 @@ def public_rate_card():
     }
 
 def billing_enabled():
-    return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
+    return os.getenv("BILLING_ENABLED","true").strip().lower() in {"1","true","yes","on"}
 
 def estimate(tool_type, *, chars=0, seconds=0, duration_known=True, model_id=None, version=None):
     chars=max(0,int(chars or 0))
@@ -279,9 +279,17 @@ def wallet(user_id):
         sub=c.execute("SELECT * FROM subscriptions WHERE user_id=?",(user_id,)).fetchone()
     return {"wallet":dict(row),"subscription":dict(sub) if sub else None}
 
+def admin_test_mode(user_id):
+    if os.getenv('ADMIN_TEST_MODE','false').strip().lower() not in {'1','true','yes','on'}:
+        return False
+    allowed={email.strip().lower() for email in os.getenv('ADMIN_EMAILS','').split(',') if email.strip()}
+    if not allowed:return False
+    with core.db() as db:row=db.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
+    return bool(row and row['email'].lower() in allowed)
+
 def debit(user_id, credits, tool_type, reference=None, metadata=None):
     credits=max(0,int(credits))
-    if not billing_enabled() or credits==0:
+    if not billing_enabled() or credits==0 or admin_test_mode(user_id):
         return None
     ensure_wallet(user_id)
     _expire_if_needed(user_id)
