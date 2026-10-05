@@ -324,11 +324,13 @@ class APITests(unittest.TestCase):
         job_id=response.json()['job_id']
         project={'project_id':'proj_test','status':'ready','language_ids':['lang_test']}
         languages={'languages':[{'language_id':'lang_test','target_language':'mn','status':'completed','outputs':{'lossless_audio':'https://example.test/output.flac'}}]}
-        with patch.object(server.tools,'get_dubbing_project',new=AsyncMock(return_value=project)), patch.object(server.tools,'list_dubbing_languages',new=AsyncMock(return_value=languages)), patch.object(server.tools,'download_url',new=AsyncMock(return_value=(b'fLaCdata','audio/flac'))):
+        with patch.object(server.tools,'get_dubbing_project',new=AsyncMock(return_value=project)), patch.object(server.tools,'list_dubbing_languages',new=AsyncMock(return_value=languages)), patch.object(server.tools,'download_url',new=AsyncMock(return_value=(b'fLaCdata','application/octet-stream'))), patch.object(server,'dubbing_output',return_value=(b'ID3mp3data','audio/mpeg','.mp3')):
             status=self.client.get('/api/tools/dubbing/'+job_id)
         self.assertEqual(status.status_code,200,status.text)
         self.assertEqual(status.json()['status'],'done')
         self.assertTrue(status.json()['artifacts'])
+        self.assertEqual(status.json()['artifacts'][0]['filename'],'dubbing-mn.mp3')
+        self.assertEqual(status.json()['artifacts'][0]['mime'],'audio/mpeg')
 
     def test_analytics(self):
         response=self.client.get('/api/analytics')

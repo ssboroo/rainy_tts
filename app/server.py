@@ -1,5 +1,6 @@
 """RAINY Voice FastAPI server: TTS plus ElevenLabs Creative tools."""
 import hashlib
+import asyncio
 import json
 import logging
 import math
@@ -24,6 +25,7 @@ load_dotenv(dotenv_path='.env', override=False)
 from . import core, billing, wire_payment, durable_jobs, operations, accounts, audio_extensions, realtime_proxy
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
+from .media_formats import dubbing_output
 
 STATIC = Path(__file__).parent / "static"
 ORIGIN = os.getenv("PUBLIC_ORIGIN","http://localhost:8080").rstrip("/")
@@ -1373,7 +1375,7 @@ async def dubbing_status(job_id:str,request:Request):
                 for kind,url in (lang.get("outputs") or {}).items():
                     if not isinstance(url,str) or not url.startswith("http"): continue
                     data,mime=await tools.download_url(url)
-                    ext=mimetypes.guess_extension(mime.split(";")[0]) or (".flac" if "audio" in mime else ".bin")
+                    data,mime,ext=await asyncio.to_thread(dubbing_output,data,mime,kind)
                     create_artifact_bytes(sess["user_id"],job_id,kind,f"dubbing-{lang.get('target_language','target')}{ext}",mime,data)
             source_path=Path(payload["source_path"]) if payload.get("source_path") else None
             if source_path and source_path.is_file():
