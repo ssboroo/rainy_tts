@@ -8,6 +8,7 @@ import hashlib
 import logging
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import smtplib
@@ -26,7 +27,34 @@ def ensure_schema():
         CREATE TABLE IF NOT EXISTS account_reset_tokens(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires REAL NOT NULL,created REAL NOT NULL);
         CREATE INDEX IF NOT EXISTS account_reset_user ON account_reset_tokens(user_id);
         CREATE TABLE IF NOT EXISTS account_provider_cleanup(voice_id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),status TEXT NOT NULL DEFAULT 'pending',created REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS admin_bootstrap_applied(email TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,applied REAL NOT NULL);
         ''')
+
+def bootstrap_admin():
+    """Apply an operator-supplied hash once; never override later password changes."""
+    email=os.getenv('ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
+    password_hash=os.getenv('ADMIN_BOOTSTRAP_PASSWORD_HASH','')
+    if not email or not _admin(email) or not re.fullmatch(r'[0-9a-f]{32}:[0-9a-f]{128}',password_hash):
+        return
+    fingerprint=hashlib.sha256(password_hash.encode()).hexdigest()
+    with core.db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        applied=c.execute('SELECT fingerprint FROM admin_bootstrap_applied WHERE email=?',(email,)).fetchone()
+        if applied and applied['fingerprint']==fingerprint:
+            return
+        row=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+        if row:
+            uid=row['id']
+            c.execute('UPDATE users SET password=? WHERE id=?',(password_hash,uid))
+            c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM account_reset_tokens WHERE user_id=?',(uid,))
+        else:
+            c.execute('INSERT INTO users VALUES(?,?,?,?)',(core.uid(),email,password_hash,time.time()))
+        c.execute('INSERT OR REPLACE INTO admin_bootstrap_applied VALUES(?,?,?)',(email,fingerprint,time.time()))
+
+def startup_accounts():
+    ensure_schema()
+    bootstrap_admin()
 
 def email_configured():
     return bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM'))
@@ -79,7 +107,7 @@ def _safe_unlink(path):
         candidate.unlink(missing_ok=True)
 
 def register_routes(app,session,mutation_guard,throttle):
-    app.router.add_event_handler('startup',ensure_schema)
+    app.router.add_event_handler('startup',startup_accounts)
     @app.get('/api/account')
     def account(request:Request):
         sess=session(request)
@@ -99,6 +127,8 @@ def register_routes(app,session,mutation_guard,throttle):
     async def reset_request(request:Request,background_tasks:BackgroundTasks):
         mutation_guard(request);throttle('reset:'+request.client.host,5,900)
         data=await _body(request);email=str(data.get('email','')).strip().lower()[:320]
+        if not email_configured():
+            raise HTTPException(503,'Нууц үг сэргээх имэйл илгээх үйлчилгээ одоогоор бэлэн биш байна. Тусламж авахын тулд админд хандана уу.')
         if email_configured():
             token=secrets.token_urlsafe(32);now=time.time()
             with core.db() as c:
