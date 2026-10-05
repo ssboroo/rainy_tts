@@ -136,22 +136,22 @@ class ElevenLabsEngine:
         if selected_model not in {'eleven_v4','eleven_v4_turbo'}:
             raise ValueError('Монгол TTS-д Eleven v4 эсвэл v4 Turbo сонгоно уу.')
         try:
-            raw = self.client.text_to_speech.with_raw_response.convert(
+            with self.client.text_to_speech.with_raw_response.convert(
                 text=text,
                 voice_id=resolved_voice,
                 model_id=selected_model,
                 output_format='pcm_24000',
                 language_code=self.language_code,
-            )
-            audio=getattr(raw,'data',raw)
-            pcm = self._audio_bytes(audio)
-            headers=getattr(raw,'headers',{}) or {}
-            meta={
-                'model_id':selected_model,
-                'character_cost':headers.get('character-cost'),
-                'request_id':headers.get('request-id'),
-                'trace_id':headers.get('x-trace-id'),
-            }
+            ) as raw:
+                audio=raw.data
+                pcm = self._audio_bytes(audio)
+                headers=getattr(raw,'headers',{}) or {}
+                meta={
+                    'model_id':selected_model,
+                    'character_cost':headers.get('character-cost'),
+                    'request_id':headers.get('request-id'),
+                    'trace_id':headers.get('x-trace-id'),
+                }
         except Exception as exc:
             raise RuntimeError(friendly_elevenlabs_error(exc)) from exc
 
