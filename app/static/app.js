@@ -80,11 +80,13 @@ function page(name){
   if(name==='billing') loadBilling();
   if(name==='analytics') loadAnalytics();
   if(name==='history') loadHistory();
+  if(toolGuides[name])loadToolResults(name);
   window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
 }
 document.querySelectorAll('.nav').forEach(button=>button.onclick=()=>page(button.dataset.page));
 
 function renderAccount(){
+  if(!state.user)document.querySelectorAll('.tool-output-items').forEach(el=>el.replaceChildren());
   if(!state.user?.admin){
     $('admin-content').replaceChildren();
     $('provider-plan').textContent='';$('provider-status-text').textContent='';$('studio-readiness').textContent='';
@@ -492,8 +494,8 @@ async function pollDubbing(jobId){
       $('dubbing-status').hidden=false;
       const langs=data.result?.languages||[];
       $('dubbing-status').textContent='Төлөв: '+statusLabel(data.status)+(langs.length?' · '+langs.map(x=>x.target_language+': '+x.status).join(' · '):'');
-      if(data.status==='done'){notice('Видео орчуулга бэлэн. Бүтээлийн түүхээс татаж авна уу.');loadHistory();return;}
-      if(data.status==='failed'){notice('Видео орчуулга амжилтгүй боллоо.');return;}
+      if(data.status==='done'){notice('Видео орчуулга бэлэн. Доорх үр дүнгээс татаж авна уу.');loadToolResults('dubbing');return;}
+      if(data.status==='failed'){notice('Видео орчуулга амжилтгүй боллоо.');loadToolResults('dubbing');return;}
     }catch(e){notice(customerMessage(e.message));return;}
     setTimeout(tick,5000);
   };
@@ -807,7 +809,7 @@ function renderHistoryItem(item){
   }
   if(!['queued','running'].includes(item.status)){
     const remove=document.createElement('button');remove.type='button';remove.className='danger-link';remove.textContent='Бүтээл устгах';
-    remove.onclick=async()=>{if(!confirm('Энэ бүтээл болон файлуудыг устгах уу?'))return;remove.disabled=true;try{await api((item.source==='tts'?'/jobs/':'/tool-jobs/')+encodeURIComponent(item.id),{method:'DELETE',body:{}});await loadHistory();}catch(e){notice(customerMessage(e.message));remove.disabled=false;}};card.append(remove);
+    remove.onclick=async()=>{if(!confirm('Энэ бүтээл болон файлуудыг устгах уу?'))return;remove.disabled=true;try{await api((item.source==='tts'?'/jobs/':'/tool-jobs/')+encodeURIComponent(item.id),{method:'DELETE',body:{}});await loadHistory();await loadToolResults(state.page);}catch(e){notice(customerMessage(e.message));remove.disabled=false;}};card.append(remove);
   }else{const info=document.createElement('p');info.className='field-help';info.textContent='Ажил үргэлжилж байна. Төлөвийг харахын тулд “Шинэчлэх” товч дарна уу.';card.append(info);}
   return card;
 }
@@ -857,8 +859,14 @@ async function api(path,options={}){
   try{
     const data=await rawApi(path,options);
     if(state.user?.admin_test&&Object.hasOwn(data,'credits_used'))data.credits_used=0;
-    if(queuedTools.has(path)&&data.job_id&&['queued','running'].includes(data.status))return await waitToolJob(data.job_id);
-    return data;
+    let result=data;
+    if(queuedTools.has(path)&&data.job_id&&['queued','running'].includes(data.status))result=await waitToolJob(data.job_id);
+    const resultPage=toolResultRoutes[path];
+    if(mutation&&resultPage){
+      await loadToolResults(resultPage);
+      if(path==='/jobs'&&data.id)watchTtsResult(data.id);
+    }
+    return result;
   }finally{if(mutation)pendingActions.delete(path);}
 }
 async function waitToolJob(id){
@@ -995,6 +1003,72 @@ function updateEstimate(){
 for(const id of ['text','srt-text','tts-model','voice'])$(id).addEventListener('input',updateEstimate);
 $('music-duration').addEventListener('input',()=>{$('music-duration-label').textContent=$('music-duration').value+' секунд · ойролцоогоор '+Math.ceil(Number($('music-duration').value)/60*150)+' кредит';});
 $('admin').append($('studio-readiness'),document.querySelector('.provider-status-card'));
-init().then(()=>{updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
-function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
+const toolResultRoutes={'/jobs':'tts','/tools/dialogue':'dialogue','/tools/music':'music','/tools/sound-effects':'sfx','/tools/stt':'stt','/tools/realtime-save':'realtime','/tools/voice-isolator':'isolator','/tools/voice-changer':'changer','/tools/dubbing':'dubbing','/tools/voice-design':'voice-design','/tools/voice-remix':'voice-remix','/tools/alignment':'alignment'};
+const toolGuides={
+ tts:['Бичвэр эсвэл SRT хадмалаа оруулна.','Хоолой, унших хурдыг сонгоод “Дуу үүсгэх” дарна.','Бэлэн дуугаа сонсож, MP3 эсвэл WAV файлаар татна.'],
+ clone:['Өөрийн эсвэл зөвшөөрөлтэй хүний цэвэр ярианы дээж оруулна.','Хоолойн нэр өгч, зөвшөөрлийг баталгаажуулна.','Үүссэн хоолойг хоолойн сангаас сонгон ашиглана.'],
+ pvc:['Өөрийн хоолойн чанартай дээжийг байршуулна.','Зааврын дагуу хоолойн эзэмшигчийг баталгаажуулна.','Сургалт дууссаны дараа хоолойн сангаас ашиглана.'],
+ dialogue:['Яригч бүрийн бичвэрийг тусдаа оруулна.','Яригч бүрд тохирох хоолой сонгоно.','Подкастаа үүсгээд сонсож, татаж авна.'],
+ music:['Хүссэн хөгжмийн хэв маяг, уур амьсгалыг тайлбарлана.','Үргэлжлэх хугацаа болон хоолойтой эсэхийг сонгоно.','Үүссэн хөгжмөө сонсож, файлаар татна.'],
+ sfx:['Хүссэн дуугаа тодорхой тайлбарлана.','Хугацаа болон давталтыг тохируулна.','Эффектээ үүсгээд сонсож, татаж авна.'],
+ stt:['Яриатай аудио эсвэл видео файл оруулна.','Яригч ялгах болон бичвэр засах тохиргоог сонгоно.','Бэлэн бичвэр, хадмалыг үр дүнгээс татна.'],
+ realtime:['Микрофон ашиглах зөвшөөрөл олгоно.','Бичвэр эхлүүлэх товчийг дараад ярьж эхэлнэ.','Дуусгах товчийг дарж бичвэрээ хадгална.'],
+ isolator:['Шуугиантай аудио файлаа оруулна.','Яриа цэвэрлэх товчийг дарна.','Цэвэрлэсэн аудиогоо сонсож, татаж авна.'],
+ changer:['Өөрийн ярианы аудио файлыг оруулна.','Солих хоолойг сонгон үүсгэнэ.','Шинэ хоолойтой аудиогоо сонсож, татна.'],
+ dubbing:['Видео файл эсвэл дэмжигдсэн холбоос оруулна.','Эх хэл болон орчуулах хэлийг сонгоно.','Орчуулга дуусмагц MP3 аудио, бэлэн бол видеогоо татна.'],
+ 'voice-design':['Хоолойн өнгө, нас, хэмнэлийг тайлбарлана.','Сонсох жишээ бичвэрээ оруулж дээж үүсгэнэ.','Дээжүүдийг сонсоод хүссэн хоолойгоо нэрлэж хадгална.'],
+ 'voice-remix':['Өөрийн хадгалсан хоолойг сонгоно.','Яаж өөрчлөхөө тайлбарлаж дээж үүсгэнэ.','Таалагдсан хувилбарыг шинэ нэрээр хадгална.'],
+ alignment:['Аудио болон түүнд уншсан бичвэрийг оруулна.','Хугацаа тааруулах товчийг дарна.','Бэлэн хадмалыг SRT эсвэл VTT файлаар татна.']
+};
+const toolKinds={tts:'tts',dialogue:'dialogue',music:'music',sfx:'sound_effects',stt:'speech_to_text',realtime:'realtime_stt',isolator:'voice_isolator',changer:'voice_changer',dubbing:'dubbing','voice-design':'voice_design','voice-remix':'voice_remix',alignment:['alignment','forced_alignment']};
+const toolResultRequests=new Map();
+function buildToolWorkspaces(){
+ Object.entries(toolGuides).forEach(([name,steps])=>{
+  const section=$(name);if(!section)return;
+  const workspace=document.createElement('div');workspace.className='tool-workspace';
+  const inputs=document.createElement('div');inputs.className='tool-workspace-inputs';
+  [...section.children].filter(el=>!el.classList.contains('tool-hero')).forEach(el=>inputs.append(el));
+  const side=document.createElement('aside');side.className='tool-workspace-side';side.setAttribute('aria-label','Заавар ба үр дүн');
+  const guide=document.createElement('section');guide.className='tool-guide';
+  const title=document.createElement('h2');title.textContent='Хэрхэн ашиглах вэ?';guide.append(title);
+  const list=document.createElement('ol');steps.forEach(step=>{const li=document.createElement('li');li.textContent=step;list.append(li);});guide.append(list);side.append(guide);
+  if(toolKinds[name]){
+   const output=document.createElement('section');output.className='tool-output';
+   const header=document.createElement('div');header.className='tool-output-head';
+   const h=document.createElement('h2');h.textContent='Сүүлийн үр дүн';
+   const refresh=document.createElement('button');refresh.type='button';refresh.className='secondary';refresh.textContent='Шинэчлэх';refresh.onclick=()=>loadToolResults(name);header.append(h,refresh);
+   const items=document.createElement('div');items.id=name+'-output-items';items.className='tool-output-items';items.setAttribute('aria-live','polite');
+   const empty=document.createElement('p');empty.className='field-help';empty.textContent='Таны бүтээл бэлэн болмогц энд харагдана. Бүх бүтээлээ “Бүтээлийн түүх” хэсгээс үзнэ.';items.append(empty);
+   output.append(header,items);side.append(output);
+  }
+  workspace.append(inputs,side);section.append(workspace);
+ });
+}
+async function loadToolResults(name){
+ const root=$(name+'-output-items');if(!root)return;
+ if(!state.user){root.replaceChildren();const p=document.createElement('p');p.className='field-help';p.textContent='Нэвтэрсний дараа таны үр дүн энд харагдана.';root.append(p);return;}
+ const owner=state.user.email,version=(toolResultRequests.get(name)||0)+1;toolResultRequests.set(name,version);
+ try{
+  const data=await rawApi('/history');
+  if(state.user?.email!==owner||toolResultRequests.get(name)!==version)return;
+  const items=data.items.filter(item=>[].concat(toolKinds[name]).includes(item.tool_type)).slice(0,3);
+  root.replaceChildren();
+  if(!items.length){const p=document.createElement('p');p.className='field-help';p.textContent='Энэ хэрэгслээр бүтээл үүсгэвэл үр дүн нь энд харагдана.';root.append(p);}
+  items.forEach(item=>root.append(renderHistoryItem(item)));
+ }catch(e){if(state.user?.email!==owner||toolResultRequests.get(name)!==version)return;const p=document.createElement('p');p.className='field-help';p.textContent=customerMessage(e.message);root.replaceChildren(p);}
+}
+async function watchTtsResult(id){
+ const owner=state.user?.email;
+ for(let tries=0;tries<180&&state.user?.email===owner;tries++){
+  await new Promise(resolve=>setTimeout(resolve,5000));
+  if(state.user?.email!==owner)return;
+  try{const job=await rawApi('/jobs/'+encodeURIComponent(id));if(['done','failed','cancelled'].includes(job.status)){await loadToolResults('tts');return;}}
+  catch(e){return;}
+ }
+}
+buildToolWorkspaces();
+
+init().then(()=>{if(state.user)loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
+
+function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
