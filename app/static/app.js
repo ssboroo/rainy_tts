@@ -3,9 +3,13 @@
 const $=id=>document.getElementById(id);
 const state={user:null,health:null,voices:[],page:'tts',mode:'text',register:false,rt:null,realtimeText:'',billing:null};
 let noticeTimer;
+function customerMessage(message){
+  const text=String(message||'Үйлдэл амжилтгүй боллоо.');
+  return !state.user?.admin&&/ElevenLabs|API|webhook|FFmpeg|provider|api_key|quota|Wire\.mn/i.test(text)?'Үйлчилгээ түр боломжгүй байна. Дараа дахин оролдох эсвэл тусламж авна уу.':text;
+}
 
 function notice(message){
-  $('notice').textContent=message;
+  $('notice').textContent=customerMessage(message);
   $('notice').hidden=false;
   clearTimeout(noticeTimer);
   noticeTimer=setTimeout(()=>$('notice').hidden=true,6500);
@@ -134,7 +138,7 @@ $('auth-form').onsubmit=async event=>{
     await loadBilling(true);
     if(state.page==='voices')await loadProviderStatus();
     notice('RAINY Studio бэлэн.');
-  }catch(e){$('auth-error').textContent=e.message;}
+  }catch(e){$('auth-error').textContent=customerMessage(e.message);}
   finally{setBusy(button,false);}
 };
 
@@ -142,7 +146,7 @@ $('logout').onclick=async()=>{
   try{
     await api('/logout',{method:'POST',body:{}});
     state.user=null;state.billing=null;renderAccount();$('credit-chip').hidden=true;await refreshVoices();notice('Системээс гарлаа.');
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 };
 $('credit-chip').onclick=()=>page('billing');
 
@@ -188,7 +192,7 @@ async function refreshVoices(renderLibrary=false){
     state.voices=data.voices||[];
     renderVoiceSelectors();
     if(renderLibrary||state.page==='voices') renderVoiceLibrary();
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 }
 
 function renderVoiceLibrary(){
@@ -211,7 +215,7 @@ function renderVoiceLibrary(){
     const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/voices/'+encodeURIComponent(voice.id)+'/preview';card.append(audio);
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Хоолой устгах';
-      remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(e.message);}};
+      remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(customerMessage(e.message));}};
       card.append(remove);
     }
     root.append(card);
@@ -250,7 +254,7 @@ $('generate').onclick=async()=>{
     body[state.mode==='srt'?'srt':'text']=$(state.mode==='srt'?'srt-text':'text').value;
     await api('/jobs',{method:'POST',body});
     notice('TTS дараалалд орлоо. Бүтээлийн түүх хэсгээс явцыг харна уу.');
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('clone-form').onsubmit=async event=>{
@@ -263,7 +267,7 @@ $('clone-form').onsubmit=async event=>{
     form.set('remove_background_noise',event.currentTarget.querySelector('[name=remove_background_noise]').checked?'true':'false');
     const result=await api('/voices/clone',{method:'POST',body:form,form:true});
     notice('Хоолойн хувилбар бэлэн: '+result.voice_id);formEl.reset();await refreshVoices();
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('pvc-form').onsubmit=async event=>{
@@ -282,7 +286,7 @@ $('pvc-form').onsubmit=async event=>{
     $('pvc-result').textContent='PVC ноорог үүслээ · '+result.voice_id+' · эзэмшигчийг баталгаажуулах шаардлагатай.';
     $('pvc-verify-form').hidden=false;
     notice('Professional Хоолой Хувилбар ноорог үүслээ. Баталгаажуулалт хийнэ үү.');
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('pvc-captcha-get').onclick=async()=>{
@@ -301,7 +305,7 @@ $('pvc-captcha-get').onclick=async()=>{
       box.textContent=typeof raw==='string'&&raw?raw:state.user?.admin?JSON.stringify(data,null,2):'Баталгаажуулах мэдээлэл ирсэнгүй. Дахин оролдоно уу.';
     }
     notice('Баталгаажуулах өгүүлбэрийг өөрийн хоолойгоор уншиж, бичлэгээ оруулна уу.');
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 };
 
 $('pvc-verify').onclick=async()=>{
@@ -312,7 +316,7 @@ $('pvc-verify').onclick=async()=>{
   try{
     await api('/voices/pvc/'+encodeURIComponent(id)+'/captcha',{method:'POST',body:form,form:true});
     notice('Ownership баталгаажуулалт амжилттай. Сургалт эхлүүлж болно.');
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 };
 
 $('pvc-train').onclick=async()=>{
@@ -323,7 +327,7 @@ $('pvc-train').onclick=async()=>{
     const result=await api('/voices/pvc/'+encodeURIComponent(id)+'/train',{method:'POST',body:{}});
     $('pvc-result').hidden=false;$('pvc-result').textContent='Төлөв: '+statusLabel(result.status||'training');
     notice('PVC сургалт эхэллээ. Дараа нь Төлөв шалгана уу.');
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('pvc-status').onclick=async()=>{
@@ -333,7 +337,7 @@ $('pvc-status').onclick=async()=>{
     const result=await api('/voices/pvc/'+encodeURIComponent(id));
     $('pvc-result').hidden=false;$('pvc-result').textContent='Төлөв: '+statusLabel(result.status);
     if(result.status==='ready'){notice('PVC бэлэн. Хоолойн санд нэмэгдлээ.');await refreshVoices();}
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 };
 
 function addSpeakerRow(text=''){
@@ -352,7 +356,7 @@ $('dialogue-generate').onclick=async()=>{
   try{
     await api('/tools/dialogue',{method:'POST',body:{title:$('dialogue-title').value,language_code:'mn',inputs}});
     notice('Подкаст / Харилцан яриа бэлэн. Бүтээлийн түүхэд хадгалагдлаа.');loadHistory();
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('music-duration').oninput=()=>$('music-duration-label').textContent=$('music-duration').value+' секунд';
@@ -364,7 +368,7 @@ $('music-generate').onclick=async()=>{
   try{
     await api('/tools/music',{method:'POST',body:{title:'RAINY Хөгжим',prompt:$('music-prompt').value,music_length_ms:Number($('music-duration').value)*1000,model_id:$('music-model').value,force_instrumental:$('music-instrumental').checked}});
     notice('Хөгжим бэлэн. Бүтээлийн түүх хэсэгт орлоо.');loadHistory();
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('sfx-generate').onclick=async()=>{
@@ -374,7 +378,7 @@ $('sfx-generate').onclick=async()=>{
     const duration=Number($('sfx-duration').value);
     await api('/tools/sound-effects',{method:'POST',body:{title:'Дууны эффект',text:$('sfx-prompt').value,duration_seconds:duration||null,loop:$('sfx-loop').checked,prompt_influence:Number($('sfx-influence').value)}});
     notice('Дууны эффект бэлэн.');loadHistory();
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('stt-diarize').onchange=()=>{
@@ -406,7 +410,7 @@ $('stt-form').onsubmit=async event=>{
       (result.edit_error?'\n\nЗөв бичгийн засварын анхааруулга: '+result.edit_error:'');
     notice(result.polished?'Монгол бичвэр засвартайгаар бэлэн боллоо.':'Бичвэр бэлэн боллоо.');
     loadHistory();loadBilling(true);
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('isolator-form').onsubmit=async event=>{
@@ -417,7 +421,7 @@ $('isolator-form').onsubmit=async event=>{
     $('isolator-result').hidden=false;
     $('isolator-result').textContent='Яриа цэвэрлэх бэлэн · '+result.credits_used+' кредит · Бүтээлийн түүхээс татаж авна уу.';
     notice('Шуугиан цэвэрлэсэн хоолой бэлэн.');loadHistory();loadBilling(true);
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('changer-form').onsubmit=async event=>{
@@ -428,7 +432,7 @@ $('changer-form').onsubmit=async event=>{
     form.set('remove_background_noise',event.currentTarget.querySelector('[name=remove_background_noise]').checked?'true':'false');
     await api('/tools/voice-changer',{method:'POST',body:form,form:true});
     notice('Хоолой Changer гаралт бэлэн.');loadHistory();
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 $('dubbing-form').onsubmit=async event=>{
@@ -439,7 +443,7 @@ $('dubbing-form').onsubmit=async event=>{
     $('dubbing-status').hidden=false;$('dubbing-status').textContent='Төсөл: '+result.project_id+' · '+(result.status||'queued');
     notice('Dubbing эхэллээ. Энэ процесс хэдэн минут үргэлжилж болно.');
     pollDubbing(result.job_id);
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
 async function pollDubbing(jobId){
@@ -453,7 +457,7 @@ async function pollDubbing(jobId){
       $('dubbing-status').textContent='Төлөв: '+statusLabel(data.status)+(langs.length?' · '+langs.map(x=>x.target_language+': '+x.status).join(' · '):'');
       if(data.status==='done'){notice('Видео орчуулга бэлэн. Бүтээлийн түүхээс татаж авна уу.');loadHistory();return;}
       if(data.status==='failed'){notice('Видео орчуулга амжилтгүй боллоо.');return;}
-    }catch(e){notice(e.message);return;}
+    }catch(e){notice(customerMessage(e.message));return;}
     setTimeout(tick,5000);
   };
   tick();
@@ -515,7 +519,7 @@ async function startRealtime(){
     };
     ws.onerror=()=>notice('Шууд бичвэр холболтын алдаа.');
     ws.onclose=()=>{if(state.rt===rt)stopRealtime(false);};
-  }catch(e){stream?.getTracks().forEach(track=>track.stop());notice(e.name==='NotAllowedError'?'Микрофон ашиглах зөвшөөрөл олгоно уу.':e.message);stopRealtime(true);$('realtime-start').disabled=false;}
+  }catch(e){stream?.getTracks().forEach(track=>track.stop());notice(e.name==='NotAllowedError'?'Микрофон ашиглах зөвшөөрөл олгоно уу.':customerMessage(e.message));stopRealtime(true);$('realtime-start').disabled=false;}
 }
 function stopRealtime(closeSocket=true){
   const rt=state.rt;if(!rt)return;
@@ -535,7 +539,7 @@ $('realtime-save').onclick=async()=>{
     await api('/tools/realtime-save',{method:'POST',body:{title:'Шууд Бичвэр',text:state.realtimeText}});
     notice('Шууд бичвэр Бүтээлийн түүхэд TXT файлаар хадгалагдлаа.');
     loadHistory();
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
   finally{button.disabled=!state.realtimeText;}
 };
 
@@ -560,9 +564,9 @@ async function loadProviderStatus(){
       $('provider-status-text').textContent=(data.synced_voice_count||0)+' / '+(data.total_voice_count||12)+' Монгол хоолой санд хадгалагдсан · Шууд ашиглах боломжтой.';
     }
   }catch(e){
-    $('studio-readiness').textContent='Үйлчилгээний эрхийг шалгаж чадсангүй · '+e.message;
+    $('studio-readiness').textContent='Үйлчилгээний эрхийг шалгаж чадсангүй · '+customerMessage(e.message);
     $('provider-plan').textContent='Үйлчилгээний алдаа';
-    $('provider-status-text').textContent=e.message;
+    $('provider-status-text').textContent=customerMessage(e.message);
   }
 }
 $('sync-voices').onclick=async()=>{
@@ -575,7 +579,7 @@ $('sync-voices').onclick=async()=>{
     notice(failed?(ready+' хоолой бэлэн. '+failed.error):(ready+' хоолой шинэчлэгдлээ.'));
     await refreshVoices(true);
     await loadProviderStatus();
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
   finally{button.disabled=false;button.textContent='Хоолой шинэчлэх ↻';}
 };
 
@@ -642,7 +646,7 @@ async function loadBilling(silent=false){
     renderPlans(catalog.plans,catalog.wire_configured);
     renderLedger(account.ledger||[]);
     if(!catalog.wire_configured&&!silent)notice('Төлбөр авах боломж түр хаалттай байна. Дараа дахин оролдоно уу.');
-  }catch(e){if(!silent)notice(e.message);}
+  }catch(e){if(!silent)notice(customerMessage(e.message));}
 }
 
 async function buyPlan(planId,button){
@@ -655,7 +659,7 @@ async function buyPlan(planId,button){
     const popup=window.open(data.pay_url,'_blank','noopener,noreferrer');
     if(!popup)window.location.href=data.pay_url;
     pollWirePayment(data.order_id);
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 }
 
 async function pollWirePayment(orderId){
@@ -676,7 +680,7 @@ async function pollWirePayment(orderId){
         return;
       }
       $('payment-status').textContent='QPay төлбөр хүлээгдэж байна…';
-    }catch(e){$('payment-status').textContent=e.message;return;}
+    }catch(e){$('payment-status').textContent=customerMessage(e.message);return;}
     setTimeout(tick,3000);
   };
   tick();
@@ -699,7 +703,7 @@ async function loadReception(){
       copy.onclick=async()=>{await navigator.clipboard.writeText(tool.url);notice(tool.name+' Хаяг хуулах хийлээ.');};
       card.append(name,desc,params,url,copy);root.append(card);
     });
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 }
 async function loadReceptionEvents(){
   if(!state.user)return;
@@ -713,7 +717,7 @@ async function loadReceptionEvents(){
       const payload=document.createElement('span');payload.textContent=JSON.stringify(item.payload);payload.className='reception-payload';
       left.append(title,meta,payload);row.append(left);root.append(row);
     });
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
 }
 $('reception-load').onclick=loadReception;
 $('reception-refresh').onclick=loadReceptionEvents;
@@ -721,11 +725,11 @@ $('reception-rotate').onclick=async()=>{
   if(!ensureUser())return;
   if(!confirm('Reception.ai webhook token солих уу? Хуучин URL-ууд шууд хүчингүй болно.'))return;
   try{await api('/reception/rotate-token',{method:'POST',body:{}});await loadReception();notice('Reception.ai холболтын эрх шинэчлэгдлээ.');}
-  catch(e){notice(e.message);}
+  catch(e){notice(customerMessage(e.message));}
 };
 
 async function loadAnalytics(){
-  if(!state.user){$('analytics-content').innerHTML='<div class="empty">Analytics харахын тулд нэвтэрнэ үү.</div>';return;}
+  if(!state.user){$('analytics-content').innerHTML='<div class="empty">Хэрэглээний тайлан харахын тулд нэвтэрнэ үү.</div>';return;}
   $('analytics-content').innerHTML='<div class="empty">Уншиж байна…</div>';
   try{
     const data=await api('/analytics');
@@ -734,11 +738,11 @@ async function loadAnalytics(){
       ['Багц',(sub.plan_id||'trial').toUpperCase()],
       ['Кредитийн үлдэгдэл',Number(wallet.balance||0).toLocaleString('en-US')],
       ['30 хоногт ашигласан',Number(data.credits_spent_30d||0).toLocaleString('en-US')],
-      ['Cycle дуусах',sub.cycle_end?new Date(sub.cycle_end*1000).toLocaleDateString('mn-MN'):'—']
+      ['Багц дуусах',sub.cycle_end?new Date(sub.cycle_end*1000).toLocaleDateString('mn-MN'):'—']
     ];
     $('analytics-content').innerHTML='<div class="metric-grid">'+cards.map(x=>'<article><small>'+escapeHtml(x[0])+'</small><strong>'+escapeHtml(x[1])+'</strong></article>').join('')+'</div>'+
       '<div class="usage-local"><h3>RAINY · Сүүлийн 30 хоног</h3>'+Object.entries(local).map(([k,v])=>'<span><b>'+escapeHtml(toolLabel(k))+'</b>'+v+'</span>').join('')+'</div>';
-  }catch(e){$('analytics-content').innerHTML='<div class="empty">'+escapeHtml(e.message)+'</div>';}
+  }catch(e){$('analytics-content').innerHTML='<div class="empty">'+escapeHtml(customerMessage(e.message))+'</div>';}
 }
 $('analytics-refresh').onclick=loadAnalytics;
 
@@ -749,7 +753,7 @@ function renderHistoryItem(item){
   const meta=document.createElement('p');meta.textContent=toolLabel(item.tool_type||'tool')+' · '+new Date(item.created*1000).toLocaleString('mn-MN');
   left.append(title,meta);const badge=document.createElement('span');badge.className='badge';badge.textContent=statusLabel(item.status);head.append(left,badge);card.append(head);
   if(item.result?.text){const p=document.createElement('p');p.className='result-preview';p.textContent=item.result.text.slice(0,400);card.append(p);}
-  if(item.status==='failed'&&item.error){const p=document.createElement('p');p.className='danger-text';p.textContent='Алдаа: '+item.error;card.append(p);}
+  if(item.status==='failed'&&item.error){const p=document.createElement('p');p.className='danger-text';p.textContent='Алдаа: '+customerMessage(item.error);card.append(p);}
   const artifacts=item.artifacts||[];
   if(artifacts.length){
     const actions=document.createElement('div');actions.className='artifact-actions';
@@ -766,7 +770,7 @@ function renderHistoryItem(item){
   }
   if(!['queued','running'].includes(item.status)){
     const remove=document.createElement('button');remove.type='button';remove.className='danger-link';remove.textContent='Бүтээл устгах';
-    remove.onclick=async()=>{if(!confirm('Энэ бүтээл болон файлуудыг устгах уу?'))return;remove.disabled=true;try{await api((item.source==='tts'?'/jobs/':'/tool-jobs/')+encodeURIComponent(item.id),{method:'DELETE',body:{}});await loadHistory();}catch(e){notice(e.message);remove.disabled=false;}};card.append(remove);
+    remove.onclick=async()=>{if(!confirm('Энэ бүтээл болон файлуудыг устгах уу?'))return;remove.disabled=true;try{await api((item.source==='tts'?'/jobs/':'/tool-jobs/')+encodeURIComponent(item.id),{method:'DELETE',body:{}});await loadHistory();}catch(e){notice(customerMessage(e.message));remove.disabled=false;}};card.append(remove);
   }else{const info=document.createElement('p');info.className='field-help';info.textContent='Ажил үргэлжилж байна. Энэ жагсаалт автоматаар шинэчлэгдэнэ.';card.append(info);}
   return card;
 }
@@ -778,7 +782,7 @@ async function loadHistory(){
     const data=await api('/history');root.replaceChildren();
     if(!data.items.length)root.innerHTML='<div class="empty">Бүтээл хараахан алга.</div>';
     data.items.forEach(item=>root.append(renderHistoryItem(item)));
-  }catch(e){root.innerHTML='<div class="empty">'+escapeHtml(e.message)+'</div>';}
+  }catch(e){root.innerHTML='<div class="empty">'+escapeHtml(customerMessage(e.message))+'</div>';}
 }
 $('history-refresh').onclick=loadHistory;
 
@@ -790,7 +794,7 @@ async function init(){
     state.health=health;state.user=meData.user;renderAccount();
     $('studio-readiness').textContent=health.engine_ready?'Үйлчилгээний холболт тохируулсан · Төлбөртэй багцын эрхийг нэвтэрсний дараа шалгана.':'Үйлчилгээний холболт хараахан бэлэн биш · '+(health.engine_message||'Админд хандана уу.');
     if(state.user)await loadProviderStatus();
-  }catch(e){notice(e.message);}
+  }catch(e){notice(customerMessage(e.message));}
   await refreshVoices();
   await loadBilling(true);
   if(!$('dialogue-rows').children.length){addSpeakerRow('Сайн байна уу. Өнөөдрийн RAINY podcast эхэлж байна.');addSpeakerRow('Сайн байна уу. Ярилцлагад оролцож байгаадаа баяртай байна.');}
@@ -830,13 +834,13 @@ async function waitToolJob(id){
     let data;
     try{data=await rawApi('/tool-jobs/'+encodeURIComponent(id));errors=0;}
     catch(e){
-      if(!state.user||++errors>5)throw new Error(e.message+' Ажлын явцыг бүтээлийн түүхээс шалгана уу. Дахин үүсгэх нь шинэ төлбөртэй үйлдэл болно.');
+      if(!state.user||++errors>5)throw new Error(customerMessage(e.message)+' Ажлын явцыг бүтээлийн түүхээс шалгана уу. Дахин үүсгэх нь шинэ төлбөртэй үйлдэл болно.');
       notice('Холболт түр тасарлаа. Ажлын төлөвийг дахин шалгаж байна…');
       await new Promise(resolve=>setTimeout(resolve,5000));continue;
     }
     notice(statusLabel(data.status)+' · Ажлаа хаасан ч бүтээлийн түүхээс үргэлжлүүлэн шалгаж болно.');
     if(['done','completed'].includes(data.status))return {...(data.result||{}),job_id:id,artifacts:data.result?.artifacts||data.artifacts};
-    if(['failed','cancelled'].includes(data.status))throw new Error(data.error||'Ажил амжилтгүй боллоо. Бүтээлийн түүхээс дэлгэрэнгүйг шалгана уу.');
+    if(['failed','cancelled'].includes(data.status))throw new Error(customerMessage(data.error||'Ажил амжилтгүй боллоо. Бүтээлийн түүхээс дэлгэрэнгүйг шалгана уу.'));
     await new Promise(resolve=>setTimeout(resolve,2500));
   }
   throw new Error('Хүлээлгийн хугацаа дууслаа. Ажил үргэлжилж байж болно. Бүтээлийн түүхээс төлөвийг шалгана уу; дахин илгээх шаардлагагүй.');
@@ -865,11 +869,11 @@ for(const mode of ['voice-design','voice-remix']){
      if(!name.value.trim())return notice('Хоолойн нэр оруулна уу.');
      if(save.disabled)return;save.disabled=true;
      try{await api('/tools/'+mode+'/save',{method:'POST',body:{job_id:data.job_id,generated_voice_id:preview.generated_voice_id,name:name.value.trim()}});save.textContent='Санд хадгаллаа';await refreshVoices();notice('Шинэ хоолой таны санд нэмэгдлээ.');}
-     catch(e){notice(e.message);save.disabled=false;}
+     catch(e){notice(customerMessage(e.message));save.disabled=false;}
     };
     card.append(title,audio,name,save);root.append(card);
    });loadBilling(true);
-  }catch(e){notice(e.message);}finally{setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
  };
 }
 $('alignment-form').onsubmit=async event=>{
@@ -882,17 +886,17 @@ $('alignment-form').onsubmit=async event=>{
   const entries=Array.isArray(data.artifacts)?data.artifacts.map(x=>[x.filename||x.kind,x]):Object.entries(data.artifacts||{});
   entries.forEach(([format,artifact])=>{const link=document.createElement('a');link.href=artifactUrl(artifact);link.textContent=format.toUpperCase()+' ↓';link.className='secondary';link.download='';root.append(link);});
   loadHistory();loadBilling(true);
- }catch(e){notice(e.message);}finally{setBusy(button,false);}
+ }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 async function loadSettings(){
  if(!ensureUser())return;
  try{const data=await api('/account');state.user={...state.user,admin:data.admin};renderAccount();$('settings-info').textContent=data.email;}
- catch(e){$('settings-info').textContent=e.message;}
+ catch(e){$('settings-info').textContent=customerMessage(e.message);}
 }
 async function accountMutation(formId,path,body,success){
  const button=$(formId).querySelector('[type=submit]');if(button.disabled)return;setBusy(button,true);
  try{await api(path,{method:'POST',body});$(formId).reset();state.user=null;renderAccount();notice(success);page('tts');openAuth(false);}
- catch(e){notice(e.message);}finally{setBusy(button,false);}
+ catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 }
 $('password-form').onsubmit=e=>{e.preventDefault();if(ensureUser())accountMutation('password-form','/account/password',{current_password:$('current-password').value,new_password:$('new-password').value},'Нууц үг шинэчлэгдлээ. Шинэ нууц үгээрээ нэвтэрнэ үү.');};
 $('delete-form').onsubmit=e=>{e.preventDefault();if(ensureUser())accountMutation('delete-form','/account/delete',{password:$('delete-password').value,confirmation:$('delete-confirmation').value},'Бүртгэл устгагдлаа.');};
@@ -910,7 +914,7 @@ $('reset-form').onsubmit=async e=>{
   await api(resetToken?'/account/reset/confirm':'/account/reset/request',{method:'POST',body:resetToken?{token:resetToken,new_password:$('reset-password').value}:{email:$('reset-email').value}});
   $('reset-status').textContent=resetToken?'Нууц үг шинэчлэгдлээ. Шинэ нууц үгээрээ нэвтэрнэ үү.':'Бүртгэлтэй имэйл бол сэргээх холбоос илгээгдэнэ. Ирсэн захидал болон спам хавтсаа шалгана уу.';
   if(resetToken){resetToken='';history.replaceState({},'','/');$('reset-password').value='';$('reset-password-field').hidden=true;$('reset-password').required=false;$('reset-email-field').hidden=false;$('reset-email').required=true;$('reset-submit-label').textContent='Сэргээх холбоос авах';}
- }catch(err){$('reset-status').textContent=err.message;}finally{setBusy(button,false);}
+ }catch(err){$('reset-status').textContent=customerMessage(err.message);}finally{setBusy(button,false);}
 };
 async function loadAdmin(){
  if(!ensureUser()||!state.user.admin)return;
@@ -929,7 +933,7 @@ async function loadAdmin(){
     else{const text=document.createElement('p');text.textContent=typeof item==='boolean'?(item?'Тийм':'Үгүй'):statusLabel(item);card.append(text);}container.append(card);
    });
   }show(data,root);
- }catch(e){root.textContent=e.message;}
+ }catch(e){root.textContent=customerMessage(e.message);}
 }
 $('admin-refresh').onclick=loadAdmin;
 // Attach accessible names to existing controls using their nearby visible labels.
