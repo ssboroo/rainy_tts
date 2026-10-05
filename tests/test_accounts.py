@@ -44,7 +44,10 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/account').status_code,401)
     def test_missing_email_configuration_is_generic_and_no_token(self):
         with patch.object(accounts,'email_configured',return_value=False), patch.object(accounts,'send_reset_email') as send:
-            self.assertEqual(self.post('reset/request',{'email':'one@example.com'}).json(),accounts.GENERIC_RESET)
+            known=self.post('reset/request',{'email':'one@example.com'})
+            unknown=self.post('reset/request',{'email':'missing@example.com'})
+            self.assertEqual(known.status_code,503)
+            self.assertEqual(known.json(),unknown.json())
             send.assert_not_called()
         with core.db() as c:self.assertEqual(c.execute('SELECT count(*) FROM account_reset_tokens').fetchone()[0],0)
 
@@ -88,3 +91,33 @@ class AccountTests(unittest.TestCase):
         with patch.dict(os.environ,{'ADMIN_EMAILS':'one@example.com'}):
             self.assertEqual(self.client.get('/api/admin/overview').status_code,200)
         self.assertEqual(self.client.post('/api/account/password',json={}).status_code,403)
+
+    def test_admin_bootstrap_preserves_identity_and_applies_once(self):
+        password_hash=core.hash_password('bootstrap-password-123')
+        with patch.dict(os.environ,{'ADMIN_EMAILS':'one@example.com','ADMIN_BOOTSTRAP_EMAIL':'ONE@example.com','ADMIN_BOOTSTRAP_PASSWORD_HASH':password_hash}):
+            accounts.bootstrap_admin()
+            with core.db() as c:
+                row=c.execute("SELECT * FROM users WHERE email='one@example.com'").fetchone()
+                self.assertEqual(row['id'],'one')
+                self.assertTrue(core.verify_password('bootstrap-password-123',row['password']))
+                self.assertEqual(c.execute("SELECT count(*) FROM sessions WHERE user_id='one'").fetchone()[0],0)
+                c.execute("UPDATE users SET password=? WHERE id='one'",(core.hash_password('changed-password-123'),))
+            accounts.bootstrap_admin()
+            with core.db() as c:
+                self.assertTrue(core.verify_password('changed-password-123',c.execute("SELECT password FROM users WHERE id='one'").fetchone()[0]))
+
+    def test_admin_bootstrap_requires_allowlist_and_valid_hash(self):
+        with patch.dict(os.environ,{'ADMIN_EMAILS':'one@example.com','ADMIN_BOOTSTRAP_EMAIL':'new@example.com','ADMIN_BOOTSTRAP_PASSWORD_HASH':core.hash_password('bootstrap-password-123')}):
+            accounts.bootstrap_admin()
+            with core.db() as c:self.assertIsNone(c.execute("SELECT id FROM users WHERE email='new@example.com'").fetchone())
+        with patch.dict(os.environ,{'ADMIN_EMAILS':'new@example.com','ADMIN_BOOTSTRAP_EMAIL':'new@example.com','ADMIN_BOOTSTRAP_PASSWORD_HASH':'invalid'}):
+            accounts.bootstrap_admin()
+            with core.db() as c:self.assertIsNone(c.execute("SELECT id FROM users WHERE email='new@example.com'").fetchone())
+
+    def test_admin_bootstrap_creates_reserved_account(self):
+        with patch.dict(os.environ,{'ADMIN_EMAILS':'new@example.com','ADMIN_BOOTSTRAP_EMAIL':'new@example.com','ADMIN_BOOTSTRAP_PASSWORD_HASH':core.hash_password('bootstrap-password-123')}):
+            accounts.bootstrap_admin()
+            with core.db() as c:
+                row=c.execute("SELECT * FROM users WHERE email='new@example.com'").fetchone()
+                self.assertIsNotNone(row)
+                self.assertTrue(core.verify_password('bootstrap-password-123',row['password']))
