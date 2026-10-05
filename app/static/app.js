@@ -808,7 +808,7 @@ function renderHistoryItem(item){
   if(!['queued','running'].includes(item.status)){
     const remove=document.createElement('button');remove.type='button';remove.className='danger-link';remove.textContent='Бүтээл устгах';
     remove.onclick=async()=>{if(!confirm('Энэ бүтээл болон файлуудыг устгах уу?'))return;remove.disabled=true;try{await api((item.source==='tts'?'/jobs/':'/tool-jobs/')+encodeURIComponent(item.id),{method:'DELETE',body:{}});await loadHistory();}catch(e){notice(customerMessage(e.message));remove.disabled=false;}};card.append(remove);
-  }else{const info=document.createElement('p');info.className='field-help';info.textContent='Ажил үргэлжилж байна. Энэ жагсаалт автоматаар шинэчлэгдэнэ.';card.append(info);}
+  }else{const info=document.createElement('p');info.className='field-help';info.textContent='Ажил үргэлжилж байна. Төлөвийг харахын тулд “Шинэчлэх” товч дарна уу.';card.append(info);}
   return card;
 }
 
@@ -845,10 +845,6 @@ async function init(){
 }
 
 
-setInterval(()=>{
-  if(document.hidden||!state.user)return;
-  if(state.page==='history')loadHistory();
-},10000);
 
 const pendingActions=new Map();
 const queuedTools=new Set(['/tools/dialogue','/tools/music','/tools/sound-effects','/tools/stt','/tools/voice-isolator','/tools/voice-changer','/tools/voice-design','/tools/voice-remix','/tools/alignment']);
