@@ -97,6 +97,7 @@ function renderAccount(){
   $('register').hidden=!!state.user||!state.health?.registration_open;
   $('auth-toggle').hidden=!state.health?.registration_open;
   $('auth-switch').hidden=!state.health?.registration_open;
+  $('admin-test-note').hidden=!state.user?.admin_test;
   $('credit-chip').hidden=!state.user;
 }
 
@@ -677,7 +678,7 @@ async function loadBilling(silent=false){
     $('billing-plan').textContent=(sub.plan_id||'trial').toUpperCase();
     $('billing-balance').textContent=Number(wallet.balance||0).toLocaleString('en-US');
     $('billing-cycle').textContent='Дуусах: '+formatCycle(sub.cycle_end);
-    $('credit-chip').textContent=Number(wallet.balance||0).toLocaleString('en-US')+' кредит';
+    $('credit-chip').textContent=state.user?.admin_test?'Админ туршилт':Number(wallet.balance||0).toLocaleString('en-US')+' кредит';
     $('credit-chip').hidden=false;
     renderPlans(catalog.plans,catalog.wire_configured);
     renderLedger(account.ledger||[]);
@@ -859,6 +860,7 @@ async function api(path,options={}){
   if(mutation)pendingActions.set(path,true);
   try{
     const data=await rawApi(path,options);
+    if(state.user?.admin_test&&Object.hasOwn(data,'credits_used'))data.credits_used=0;
     if(queuedTools.has(path)&&data.job_id&&['queued','running'].includes(data.status))return await waitToolJob(data.job_id);
     return data;
   }finally{if(mutation)pendingActions.delete(path);}
@@ -926,7 +928,7 @@ $('alignment-form').onsubmit=async event=>{
 };
 async function loadSettings(){
  if(!ensureUser())return;
- try{const data=await api('/account');state.user={...state.user,admin:data.admin};renderAccount();$('settings-info').textContent=data.email;}
+ try{const data=await api('/account');state.user={...state.user,admin:data.admin,admin_test:data.admin_test};renderAccount();$('settings-info').textContent=data.email;}
  catch(e){$('settings-info').textContent=customerMessage(e.message);}
 }
 async function accountMutation(formId,path,body,success){
