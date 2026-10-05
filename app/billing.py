@@ -94,7 +94,7 @@ RATES = {
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
-    markup=max(2.0,float(os.getenv("BILLING_TARGET_MARKUP","2.0")))
+    markup=max(3.0,float(os.getenv("BILLING_TARGET_MARKUP","3.0")))
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
@@ -200,7 +200,7 @@ def public_rate_card():
     }
 
 def billing_enabled():
-    return os.getenv("BILLING_ENABLED","false").strip().lower() in {"1","true","yes","on"}
+    return os.getenv("BILLING_ENABLED","true").strip().lower() in {"1","true","yes","on"}
 
 def estimate(tool_type, *, chars=0, seconds=0, duration_known=True, model_id=None, version=None):
     chars=max(0,int(chars or 0))

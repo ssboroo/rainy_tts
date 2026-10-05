@@ -57,6 +57,7 @@ class BillingUnitTests(unittest.TestCase):
             "BILLING_FIXED_COST_PER_ACTIVE_USER_USD":"1.25",
         },clear=False):
             settings=billing.pricing_settings()
+            self.assertEqual(settings["target_markup"],3.0)
             upstream_per_credit=billing.CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
             fixed=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
             for plan in billing.plan_catalog():
@@ -66,9 +67,16 @@ class BillingUnitTests(unittest.TestCase):
                 modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
                 self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-            expected={"starter":3000,"creator":6200,"pro":13700,"studio":26600,"agency":52300}
+            expected={"starter":1600,"creator":3700,"pro":8700,"studio":17300,"agency":34400}
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
+
+    def test_default_markup_is_three_and_metering_enabled(self):
+        with patch.dict(os.environ,{},clear=True):
+            self.assertEqual(billing.pricing_settings()["target_markup"],3.0)
+            self.assertTrue(billing.billing_enabled())
+        with patch.dict(os.environ,{"BILLING_TARGET_MARKUP":"1.0"}):
+            self.assertEqual(billing.pricing_settings()["target_markup"],3.0)
 
     def test_provider_plan_scales_with_active_users(self):
         self.assertEqual(billing.recommended_provider_plan(5),"starter")

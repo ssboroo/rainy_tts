@@ -392,3 +392,30 @@ select option{background:var(--panel-solid);color:var(--text)}
 .reception-payload{display:block;max-width:760px;margin-top:6px;color:var(--muted);font-size:.58rem;overflow-wrap:anywhere}
 
 .captcha-image{display:block;max-width:100%;height:auto;margin:auto;border-radius:12px;background:#fff}
+
+/* A calm, readable light studio, with the original dark palette available. */
+:root[data-theme="light"]{--bg:#f6f7f9;--bg-soft:#edf0f4;--panel:rgba(255,255,255,.92);--text:#17202d;--muted:#596778;--lime:#3d7337;--cyan:#226c91;--violet:#7661b1;--danger:#b53232;--shadow:0 18px 50px rgba(22,38,60,.07)}
+:root[data-theme="light"] .generate{background:#253e32;color:#fff;box-shadow:0 8px 20px rgba(31,57,43,.12)}
+:root[data-theme="light"] .nav.active{background:#e4eae5}
+:root[data-theme="light"] .nav.active .nav-icon{color:#fff}
+:root[data-theme="light"] .engine-chip,:root[data-theme="light"] .secondary{background:#fff}
+:root[data-theme="light"] .tool-card,:root[data-theme="light"] .tool-form{border-color:#dce2e8}
+:root[data-theme="light"] .tool-hero em{color:#386d43}
+:root[data-theme="light"] .ambient-orb{opacity:.13}
+:root[data-theme="light"] .cursor-glow{opacity:.12}
+:root[data-theme="light"] input,:root[data-theme="light"] textarea,:root[data-theme="light"] select{background:#f8fafb}
+.sample-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
+.sample-actions .secondary{font-size:.75rem;padding:7px 11px}
+.tool-form>label{display:block;margin:18px 0 8px;color:var(--muted);font-size:.85rem}
+.tool-form>textarea{width:100%;min-height:130px;resize:vertical}
+.voice-library-card input{width:100%;margin:14px 0}
+.voice-library-card audio{width:100%}
+.admin-card{border:1px solid var(--line);border-radius:18px;padding:20px;margin:12px 0;background:var(--panel)}
+.admin-card h3{font-size:.9rem;color:var(--muted);margin:0 0 12px}
+.admin-card .admin-card{box-shadow:none;background:transparent}
+#alignment-result a{display:inline-block;margin:6px;text-decoration:none}
+#notice{max-width:min(760px,calc(100vw - 32px));white-space:normal}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--cyan)}
+@media(min-width:901px){.full-sidebar nav{overflow-y:auto;min-height:0;padding-right:4px}.full-sidebar .side-bottom{padding-top:20px}.full-sidebar .rail-label{margin-top:20px}}
+@media(max-width:600px){.top-actions{gap:6px;flex-wrap:wrap}.top-actions .engine-chip:not(.credit-chip){display:none}.tool-hero h1{overflow-wrap:anywhere}.sample-actions .secondary{flex:1;white-space:nowrap}.tool-form{padding:20px}.voice-library-card{min-width:0}}
+.studio-readiness{margin:12px 0 26px;padding:12px 18px;border:1px solid var(--line);border-radius:14px;font-size:.78rem;color:var(--muted);background:var(--panel);line-height:1.6}

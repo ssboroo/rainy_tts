@@ -66,6 +66,9 @@ class APITests(unittest.TestCase):
         cls.temp.cleanup()
 
     def setUp(self):
+        self.legacy_env=patch.dict(os.environ,{'BILLING_ENABLED':'false','DURABLE_TOOLS_ENABLED':'false','REALTIME_PROXY_ENABLED':'false'})
+        self.legacy_env.start()
+        self.addCleanup(self.legacy_env.stop)
         self.client.cookies.clear()
         email=f'user-{time.time_ns()}@example.com'
         response=self.client.post('/api/register',json={'email':email,'password':'strong-password-123'},headers={'Origin':'http://testserver'})

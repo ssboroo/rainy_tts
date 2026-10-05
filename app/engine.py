@@ -14,6 +14,7 @@ def friendly_elevenlabs_error(exc):
     raw=str(exc or "").strip()
     low=raw.lower()
     mappings=[
+        (("paid_plan_required","library voices cannot be used on free","free users cannot use library"),"ElevenLabs-ийн сангийн хоолой ашиглахад төлбөртэй багц шаардлагатай. Үйлчилгээний эзэмшигч ElevenLabs багцаа идэвхжүүлнэ үү."),
         (("invalid_api_key","authentication_error","unauthorized"),"ElevenLabs API key буруу эсвэл хүчингүй байна."),
         (("insufficient_credits","quota_exceeded","payment_required"),"ElevenLabs credit/quota хүрэлцэхгүй байна."),
         (("voice_not_found",),"Сонгосон voice ID ElevenLabs дээр олдсонгүй."),
