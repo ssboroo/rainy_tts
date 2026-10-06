@@ -382,9 +382,9 @@ def root():
 
 @app.get("/{name}")
 def static_file(name:str):
-    if name not in {"app.js","style.css","favicon.svg"}:
+    if name not in {"app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg"}:
         raise HTTPException(404,"Хуудас олдсонгүй.")
-    media={"app.js":"text/javascript","style.css":"text/css","favicon.svg":"image/svg+xml"}[name]
+    media={".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"}[Path(name).suffix]
     return FileResponse(STATIC/name,media_type=media)
 
 @app.get("/api/health")
@@ -1665,3 +1665,4 @@ if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
     core.init()
     uvicorn.run("app.server:app",host=os.getenv("HOST","127.0.0.1"),port=int(os.getenv("PORT","8080")),reload=False)
+

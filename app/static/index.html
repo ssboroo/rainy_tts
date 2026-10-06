@@ -3,20 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f7f8fc">
-  <meta name="description" content="RAINY Voice — Монгол дуу хоолой, аудио, хадмал бүтээх студи">
+  <meta name="theme-color" content="#6051e8">
+  <meta name="description" content="RAINY Voice Studio — Таны санаа. Таны дуу хоолой. Монгол аудио бүтээх студи.">
   <title>RAINY Voice Studio</title>
   <link rel="icon" href="/favicon.svg">
-  <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+  <meta name="application-name" content="RAINY Voice Studio">
+  <meta name="apple-mobile-web-app-title" content="RAINY">
+  <meta property="og:title" content="RAINY Voice Studio">
+  <meta property="og:description" content="Таны санаа. Таны дуу хоолой. Дуу, подкаст, хөгжим, хадмалаа нэг дор бүтээ.">
+  <link rel="stylesheet" href="/style.css?v=rainy-brand-1">
+  <link rel="stylesheet" href="/brand.css?v=1">
+  <script src="/app.js?v=rainy-brand-1" defer></script>
+  <script src="/brand.js?v=1" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#studio-main">Үндсэн хэсэг рүү очих</a>
+  <button class="menu-backdrop" id="menu-backdrop" type="button" aria-label="Цэс хаах" hidden></button>
   <div class="ambient" aria-hidden="true"><div class="ambient-orb orb-a"></div><div class="ambient-orb orb-b"></div><div class="noise"></div></div>
   <div class="cursor-glow" aria-hidden="true"></div>
 
   <div class="app-shell">
-    <aside class="sidebar full-sidebar">
-      <a class="brand" href="/" aria-label="RAINY Хоолой"><span class="brand-mark"><i></i><i></i><i></i></span><span class="brand-type">RAINY <small>STUDIO</small></span></a>
+    <aside class="sidebar full-sidebar" id="studio-navigation" aria-label="Студийн хэрэгслүүд">
+      <a class="brand" href="/" aria-label="RAINY Voice Studio — Нүүр"><img class="brand-logo" src="/brand-mark.svg" width="42" height="42" alt=""><span class="brand-type">RAINY <small>VOICE STUDIO</small></span></a>
+      <button id="close-menu" class="icon-button drawer-close" type="button" aria-label="Цэс хаах">×</button>
       <div class="rail-label">ДУУ БҮТЭЭХ</div>
       <nav aria-label="Үндсэн цэс">
         <button class="nav active" data-page="tts"><span class="nav-icon" aria-hidden="true">🎙️</span><span>Текстээс дуу</span></button>
@@ -40,28 +49,29 @@
         <button class="nav" data-page="analytics"><span class="nav-icon" aria-hidden="true">📊</span><span>Хэрэглээний тайлан</span></button>
         <button class="nav" data-page="history"><span class="nav-icon" aria-hidden="true">🗂️</span><span>Бүтээлийн түүх</span></button>
       <button class="nav" data-page="voice-design"><span class="nav-icon" aria-hidden="true">🎨</span><span>Хоолой зохиох</span></button><button class="nav" data-page="voice-remix"><span class="nav-icon" aria-hidden="true">🪄</span><span>Хоолой шинэчлэх</span></button><button class="nav" data-page="alignment"><span class="nav-icon" aria-hidden="true">💬</span><span>Хадмал тааруулах</span></button><button class="nav" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Бүртгэлийн тохиргоо</span></button><button class="nav" data-page="admin" hidden data-admin-only><span class="nav-icon" aria-hidden="true">🛡️</span><span>Удирдлага</span></button></nav>
-      <div class="side-bottom"><div class="provider-mini"><span class="live-dot"></span><div><small>ДУУ ХООЛОЙ</small><strong>RAINY Studio</strong></div></div><p>Дуу хоолой, хөгжим,<br>видео орчуулгын студи.</p><span class="edition">RAINY / 2026</span></div>
+      <div class="side-bottom"><div class="provider-mini"><span class="live-dot"></span><div><small>ДУУ ХООЛОЙ</small><strong>Таны бүтээлийн орон зай</strong></div></div><p>Таны санаа.<br>Таны дуу хоолой.</p><span class="edition">RAINY / 2026</span></div>
     </aside>
 
-    <main>
+    <main id="studio-main" tabindex="-1">
       <header class="topbar">
+        <a class="mobile-brand" href="/" aria-label="RAINY Voice Studio"><img src="/brand-mark.svg" alt="" width="32" height="32"><span>RAINY<small>VOICE STUDIO</small></span></a>
         <div class="top-left"><span class="route-index">01</span><span id="breadcrumb">Дуу бүтээх / Текстээс дуу</span></div>
-        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><span class="engine-chip"><i></i> RAINY Studio</span><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
+        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><span class="engine-chip"><i></i> VOICE STUDIO</span><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
       </header>
       <div id="admin-test-note" class="studio-readiness" hidden>Админ туршилтын горим · RAINY кредит суутгахгүй. Бодит үүсгэлт ElevenLabs хэрэглээнээс тооцогдоно.</div><div id="notice" role="status" class="notice" hidden></div><div id="studio-readiness" class="studio-readiness" role="status" hidden data-admin-only>Үйлчилгээний төлөвийг шалгаж байна…</div>
 
       <section id="tts" class="page tool-page">
-        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">🎙️</span><p class="kicker"><span></span>ТЕКСТЭЭС ДУУ</p><h1>Текстээс <em>дуу хоолой.</em></h1><p>Бичвэрээ оруулна → хоолойгоо сонгоно → “Дуу үүсгэх” дарна. Бэлэн дуугаа сонсож, татаж аваарай.</p></div>
+        <div class="tool-hero studio-hero"><div class="hero-copy"><p class="kicker"><span></span>МОНГОЛ АУДИО БҮТЭЭХ СТУДИ</p><h1>Таны санаа.<br><em>Таны дуу хоолой.</em></h1><p>Үг бүрээ амилуул. Бичвэрээ оруулаад, хоолойгоо сонго.<br class="desktop-break"> Бэлэн дуугаа сонсож, татаж аваарай.</p><div class="hero-tags"><span>Монгол хоолой</span><span>WAV / MP3</span><span>Өөрийн хоолой</span></div></div><div class="sound-art" aria-hidden="true"><div class="sound-orbit"></div><div class="sound-disc"><img src="/brand-mark.svg" alt="" width="84" height="84"></div><div class="sound-bars"><i style="--bar:20px"></i><i style="--bar:38px"></i><i style="--bar:64px"></i><i style="--bar:92px"></i><i style="--bar:55px"></i><i style="--bar:76px"></i><i style="--bar:112px"></i><i style="--bar:82px"></i><i style="--bar:52px"></i><i style="--bar:68px"></i><i style="--bar:35px"></i><i style="--bar:20px"></i></div><span class="sound-caption">IDEAS INTO SOUND</span></div></div>
         <div class="tool-grid">
           <div class="tool-card wide">
-            <label class="field-label">Бүтээлийн нэр</label><input id="tts-title" class="field-input" placeholder="Шинэ бүтээл">
+            <div class="editor-heading"><span class="section-eyebrow">01 / БИЧВЭР</span><span class="editor-badge">Текстээс дуу</span></div><label class="field-label">Бүтээлийн нэр</label><input id="tts-title" class="field-input" placeholder="Шинэ бүтээл">
             <div class="tabs"><button id="text-tab" class="selected">Текст</button><button id="srt-tab">SRT</button></div>
-            <textarea id="text" maxlength="12000" class="big-textarea" placeholder="Монгол, Англи, нэр, тоо бүгд оруулж болно…"></textarea>
+            <textarea id="text" maxlength="12000" class="big-textarea" placeholder="Эндээс таны дуу хоолой эхэлнэ…&#10;&#10;Уншуулах бичвэрээ оруулна уу."></textarea>
             <div id="srt-panel" hidden><input id="srt-file" type="file" accept=".srt"><textarea id="srt-text" class="big-textarea small" placeholder="SRT paste хийнэ үү"></textarea></div>
             <div class="char-line"><button id="example" class="ghost-link">Жишээ текст ↗</button><span id="counter">0 / 12,000</span></div>
           </div>
           <aside class="tool-card">
-            <label for="studio-preset" class="field-label">Юунд дуу оруулах вэ?</label><select id="studio-preset" class="field-input"><option value="">Өөрөө сонгох</option><option value="story">Ном, өгүүлэмж</option><option value="ad">Сурталчилгаа, богино видео</option><option value="lesson">Хичээл, тайлбар</option><option value="news">Мэдээ, албан танилцуулга</option></select><p id="preset-help" class="field-help">Зориулалтаа сонговол хоолой болон хэмнэл санал болгоно.</p><label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
+            <div class="editor-heading"><span class="section-eyebrow">02 / ДУУ ХООЛОЙ</span></div><label for="studio-preset" class="field-label">Юунд дуу оруулах вэ?</label><select id="studio-preset" class="field-input"><option value="">Өөрөө сонгох</option><option value="story">Ном, өгүүлэмж</option><option value="ad">Сурталчилгаа, богино видео</option><option value="lesson">Хичээл, тайлбар</option><option value="news">Мэдээ, албан танилцуулга</option></select><p id="preset-help" class="field-help">Зориулалтаа сонговол хоолой болон хэмнэл санал болгоно.</p><label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
             <label class="field-label">Загвар</label><select id="tts-model" class="field-input"><option value="eleven_v4">Чанартай · 1,000 тэмдэгт / 80 кредит</option><option value="eleven_v4_turbo">Хурдан · 1,000 тэмдэгт / 40 кредит</option></select>
             <label class="field-label">Унших хурд <output id="speed-value">1.00×</output></label><input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1">
             <details class="pronunciation"><summary>Дуудлагын толь ＋</summary><textarea id="glossary" placeholder="RAINY = Рэйни"></textarea></details>
@@ -228,10 +238,16 @@
 
 
 
-      <footer><div><strong>RAINY</strong><span>ДУУ ХООЛОЙН СТУДИ</span></div><p>Дуу хоолой · Аудио · Хөгжим · Видео орчуулга</p><span>© 2026 RAINY</span></footer>
+      <footer><div class="footer-brand"><img src="/brand-mark.svg" width="28" height="28" alt=""><strong>RAINY</strong><span>VOICE STUDIO</span></div><p>Таны санаа. Таны дуу хоолой.</p><span>© 2026 RAINY</span></footer>
     </main>
   </div>
 
+  <nav class="mobile-dock" aria-label="Шуурхай цэс">
+    <button class="nav active" data-page="tts" type="button"><span class="nav-icon" aria-hidden="true">🎙️</span><span>Бүтээх</span></button>
+    <button class="nav" data-page="voices" type="button"><span class="nav-icon" aria-hidden="true">🗣️</span><span>Хоолой</span></button>
+    <button class="nav" data-page="history" type="button"><span class="nav-icon" aria-hidden="true">🗂️</span><span>Бүтээл</span></button>
+    <button id="open-menu" type="button" aria-expanded="false" aria-controls="studio-navigation"><span class="nav-icon" aria-hidden="true">☰</span><span>Бүх хэрэгсэл</span></button>
+  </nav>
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <button type="button" id="close-auth" class="close" aria-label="Цонх хаах">×</button>
     <p class="kicker"><span></span>ХУВИЙН СТУДИ</p><h2 id="auth-title">RAINY-д нэвтрэх</h2>

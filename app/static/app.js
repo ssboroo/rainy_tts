@@ -69,10 +69,12 @@ const pageMeta={
 function page(name){
   if(['admin','reception'].includes(name)&&!state.user?.admin){notice('Энэ хэсэгт нэвтрэх эрхгүй байна.');return;}
   state.page=name;
+  document.dispatchEvent(new CustomEvent('rainy:page',{detail:{name}}));
   document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==name);
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
-  $('breadcrumb').textContent=pageMeta[name][1];
-  document.querySelector('.route-index').textContent=pageMeta[name][0];
+  const meta=pageMeta[name]||['•','Миний студи'];
+  $('breadcrumb').textContent=meta[1];
+  document.querySelector('.route-index').textContent=meta[0];
   if(name==='voices')refreshVoices(true);
   if(name==='reception'){loadReception();loadReceptionEvents();}
   if(name==='settings')loadSettings();
@@ -1093,3 +1095,4 @@ buildToolWorkspaces();
 init().then(()=>{loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
+
