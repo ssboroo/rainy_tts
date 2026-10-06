@@ -162,11 +162,11 @@ $('credit-chip').onclick=()=>page('billing');
 
 function setTheme(theme){
   document.documentElement.dataset.theme=theme;
-  localStorage.setItem('rainy-theme',theme);
+  localStorage.setItem('rainy-theme-signal',theme);
   $('theme-toggle').textContent=theme==='light'?'☾':'☼';
 }
 function initTheme(){
-  setTheme(localStorage.getItem('rainy-theme')||'light');
+  setTheme(localStorage.getItem('rainy-theme-signal')||'dark');
 }
 $('theme-toggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
 
