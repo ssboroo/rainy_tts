@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 RUN mkdir /data && chown -R studio:studio /data
-USER studio
+# Bootstrap repairs volume ownership; app.railway drops to studio before starting
+# the server and worker. Neither application runs as root.
+USER root
 EXPOSE 8080
 CMD ["python", "-m", "app.railway"]

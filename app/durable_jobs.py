@@ -8,7 +8,7 @@ from starlette.datastructures import Headers
 from . import billing, core
 from .eleven_tools import ElevenAPIError
 
-METHODS = {'music', 'dialogue', 'sound_effect', 'voice_changer', 'voice_isolator', 'speech_to_text', 'forced_alignment'}
+METHODS = {'music', 'dialogue', 'sound_effect', 'voice_changer', 'voice_isolator', 'speech_to_text', 'forced_alignment', 'video_voiceover'}
 
 
 def ensure_schema():
@@ -113,6 +113,23 @@ async def execute(job):
             from .audio_extensions import execute_alignment
             result=await execute_alignment(job['user_id'],job['id'],*args[:3],job['credits'])
             core.update_tool_job(job['id'],'done',result=result)
+            return
+        if method=='video_voiceover':
+            import asyncio
+            source_id=execution['args'][0]
+            with core.db() as db:
+                source=db.execute("SELECT id FROM jobs WHERE id=? AND user_id=? AND status='done'",(source_id,job['user_id'])).fetchone()
+            audio=core.DATA/'outputs'/(source_id+'.wav')
+            if not source or not audio.is_file():
+                raise ValueError('Эх дуу олдсонгүй. Шинээр сонгоно уу.')
+            output=core.DATA/'artifacts'/(core.uid()+'.mp4')
+            try:
+                await asyncio.to_thread(server.mux_dubbed_video,Path(job['upload_path']),audio,output)
+                artifact=core.add_artifact(job['id'],job['user_id'],'video','rainy-voiceover.mp4','video/mp4',output)
+            except Exception:
+                output.unlink(missing_ok=True)
+                raise
+            core.update_tool_job(job['id'],'done',result={'artifact_id':artifact,'credits_used':job['credits'],'source_job_id':source_id})
             return
         raw=await getattr(server.tools,method)(*args)
         provider_succeeded=True

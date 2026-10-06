@@ -193,7 +193,7 @@ def prepare_text(text, glossary=None):
     # ElevenLabs v4 can handle mixed Mongolian/Latin text and numbers.
     # Keep a conservative character allow-list to reject emoji/control-like input,
     # while allowing common names, brands, URLs, prices and abbreviations.
-    if re.search(r'[^А-Яа-яӨөҮүЁёA-Za-z0-9\s.,!?…:;\-—_«»“”"()\[\]{}\u2019\u0027/@#&+*=₮$€%]', text):
+    if re.search(r'[^А-Яа-яӨөҮүЁёA-Za-z0-9\u00C0-\u02FF\s.,!?…:;\-—_«»“”"()\[\]{}\u2019\u0027/@#&+*=₮$€%]', text):
         raise ValueError('Дэмжигдээгүй тэмдэгт байна.')
     return re.sub(r'\s+', ' ', text)
 
@@ -238,8 +238,8 @@ def public_job(row):
     return {k: row[k] for k in ('id','title','status','progress','error','created','result')}
 
 
-def create_tool_job(user_id, tool_type, title, payload=None, status='running'):
-    job_id = uid()
+def create_tool_job(user_id, tool_type, title, payload=None, status='running', job_id=None):
+    job_id = job_id or uid()
     now = time.time()
     with db() as c:
         c.execute(

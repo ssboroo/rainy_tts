@@ -275,12 +275,14 @@ class ElevenTools:
         response=await self._request("POST","/v1/single-use-token/realtime_scribe")
         return response.json()
 
-    async def create_dubbing(self, upload=None, source_url=None, reference="", source_language=None, target_language=None):
+    async def create_dubbing(self, upload=None, source_url=None, reference="", source_language=None, target_language=None, keyterms=None):
         data={"reference":reference[:500],"model_id":"dubbing_v2"}
         if source_language:
             data["source_language"]=source_language
         if target_language:
             data["target_language"]=target_language
+        if keyterms:
+            data['keyterms']=json.dumps(keyterms,ensure_ascii=False)
         files=None
         if upload is not None:
             await upload.seek(0)

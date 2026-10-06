@@ -13,6 +13,7 @@ import sqlite3
 import subprocess
 import threading
 import time
+import weakref
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -27,12 +28,14 @@ from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 from .media_formats import dubbing_output
 from . import provider_catalog
+from . import voice_direction
 
 STATIC = Path(__file__).parent / "static"
 ORIGIN = os.getenv("PUBLIC_ORIGIN","http://localhost:8080").rstrip("/")
 SECURE = ORIGIN.startswith("https://")
 RATE = {}
 RATE_LOCK = threading.Lock()
+DUBBING_LOCKS = weakref.WeakValueDictionary()
 AUDIO_EXTS={".mp3",".wav",".m4a",".aac",".flac",".ogg",".webm",".mp4"}
 VIDEO_EXTS={".mp4",".mov",".mkv",".avi",".mpeg",".mpg"}
 MEDIA_EXTS=AUDIO_EXTS|VIDEO_EXTS
@@ -256,7 +259,7 @@ async def upload_duration_seconds(upload:UploadFile):
     temp=core.DATA/"tmp"/f"probe-{core.uid()}{suffix}"
     try:
         await persist_upload(upload,temp)
-        process=subprocess.run(
+        process=await asyncio.to_thread(subprocess.run,
             ["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(temp)],
             check=False,capture_output=True,text=True,timeout=60
         )
@@ -314,7 +317,7 @@ def mux_dubbed_video(source:Path, dubbed_audio:Path, output:Path):
         "ffmpeg","-nostdin","-v","error","-y",
         "-i",str(source),"-i",str(dubbed_audio),
         "-map","0:v:0","-map","1:a:0",
-        "-c:v","copy","-c:a","aac","-b:a","192k","-shortest",str(output)
+        "-filter:a","apad","-c:v","copy","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(output)
     ]
     try:
         subprocess.run(copy_command,check=True,timeout=600,capture_output=True)
@@ -325,7 +328,7 @@ def mux_dubbed_video(source:Path, dubbed_audio:Path, output:Path):
                 "-i",str(source),"-i",str(dubbed_audio),
                 "-map","0:v:0","-map","1:a:0",
                 "-c:v","libx264","-preset","fast","-crf","20",
-                "-c:a","aac","-b:a","192k","-shortest",str(output)
+                "-filter:a","apad","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(output)
             ],
             check=True,timeout=1200,capture_output=True
         )
@@ -938,6 +941,13 @@ def jobs(request:Request):
 
 @app.post("/api/jobs")
 async def create_tts(request:Request):
+    return await prepare_tts_job(request)
+
+@app.post("/api/jobs/quote")
+async def quote_tts(request:Request):
+    return await prepare_tts_job(request,quote_only=True)
+
+async def prepare_tts_job(request:Request,quote_only=False):
     sess=session(request); mutation_guard(request,sess); throttle("tts:"+sess["user_id"],40)
     data=await json_body(request)
     voice_id=str(data.get("voice_id","")).strip()
@@ -955,7 +965,7 @@ async def create_tts(request:Request):
     glossary=data.get("glossary",{})
     if not isinstance(glossary,dict) or len(glossary)>100:
         raise HTTPException(422,"Дуудлагын толь буруу байна.")
-    payload={"speed":speed,"model_id":tts_model}
+    payload={"speed":speed,"model_id":tts_model,"emotion":str(data.get("emotion","neutral"))}
     try:
         if data.get("srt"):
             cues=core.parse_srt(str(data["srt"]))
@@ -970,28 +980,23 @@ async def create_tts(request:Request):
     except ValueError as exc:
         raise HTTPException(422,str(exc))
     if count>12000: raise HTTPException(422,"Нэг ажил 12000 тэмдэгтээс хэтрэхгүй байна.")
-    with core.db() as db:
-        active=db.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(sess["user_id"],)).fetchone()[0]
-    if active>=3: raise HTTPException(429,"Зэрэг 3-аас олон TTS ажил үүсгэхгүй.")
+    try:
+        count=sum(len(text) for text in voice_direction.segments(payload))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
     job_id=core.uid()
     multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
     base_credits=billing.estimate("tts",chars=count,model_id=tts_model)
     credits=max(1,math.ceil(base_credits*multiplier))
-    charge_id=charge(
-        sess["user_id"],credits,"tts",job_id,
-        {"characters":count,"voice_multiplier":multiplier,"model_id":tts_model,"base_credits":base_credits}
-    )
-    payload["billing"]={"credits":credits,"charge_id":charge_id,"voice_multiplier":multiplier,"model_id":tts_model}
+    if quote_only:
+        return {"credits":credits,"characters":count,"segments":len(voice_direction.segments(payload)),
+                "model_id":tts_model,"voice_multiplier":multiplier,"emotion":payload["emotion"]}
     try:
-        with core.db() as db:
-            db.execute(
-                "INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)",
-                (job_id,sess["user_id"],voice_id,title,json.dumps(payload,ensure_ascii=False),"queued",time.time())
-            )
-    except Exception:
-        billing.refund(sess["user_id"],charge_id,"job_create_failed")
-        raise
-    return JSONResponse({"id":job_id,"credits_used":credits,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]},status_code=202)
+        used=billing.enqueue_tts(sess['user_id'],job_id,voice_id,title,payload,credits,
+            {"characters":count,"voice_multiplier":multiplier,"model_id":tts_model,"base_credits":base_credits})
+    except ValueError as exc:
+        raise HTTPException(402 if 'Credit' in str(exc) else 429,str(exc))
+    return JSONResponse({"id":job_id,"credits_used":used,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]},status_code=202)
 
 @app.get("/api/jobs/{job_id}")
 def get_tts_job(job_id:str,request:Request):
@@ -1029,6 +1034,28 @@ def tts_file(job_id:str,fmt:str,request:Request):
     if row["status"]!="done": raise HTTPException(409,"Дуу хараахан бэлэн болоогүй.")
     path=core.DATA/"outputs"/f"{job_id}.{fmt}"
     return FileResponse(path,media_type="audio/wav" if fmt=="wav" else "audio/mpeg",filename=f"rainy-voice.{fmt}")
+
+@app.post('/api/tools/video-voiceover')
+async def video_voiceover(request:Request,file:UploadFile=File(...),source_job_id:str=Form(...)):
+    sess=session(request); mutation_guard(request,sess); throttle('video:'+sess['user_id'],10,3600)
+    validate_upload(file,VIDEO_EXTS,MAX_DUB_MB)
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',source_job_id):
+        raise HTTPException(422,'Дууны бүтээл буруу байна.')
+    with core.db() as db:
+        source=db.execute("SELECT * FROM jobs WHERE id=? AND user_id=? AND status='done'",(source_job_id,sess['user_id'])).fetchone()
+    if not source: raise HTTPException(404,'Бэлэн дууны бүтээл олдсонгүй.')
+    duration=await upload_duration_seconds(file)
+    if duration>600: raise HTTPException(422,'Видео 10 минутаас хэтрэхгүй байна.')
+    audio=core.DATA/'outputs'/(source_job_id+'.wav')
+    if not audio.is_file(): raise HTTPException(404,'Дууны файл олдсонгүй.')
+    import wave
+    with wave.open(str(audio)) as stream:
+        audio_duration=stream.getnframes()/stream.getframerate()
+    if audio_duration>duration+.1:
+        raise HTTPException(422,'Дуу видеогоос урт байна. Текстээ богиносгох эсвэл урт видео сонгоно уу.')
+    return await enqueue_tool(sess,'video_voiceover',source['title']+' · Видео',
+        {'method':'video_voiceover','args':[source_job_id]},'rainy-voiceover.mp4','video/mp4',
+        max(10,math.ceil(duration/60)*10),file)
 
 async def enqueue_tool(sess,tool_type,title,execution,filename,mime,credits,upload=None):
     source=None
@@ -1092,6 +1119,11 @@ async def dialogue(request:Request):
         if not isinstance(item,dict): raise HTTPException(422,"Dialogue бүтэц буруу байна.")
         voice_id=str(item.get("voice_id","")).strip(); text=str(item.get("text","")).strip()
         if voice_id not in allowed or not text: raise HTTPException(422,"Speaker voice эсвэл текст буруу байна.")
+        emotion=str(item.get('emotion','neutral'))
+        if emotion not in voice_direction.DIRECTIONS:
+            raise HTTPException(422,'Яригчийн сэтгэл хөдлөл буруу байна.')
+        tag=voice_direction.DIRECTIONS[emotion]
+        if tag: text=tag+' '+text
         multiplier=voice_rates.get(voice_id)
         if multiplier is None:
             multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
@@ -1324,7 +1356,8 @@ async def dubbing(
     source_url:str=Form(""),
     reference:str=Form("RAINY Dubbing"),
     source_language:str=Form(""),
-    target_language:str=Form(...)
+    target_language:str=Form(...),
+    keyterms:str=Form("")
 ):
     sess=session(request); mutation_guard(request,sess); throttle("dubbing:"+sess["user_id"],10,3600)
     if file and source_url:
@@ -1335,6 +1368,13 @@ async def dubbing(
         raise HTTPException(422,"Видео/аудио файл эсвэл URL шаардлагатай.")
     if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",target_language):
         raise HTTPException(422,"Target language code буруу байна.")
+    source_language=source_language.strip()
+    if source_language.lower()=='auto': source_language=''
+    if source_language and not re.fullmatch(r'[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?',source_language):
+        raise HTTPException(422,'Source language code буруу байна.')
+    terms=list(dict.fromkeys(term.strip() for term in re.split(r'[,\n]',keyterms) if term.strip()))
+    if len(terms)>100 or any(len(term)>50 or len(term.split())>5 or re.search(r'[<>{}\[\]\\]',term) for term in terms):
+        raise HTTPException(422,'Нэр томьёо 100 хүртэл, тус бүр 50 тэмдэгт / 5 үгээс хэтрэхгүй байна.')
     if billing.billing_enabled() and not billing.admin_test_mode(sess["user_id"]) and source_url.strip():
         raise HTTPException(422,"Credit billing идэвхтэй үед Dubbing-д файл upload ашиглана уу.")
     duration=await upload_duration_seconds(file) if file and billing.billing_enabled() else 0
@@ -1343,17 +1383,30 @@ async def dubbing(
         "source_language":source_language or None,
         "target_language":target_language,
         "duration_seconds":duration or None,
+        "keyterms":terms,
     }
-    job_id=core.create_tool_job(sess["user_id"],"dubbing",reference,payload,status="queued")
+    job_id=core.uid()
     credits=billing.estimate("dubbing",seconds=duration) if billing.billing_enabled() else 0
     charge_id=charge(sess["user_id"],credits,"dubbing",job_id,{"duration_seconds":duration}) if credits else None
     payload["billing_charge_id"]=charge_id
     payload["billing_credits"]=credits
-    with core.db() as db:
-        db.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
-    source_path=None
     try:
-        result=await tools.create_dubbing(file,source_url.strip() or None,reference,source_language or None,target_language)
+        core.create_tool_job(sess['user_id'],'dubbing',reference,payload,status='queued',job_id=job_id)
+    except Exception:
+        billing.refund(sess['user_id'],charge_id,'job_create_failed')
+        raise
+    source_path=None
+    provider_succeeded=False
+    try:
+        if file and Path(file.filename or "").suffix.lower() in VIDEO_EXTS:
+            source_path=core.DATA/"tmp"/f"{job_id}-source{Path(file.filename).suffix.lower()}"
+            await persist_upload(file,source_path)
+            payload["source_path"]=str(source_path)
+            with core.db() as db:
+                db.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
+        options={'keyterms':terms} if terms else {}
+        result=await tools.create_dubbing(file,source_url.strip() or None,reference,source_language or None,target_language,**options)
+        provider_succeeded=True
         provider_meta=result.pop("_provider_usage",{}) if isinstance(result,dict) else {}
         if provider_meta:
             core.add_provider_usage(
@@ -1362,30 +1415,31 @@ async def dubbing(
                 trace_id=provider_meta.get("trace_id"),
                 metadata=provider_meta
             )
-        if file and Path(file.filename or "").suffix.lower() in VIDEO_EXTS:
-            source_path=core.DATA/"tmp"/f"{job_id}-source{Path(file.filename).suffix.lower()}"
-            await persist_upload(file,source_path)
-            payload["source_path"]=str(source_path)
-            with core.db() as db:
-                db.execute("UPDATE tool_jobs SET payload=?,updated=? WHERE id=?",(json.dumps(payload,ensure_ascii=False),time.time(),job_id))
         result={**result,"credits_used":credits}
         core.update_tool_job(job_id,result=result,status=result.get("status","queued"))
         return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
     except Exception as exc:
         if source_path:
             source_path.unlink(missing_ok=True)
-        billing.refund(sess["user_id"],charge_id,"provider_failed")
+        if not provider_succeeded and not voice_direction.uncertain_failure(exc):
+            billing.refund(sess["user_id"],charge_id,"provider_failed")
         core.update_tool_job(job_id,"failed",error=str(exc))
         raise api_exception(exc)
 
 @app.get("/api/tools/dubbing/{job_id}")
 async def dubbing_status(job_id:str,request:Request):
+    async with DUBBING_LOCKS.setdefault(job_id,asyncio.Lock()):
+        return await load_dubbing_status(job_id,request)
+
+async def load_dubbing_status(job_id:str,request:Request):
     sess=session(request)
     with core.db() as c:
         row=c.execute("SELECT * FROM tool_jobs WHERE id=? AND user_id=? AND tool_type='dubbing'",(job_id,sess["user_id"])).fetchone()
     if not row: raise HTTPException(404,"Dubbing project олдсонгүй.")
     payload=json.loads(row["payload"] or "{}")
     result=json.loads(row["result"] or "{}")
+    if row["status"] in {"done","failed"}:
+        return public_tool_job_with_artifacts(row)
     project_id=result.get("project_id")
     if not project_id: return public_tool_job_with_artifacts(row)
     try:
@@ -1420,14 +1474,16 @@ async def dubbing_status(job_id:str,request:Request):
                 if audio_row:
                     video_path=core.DATA/"artifacts"/(core.uid()+".mp4")
                     try:
-                        mux_dubbed_video(source_path,Path(audio_row["path"]),video_path)
+                        await asyncio.to_thread(mux_dubbed_video,source_path,Path(audio_row["path"]),video_path)
                         core.add_artifact(job_id,sess["user_id"],"dubbed_video","rainy-dubbed-video.mp4","video/mp4",video_path)
                     finally:
                         source_path.unlink(missing_ok=True)
         if status=="failed":
             if payload.get("source_path"):
                 Path(payload["source_path"]).unlink(missing_ok=True)
-            billing.refund(sess["user_id"],payload.get("billing_charge_id"),"dubbing_failed")
+            # An accepted dubbing project can already have incurred provider cost.
+            # Preserve its reservation until provider usage is reconciled.
+            merged["billing_review_required"]=True
         merged["credits_used"]=payload.get("billing_credits",0)
         core.update_tool_job(job_id,status,result=merged,error="Dubbing failed" if status=="failed" else None)
         with core.db() as c:
@@ -1665,4 +1721,3 @@ if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
     core.init()
     uvicorn.run("app.server:app",host=os.getenv("HOST","127.0.0.1"),port=int(os.getenv("PORT","8080")),reload=False)
-

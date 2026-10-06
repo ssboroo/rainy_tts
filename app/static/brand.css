@@ -41,3 +41,5 @@ button,input,textarea,select,summary{font-family:inherit}h1,h2,h3,p,label,small,
 @media(max-width:860px){.mobile-brand{font-weight:800}.top-left{font-size:.72rem}.full-sidebar .side-bottom{margin-top:24px}.mobile-dock button>span:last-child{font-size:.65rem;font-weight:500}.studio-hero h1{font-size:2.5rem}}
 @media(max-width:700px){.studio-hero h1{font-size:2.2rem}.hero-copy>p:not(.kicker){font-size:.9rem}.tool-hero h1{font-size:2rem}}
 @media(max-width:480px){.studio-hero h1{font-size:clamp(1.85rem,7.7vw,2.2rem)}.studio-hero .kicker{font-size:.61rem}.hero-tags span{font-size:.65rem}.mobile-brand small{font-size:.46rem}.tool-hero>p:last-child{font-size:.9rem}.tool-guide ol{font-size:.86rem}.tool-card,.tool-form,.tool-output,.tool-guide{padding:20px}.field-label,.field label{font-size:.84rem}}
+
+.speaker-directions{display:grid;gap:10px;min-width:0}.speaker-directions select{max-width:100%;width:100%}#video-voiceover-form{margin-top:32px}#video-voiceover-form h2{font-size:1.3rem;letter-spacing:-.02em}#tts-quote{width:100%;margin:12px 0}#tts-emotion{width:100%}@media(max-width:700px){.speaker-row .speaker-directions{grid-column:1;grid-row:1}}

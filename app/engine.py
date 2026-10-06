@@ -128,7 +128,8 @@ class ElevenLabsEngine:
         except TypeError as exc:
             raise RuntimeError('ElevenLabs SDK-аас аудио өгөгдөл авч чадсангүй.') from exc
 
-    def synthesize(self, text, output, speed=1.0, voice_id=None, trusted_voice=False, model_id=None):
+    def synthesize(self, text, output, speed=1.0, voice_id=None, trusted_voice=False, model_id=None,
+                   previous_text=None, next_text=None):
         ready, reason = self.readiness()
         if not ready:
             raise RuntimeError(reason)
@@ -141,6 +142,7 @@ class ElevenLabsEngine:
         selected_model=(model_id or self.model_id).strip()
         if selected_model not in {'eleven_v4','eleven_v4_turbo'}:
             raise ValueError('Монгол TTS-д Eleven v4 эсвэл v4 Turbo сонгоно уу.')
+        continuity={key:value for key,value in {'previous_text':previous_text,'next_text':next_text}.items() if value is not None}
         try:
             with self.client.text_to_speech.with_raw_response.convert(
                 text=text,
@@ -148,6 +150,7 @@ class ElevenLabsEngine:
                 model_id=selected_model,
                 output_format='pcm_24000',
                 language_code=self.language_code,
+                **continuity,
             ) as raw:
                 audio=raw.data
                 pcm = self._audio_bytes(audio)

@@ -24,7 +24,7 @@ def inspect_readiness():
     checks['billing']=billing.billing_enabled()
     checks['wire']=bool(os.getenv('WIRE_MN_API_KEY','').startswith('sk_live_') and os.getenv('WIRE_MN_WEBHOOK_SECRET','').strip())
     checks['smtp']=all(os.getenv(k,'').strip() for k in ('SMTP_HOST','SMTP_FROM'))
-    checks['persistent_storage']=_flag('PERSISTENT_STORAGE_CONFIRMED')
+    checks['persistent_storage']=_flag('PERSISTENT_STORAGE_CONFIRMED') or os.path.ismount(core.DATA)
     try:
         with tempfile.TemporaryFile(dir=core.DATA) as handle: handle.write(b'readiness')
         checks['storage']=True

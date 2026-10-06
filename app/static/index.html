@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css?v=rainy-signal-2">
-  <link rel="stylesheet" href="/brand.css?v=3">
-  <script src="/app.js?v=rainy-signal-2" defer></script>
+  <link rel="stylesheet" href="/brand.css?v=4">
+  <script src="/app.js?v=rainy-expressive-3" defer></script>
   <script src="/brand.js?v=2" defer></script>
 </head>
 <body>
@@ -76,11 +76,13 @@
           <aside class="tool-card">
             <div class="editor-heading"><span class="section-eyebrow">02 / ДУУ ХООЛОЙ</span></div><label for="studio-preset" class="field-label">Юунд дуу оруулах вэ?</label><select id="studio-preset" class="field-input"><option value="">Өөрөө сонгох</option><option value="story">Ном, өгүүлэмж</option><option value="ad">Сурталчилгаа, богино видео</option><option value="lesson">Хичээл, тайлбар</option><option value="news">Мэдээ, албан танилцуулга</option></select><p id="preset-help" class="field-help">Зориулалтаа сонговол хоолой болон хэмнэл санал болгоно.</p><label class="field-label">Хоолой</label><select id="voice" class="field-input"></select>
             <label class="field-label">Загвар</label><select id="tts-model" class="field-input"><option value="eleven_v4">Чанартай · 1,000 тэмдэгт / 80 кредит</option><option value="eleven_v4_turbo">Хурдан · 1,000 тэмдэгт / 40 кредит</option></select>
+            <label class="field-label" for="tts-emotion">Сэтгэл хөдлөл</label><select id="tts-emotion" class="field-input"><option value="neutral">Ердийн · байгалийн уншлага</option><option value="happy">Баяртай</option><option value="excited">Догдолсон</option><option value="thoughtful">Бодлогоширсон</option><option value="sad">Гунигтай</option><option value="angry">Ууртай</option><option value="surprised">Гайхсан</option><option value="whisper">Шивнэх</option></select><p class="field-help">Eleven v4 audio tag ашиглана. Хоолой бүрийн илэрхийлэл өөр тул эхлээд богино бичвэрээр сонсоорой.</p>
             <label class="field-label">Унших хурд <output id="speed-value">1.00×</output></label><input id="speed" type="range" min="0.8" max="1.2" step="0.05" value="1">
-            <details class="pronunciation"><summary>Дуудлагын толь ＋</summary><textarea id="glossary" placeholder="RAINY = Рэйни"></textarea></details>
-            <button id="generate" class="generate"><span class="generate-label">Дуу үүсгэх</span><span class="generate-arrow">↗</span></button>
+            <details class="pronunciation"><summary>Дуудлагын толь ＋</summary><textarea id="glossary" placeholder="RAINY = Рэйни"></textarea><p class="field-help">Нэр томьёог авиагаар бичиж орлуулна. Eleven v4-д IPA дуудлагыг /ˈreɪni/ хэлбэрээр бичвэртээ оруулж болно.</p></details>
+            <button id="tts-quote" class="secondary" type="button">Кредитийг нарийн тооцох</button><button id="generate" class="generate"><span class="generate-label">Дуу үүсгэх</span><span class="generate-arrow">↗</span></button>
           </aside>
         </div>
+        <form id="video-voiceover-form" class="tool-form"><h2>Видеонд өөрийн дууг оруулах</h2><p class="field-help">Сэтгэл хөдлөлтэй дуугаа дээр үүсгээд, бүтээлийн түүхээс «Видеонд оруулах» сонгоно уу. Эх видеоны дууг сольж, видеог бүтэн уртаар нь MP4 болгож хадгална. 10 минут хүртэл · эхэлсэн минут бүр 10 кредит, хамгийн багадаа 10 кредит. Дахин TTS API төлбөр үүсэхгүй.</p><input id="voiceover-job" name="source_job_id" type="hidden"><p id="voiceover-selection" class="field-help">Бүтээлийн түүхээс бэлэн дуу сонгоно уу.</p><label class="field-label" for="voiceover-file">Видео файл</label><input id="voiceover-file" name="file" type="file" accept="video/*" required><button class="secondary" type="submit">Дуутай MP4 бүтээх ↗</button></form>
       </section>
 
       <section id="clone" class="page tool-page" hidden>
@@ -177,7 +179,7 @@
 
       <section id="dubbing" class="page tool-page" hidden>
         <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">🎬</span><p class="kicker"><span></span>ВИДЕО ОРЧУУЛАХ</p><h1>Видео-г <em>өөр хэлээр.</em></h1><p>Видеоны яриаг сонгосон хэл рүү орчуулж дуу оруулна.</p></div>
-        <form id="dubbing-form" class="tool-form"><p class="tool-warning">Видео орчуулахад кредит зарцуулна. Видео файл оруулсан бол бэлэн болсон орчуулсан дууг эх видеотой нэгтгэн MP4 үүсгэнэ.</p><div class="field"><label>Видео / Аудио файл</label><input name="file" type="file" accept="audio/*,video/*"></div><div class="field"><label>эсвэл Нийтийн холбоос</label><input name="source_url" type="url" placeholder="https://…"></div><div class="field-grid"><div class="field"><label>Эх хэл</label><input name="source_language" placeholder="en / auto"></div><div class="field"><label>Орчуулах хэл</label><input name="target_language" value="mn" required placeholder="mn"></div></div><div class="field"><label>Төслийн нэр</label><input name="reference" value="RAINY Dubbing"></div><button class="generate" type="submit"><span>Видео орчуулж эхлэх</span><span>↗</span></button></form>
+        <form id="dubbing-form" class="tool-form"><p class="tool-warning">Видео орчуулахад кредит зарцуулна. Видео файл оруулсан бол бэлэн болсон орчуулсан дууг эх видеотой нэгтгэн MP4 үүсгэнэ.</p><div class="field"><label>Видео / Аудио файл</label><input name="file" type="file" accept="audio/*,video/*"></div><div class="field"><label>эсвэл Нийтийн холбоос</label><input name="source_url" type="url" placeholder="https://…"></div><div class="field-grid"><div class="field"><label>Эх хэл</label><input name="source_language" placeholder="en / auto"></div><div class="field"><label>Орчуулах хэл</label><input name="target_language" value="mn" required placeholder="mn"></div></div><div class="field"><label>Төслийн нэр</label><input name="reference" value="RAINY Dubbing"></div><div class="field"><label for="dubbing-keyterms">Нэр, брэнд, нэр томьёо</label><textarea id="dubbing-keyterms" name="keyterms" class="field-input" placeholder="RAINY, Улаанбаатар, бүтээгдэхүүний нэр"></textarea><p class="field-help">Таслал эсвэл шинэ мөрөөр тусгаарлана. Dubbing v2 эх яриаг таних, орчуулахдаа ашиглана. 1 минут ≈ 2,200 кредит; хүсэлтийг provider хүлээж авмагц төлбөр үүсдэг.</p></div><button class="generate" type="submit"><span>Видео орчуулж эхлэх</span><span>↗</span></button></form>
         <div id="dubbing-status" class="result-box" hidden></div>
       </section>
 

@@ -190,7 +190,7 @@ class BillingApiTests(unittest.TestCase):
              patch.object(server.tools,"find_shared_voice",new=AsyncMock(return_value={"voice_id":voice,"rate":2})):
             response=self.client.post(
                 "/api/jobs",
-                json={"text":"x"*1000,"voice_id":voice,"speed":1},
+                json={"text":("xxxx "*200).strip(),"voice_id":voice,"speed":1},
                 headers=self.headers
             )
         self.assertEqual(response.status_code,202,response.text)
@@ -210,7 +210,7 @@ class BillingApiTests(unittest.TestCase):
              patch.object(server.tools,"find_shared_voice",new=AsyncMock(return_value={"voice_id":voice,"rate":1})):
             created=self.client.post(
                 "/api/jobs",
-                json={"text":"x"*1000,"voice_id":voice,"speed":1},
+                json={"text":("xxxx "*200).strip(),"voice_id":voice,"speed":1},
                 headers=self.headers
             )
         self.assertEqual(created.status_code,202,created.text)
@@ -297,3 +297,4 @@ class BillingApiTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+

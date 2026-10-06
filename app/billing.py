@@ -197,6 +197,7 @@ def public_rate_card():
         "sound_effects":{"credits":120,"unit":"per_generation"},
         "dubbing_v1":{"credits":330,"unit":"per_min"},
         "dubbing_v2":{"credits":2200,"unit":"per_min"},
+        "video_voiceover":{"credits":10,"unit":"per_started_min","minimum":10,"basis":"local_render_reserve"},
     }
 
 def billing_enabled():
@@ -311,6 +312,35 @@ def debit(user_id, credits, tool_type, reference=None, metadata=None):
             (charge_id,user_id,"usage",-credits,new_balance,tool_type,reference,json.dumps(metadata or {},ensure_ascii=False),now)
         )
     return charge_id
+
+def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata):
+    """Reserve credits and the per-user queue slot in one SQLite transaction."""
+    ensure_wallet(user_id)
+    _expire_if_needed(user_id)
+    paid = billing_enabled() and not admin_test_mode(user_id)
+    now = time.time()
+    with core.db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        user=c.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
+        if not user or user['email'].endswith('@deleted.invalid'):
+            raise ValueError('Аккаунт идэвхгүй байна.')
+        active = c.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(user_id,)).fetchone()[0]
+        if active >= 3:
+            raise ValueError('Зэрэг 3-аас олон TTS ажил үүсгэхгүй.')
+        charge_id = core.uid() if paid else None
+        if paid:
+            row = c.execute('SELECT balance FROM credit_wallets WHERE user_id=?',(user_id,)).fetchone()
+            if row['balance'] < credits:
+                raise ValueError(f"Credit хүрэлцэхгүй байна. Шаардлагатай: {credits}, үлдэгдэл: {row['balance']}.")
+            balance = row['balance'] - credits
+            c.execute('UPDATE credit_wallets SET balance=?,lifetime_out=lifetime_out+?,updated=? WHERE user_id=?',(balance,credits,now,user_id))
+            c.execute('INSERT INTO credit_ledger VALUES(?,?,?,?,?,?,?,?,?)',
+                      (charge_id,user_id,'usage',-credits,balance,'tts',job_id,json.dumps(metadata),now))
+        payload['billing']={'credits':credits if paid else 0,'charge_id':charge_id,
+                            'voice_multiplier':metadata['voice_multiplier'],'model_id':metadata['model_id']}
+        c.execute('INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)',
+                  (job_id,user_id,voice_id,title,json.dumps(payload,ensure_ascii=False),'queued',now))
+    return credits if paid else 0
 
 def refund(user_id, charge_id, reason="provider_failed"):
     # A historical debit must remain refundable even if billing is later disabled.

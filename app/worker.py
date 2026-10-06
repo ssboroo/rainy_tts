@@ -7,6 +7,7 @@ import subprocess
 import threading
 from . import core, billing, durable_jobs
 from .engine import ElevenLabsEngine, assemble
+from .voice_direction import segments
 
 log = logging.getLogger(__name__)
 engine = ElevenLabsEngine()
@@ -33,15 +34,19 @@ def run_job(job):
         if not resolved_voice_id:
             raise ValueError('Сонгосон ElevenLabs voice workspace-д sync хийгдээгүй байна.')
         cues = payload.get('cues')
-        texts = [cue['text'] for cue in cues] if cues else core.chunks(payload['text'])
+        texts = segments(payload)
         parts = []
         provider_meta=[]
         model_id=(payload.get('billing') or {}).get('model_id') or payload.get('model_id') or engine.model_id
         for i, text in enumerate(texts):
             part = folder / f'{i}.wav'
+            continuity={}
+            if i: continuity['previous_text']=texts[i-1]
+            if i+1<len(texts): continuity['next_text']=texts[i+1]
             meta=engine.synthesize(
                 text, part, payload['speed'], resolved_voice_id,
-                trusted_voice=True, model_id=model_id
+                trusted_voice=True, model_id=model_id,
+                **continuity
             ) or {}
             provider_meta.append(meta)
             parts.append(part)
