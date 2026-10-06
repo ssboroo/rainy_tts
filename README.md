@@ -282,7 +282,7 @@ Recommended Railway setup:
 
 1. Deploy this GitHub repository as one service. Railway will build the included Dockerfile.
 2. Before mounting storage, preserve the existing database and files using the migration procedure in `docs/PRODUCTION.md`. Add a Railway Volume to the same service and mount it at `/data`.
-3. Because Railway volumes are mounted as root while this Docker image normally runs as the non-root `studio` user, set `RAILWAY_RUN_UID=0` on the Railway service when using the volume.
+3. The Docker bootstrap repairs `/data` volume ownership and drops to the non-root `studio` account before starting the web process and worker. Do not force `RAILWAY_RUN_UID=10001` before this bootstrap on a new root-owned volume. Confirm the application runtime UID is 10001 after deployment.
 4. Set `DATA_DIR=/data` and `HOST=0.0.0.0`. Railway supplies the public `PORT` variable automatically; the app also defaults to 8080.
 5. Set `PUBLIC_ORIGIN=https://YOUR_DOMAIN` after Railway or your custom domain is active.
 6. Configure the ElevenLabs, billing and Wire.mn secrets as service variables. Never expose them in the frontend.
@@ -294,3 +294,10 @@ Do **not** create a separate worker service while RAINY is still using SQLite + 
 ## Production verification
 
 Metering defaults to enabled, and markup defaults to a minimum 3.0 multiplier (200% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
+
+
+### Expressive voice and video voiceover
+
+Eleven v4 emotion presets work in TTS/SRT and per dialogue speaker. `/api/jobs/quote` includes prepared text, inserted tags and the selected voice multiplier without charging or queuing. Long-form segments carry adjacent-text context. From a completed TTS history item choose **Видеонд оруулах**, upload a video of at most 10 minutes, and receive a durable MP4 history artifact. The source sound is replaced; short narration is padded so the video retains its full duration, while narration longer than the video is rejected. Local rendering reserves 10 credits per started minute, minimum 10, and does not call TTS again.
+
+The worker keeps seven daily SQLite snapshots in `/data/backups`; an interrupted snapshot is detected and repaired. These same-volume snapshots cover the database and cannot replace an off-site backup of media. See [the dated audit](docs/PRODUCTION_AUDIT_2026-10-06.md) for validated behavior and remaining launch requirements.

@@ -12,7 +12,7 @@ import wave
 
 import httpx
 from fastapi.testclient import TestClient
-from app import core, billing, durable_jobs, server, voice_direction
+from app import core, billing, durable_jobs, server, voice_direction, operations
 from app.engine import ElevenLabsEngine
 
 
@@ -71,6 +71,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(created.status_code,202,created.text)
         self.assertEqual(created.json()['credits_used'],quote.json()['credits'])
         self.assertEqual(billing.wallet(self.user)['wallet']['balance'],1000-quote.json()['credits'])
+
+    def test_daily_database_snapshot_is_consistent_and_idempotent(self):
+        import sqlite3
+        path=operations.daily_database_backup()
+        self.assertEqual(operations.daily_database_backup(),path)
+        with sqlite3.connect(path) as db:
+            self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
+            self.assertEqual(db.execute('SELECT balance FROM credit_wallets WHERE user_id=?',(self.user,)).fetchone()[0],1000)
+
+    def test_single_customer_launch_excludes_unsafe_plan(self):
+        with patch.dict(os.environ,{'ELEVENLABS_PROVIDER_PLAN':'starter','BILLING_EXPECTED_ACTIVE_USERS':'1'}):
+            self.assertFalse(billing.get_plan('starter')['profit_safe'])
+            self.assertTrue(billing.get_plan('pro')['profit_safe'])
+
+    def test_interrupted_daily_snapshot_is_repaired(self):
+        path=operations.daily_database_backup()
+        path.write_bytes(b'partial database')
+        operations.daily_database_backup()
+        self.assertTrue(operations.verify_backup(path)['ok'])
+        self.assertEqual(len(list(path.parent.glob('*.invalid-*'))),1)
 
     def test_queue_and_wallet_are_atomic_under_concurrency(self):
         def submit(i):

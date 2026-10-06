@@ -6,11 +6,33 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import time
+import datetime
 from dotenv import load_dotenv
 
 load_dotenv(".env.local", override=False)
 load_dotenv(".env", override=False)
 from . import billing, core
+
+def daily_database_backup():
+    """Seven daily SQLite snapshots on the volume; not an off-site media backup."""
+    directory=core.DATA/'backups'
+    directory.mkdir(mode=0o700,exist_ok=True)
+    today=datetime.datetime.now(datetime.timezone.utc).date()
+    destination=directory/f'studio-{today.isoformat()}.sqlite3'
+    if destination.exists():
+        try: valid=verify_backup(destination)['ok']
+        except sqlite3.Error: valid=False
+        if not valid:
+            destination.rename(directory/(destination.name+f'.invalid-{time.time_ns()}'))
+    if not destination.exists():
+        backup_database(destination)
+    for expired in directory.glob('studio-????-??-??.sqlite3'):
+        if expired.is_symlink(): continue
+        try: date=datetime.date.fromisoformat(expired.stem[7:])
+        except ValueError: continue
+        if date<=today-datetime.timedelta(days=7):
+            expired.unlink(missing_ok=True)
+    return destination
 
 
 def _flag(name):

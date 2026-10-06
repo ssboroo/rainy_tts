@@ -5,7 +5,7 @@ import logging
 import shutil
 import subprocess
 import threading
-from . import core, billing, durable_jobs
+from . import core, billing, durable_jobs, operations
 from .engine import ElevenLabsEngine, assemble
 from .voice_direction import segments
 
@@ -111,8 +111,16 @@ def run_job(job):
         shutil.rmtree(folder, ignore_errors=True)
 
 def heartbeat():
+    backup_date=None
     while not stop.is_set():
         (core.DATA/'worker-heartbeat').write_text(str(time.time()))
+        today=time.strftime('%Y-%m-%d',time.gmtime())
+        if backup_date!=today:
+            try:
+                operations.daily_database_backup()
+                backup_date=today
+            except Exception:
+                log.exception('Daily database backup failed')
         stop.wait(15)
 
 def loop():
