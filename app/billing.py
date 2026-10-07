@@ -31,7 +31,7 @@ PLANS = {
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "hobby": {
-        "id":"hobby","name":"Hobby","price_mnt":40_000,
+        "id":"hobby","name":"Hobby","price_mnt":20_000,
         "description":"Сонирхогч хэрэглээ · 1 энгийн хоолой хадгалах эрх","sort":1,
     },
     "starter": {
@@ -43,7 +43,7 @@ PLANS = {
         "description":"Контент бүтээгч · 2 хоолой хадгалах эрх","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":90_000,
+        "id":"pro","name":"Pro","price_mnt":80_000,
         "description":"Идэвхтэй хэрэглээ · 5 энгийн + 1 мэргэжлийн хоолой","sort":3,
     },
     "studio": {
@@ -51,7 +51,7 @@ PLANS = {
         "description":"Студи, баг · 10 энгийн + 2 мэргэжлийн хоолой","sort":4,
     },
     "agency": {
-        "id":"agency","name":"Agency","price_mnt":475_000,
+        "id":"agency","name":"Agency","price_mnt":500_000,
         "description":"Байгууллага · 20 энгийн + 4 мэргэжлийн хоолой","sort":5,
     },
 }
@@ -161,7 +161,7 @@ def safe_monthly_credits(price_mnt):
     max_credits=variable_cost_budget/(upstream_mnt_per_credit*settings["observed_cost_factor"])
     return max(0,int(max_credits//100)*100)
 
-PUBLIC_PLAN_CREDITS={'hobby':3000,'pro':7000,'studio':16000,'agency':38000}
+PUBLIC_PLAN_CREDITS={'hobby':1500,'pro':6400,'studio':16000,'agency':40000}
 
 def protected_credit_price_mnt(credits, minimum_price=0):
     settings=pricing_settings()

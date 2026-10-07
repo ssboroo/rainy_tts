@@ -86,7 +86,7 @@ class BillingUnitTests(unittest.TestCase):
                 modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
                 self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-            expected={"starter":3500,"creator":4300,"pro":7000,"studio":16000,"agency":38000}
+            expected={"starter":3500,"creator":4300,"pro":6400,"studio":16000,"agency":40000}
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
 
@@ -97,8 +97,8 @@ class BillingUnitTests(unittest.TestCase):
         },clear=True):
             plans=[p for p in billing.public_plan_catalog() if p['id']!='trial']
             self.assertEqual([p['id'] for p in plans],['hobby','pro','studio','agency'])
-            self.assertEqual([p['price_mnt'] for p in plans],[115000,165000,275000,550000])
-            self.assertEqual([p['monthly_credits'] for p in plans],[3000,7000,16000,38000])
+            self.assertEqual([p['price_mnt'] for p in plans],[95000,155000,275000,575000])
+            self.assertEqual([p['monthly_credits'] for p in plans],[1500,6400,16000,40000])
             settings=billing.pricing_settings()
             fixed=6*3700*1.1
             for plan in plans:

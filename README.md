@@ -163,10 +163,10 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Сонирхогч (Hobby) | ₮40,000 | 3,000 | 1 |
-| Pro | ₮90,000 | 7,000 | 5 |
+| Сонирхогч (Hobby) | ₮20,000 | 1,500 | 1 |
+| Pro | ₮80,000 | 6,400 | 5 |
 | Studio | ₮200,000 | 16,000 | 10 |
-| Agency | ₮475,000 | 38,000 | 20 |
+| Agency | ₮500,000 | 40,000 | 20 |
 
 * Public credit quantities are fixed. Prices above assume a verified active Starter account, FX 3,700, 3% payment reserve, 10% overhead reserve, 10% FX buffer and observed cost factor 1.0. Prices are rounded up in 5,000 MNT steps and automatically increase when modeled cost rises. For total-cost markup, `price >= 2.2 × (provider_cost + price × reserve_fraction)`, with `reserve_fraction = 1 − (1 − payment_fee) × (1 − overhead_reserve)`. This gives a denominator of 0.7206 at default reserves. Configurations with a nonpositive denominator are not sold. The 120% markup target covers modeled costs and reserves, not guaranteed accounting profit. Existing sold quotes retain their amount and credit quantity. Stale/missing provider snapshots use the more conservative additive model. Legacy Starter/Creator IDs remain for old records and are not shown for sale.
 
