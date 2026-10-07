@@ -635,7 +635,7 @@ $('sync-voices').onclick=async()=>{
 function formatMnt(value){return '₮'+Number(value||0).toLocaleString('en-US');}
 function formatCycle(ts){return ts?new Date(Number(ts)*1000).toLocaleDateString('mn-MN'):'—';}
 
-function customerPlanName(id,fallback){return ({trial:'Үнэгүй',starter:'Эхлэх',creator:'Контент бүтээгч',pro:'Мэргэжлийн',studio:'Студи',agency:'Байгууллага'})[id]||fallback||id;}
+function customerPlanName(id,fallback){return ({trial:'Үнэгүй',hobby:'Сонирхогч',starter:'Эхлэх',creator:'Контент бүтээгч',pro:'Мэргэжлийн',studio:'Студи',agency:'Байгууллага'})[id]||fallback||id;}
 function renderPlans(plans,wireConfigured){
   const root=$('plan-grid');root.replaceChildren();
   const paidPlans=plans.filter(p=>p.id!=='trial'&&Number(p.price_mnt)>0);

@@ -163,6 +163,7 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
+| Сонирхогч (Hobby) | ₮40,000 | 3,000 | 1 |
 | Pro | ₮90,000 | 7,000 | 5 |
 | Studio | ₮200,000 | 16,000 | 10 |
 | Agency | ₮475,000 | 38,000 | 20 |

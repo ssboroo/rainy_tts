@@ -100,11 +100,24 @@ class ProviderCostTests(unittest.TestCase):
     def test_fixed_credit_packages_price_above_120_percent_markup(self):
         self.sync()
         plans=[p for p in billing.public_plan_catalog() if p['id']!='trial']
-        self.assertEqual([p['monthly_credits'] for p in plans],[7000,16000,38000])
-        self.assertEqual([p['price_mnt'] for p in plans],[90000,200000,475000])
+        self.assertEqual([p['monthly_credits'] for p in plans],[3000,7000,16000,38000])
+        self.assertEqual([p['price_mnt'] for p in plans],[75000,90000,200000,475000])
         for p in plans:
             modeled=max(6*4070,p['monthly_credits']*.001*4070)
             self.assertGreaterEqual(p['price_mnt'],(modeled+p['price_mnt']*(1-.97*.9))*2.2)
+    def test_hobby_checkout_grants_3000_once_at_40000_with_shared_costs(self):
+        self.sync()
+        with core.db() as c:
+            c.execute('INSERT INTO users VALUES(?,?,?,?)',('h','h@example.com','hash',time.time()))
+        with patch.dict(os.environ,{'BILLING_EXPECTED_ACTIVE_USERS':'5'}):
+            plan=billing.get_plan('hobby')
+            self.assertIsNotNone(plan)
+            self.assertEqual(plan['price_mnt'],40000)
+            self.assertEqual(plan['monthly_credits'],3000)
+            order=billing.create_order('h','hobby',expected_price=40000,expected_credits=3000)
+            billing.mark_order_paid(order['id'])
+            billing.mark_order_paid(order['id'])
+            self.assertEqual(billing.wallet('h')['wallet']['balance'],3000)
     def test_cost_increase_raises_price_without_cutting_promised_credits(self):
         self.sync()
         with patch.dict(os.environ,{'BILLING_USD_MNT_RATE':'4500'}):

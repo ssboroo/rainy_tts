@@ -30,6 +30,10 @@ PLANS = {
         "id":"trial","name":"Trial","price_mnt":0,
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
+    "hobby": {
+        "id":"hobby","name":"Hobby","price_mnt":40_000,
+        "description":"Сонирхогч хэрэглээ · 1 энгийн хоолой хадгалах эрх","sort":1,
+    },
     "starter": {
         "id":"starter","name":"Starter","price_mnt":60_000,
         "description":"Эхлэх хэрэглээ · 1 хоолой хадгалах эрх","sort":1,
@@ -54,6 +58,7 @@ PLANS = {
 
 PLAN_ENTITLEMENTS = {
     "trial":{"clone_limit":0,"pvc_limit":0},
+    "hobby":{"clone_limit":1,"pvc_limit":0},
     "starter":{"clone_limit":1,"pvc_limit":0},
     "creator":{"clone_limit":2,"pvc_limit":0},
     "pro":{"clone_limit":5,"pvc_limit":1},
@@ -156,7 +161,7 @@ def safe_monthly_credits(price_mnt):
     max_credits=variable_cost_budget/(upstream_mnt_per_credit*settings["observed_cost_factor"])
     return max(0,int(max_credits//100)*100)
 
-PUBLIC_PLAN_CREDITS={'pro':7000,'studio':16000,'agency':38000}
+PUBLIC_PLAN_CREDITS={'hobby':3000,'pro':7000,'studio':16000,'agency':38000}
 
 def protected_credit_price_mnt(credits, minimum_price=0):
     settings=pricing_settings()
@@ -194,7 +199,7 @@ def plan_catalog():
 def public_plan_catalog():
     public=[]
     for plan in plan_catalog():
-        # Retain legacy IDs for existing subscriptions, but sell three current tiers.
+        # Retain legacy IDs for existing subscriptions, but sell four current tiers.
         if plan["id"] in {"starter", "creator"}:
             continue
         if plan["id"]!="trial" and not plan.get("profit_safe",False):

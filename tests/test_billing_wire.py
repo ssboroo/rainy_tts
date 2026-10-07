@@ -90,15 +90,15 @@ class BillingUnitTests(unittest.TestCase):
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
 
-    def test_three_public_tiers_cover_single_user_launch_costs(self):
+    def test_four_public_tiers_cover_single_user_launch_costs(self):
         with patch.dict(os.environ,{
             'ELEVENLABS_PROVIDER_PLAN':'starter', 'BILLING_EXPECTED_ACTIVE_USERS':'1',
             'BILLING_TARGET_MARKUP':'2.0',
         },clear=True):
             plans=[p for p in billing.public_plan_catalog() if p['id']!='trial']
-            self.assertEqual([p['id'] for p in plans],['pro','studio','agency'])
-            self.assertEqual([p['price_mnt'] for p in plans],[165000,275000,550000])
-            self.assertEqual([p['monthly_credits'] for p in plans],[7000,16000,38000])
+            self.assertEqual([p['id'] for p in plans],['hobby','pro','studio','agency'])
+            self.assertEqual([p['price_mnt'] for p in plans],[115000,165000,275000,550000])
+            self.assertEqual([p['monthly_credits'] for p in plans],[3000,7000,16000,38000])
             settings=billing.pricing_settings()
             fixed=6*3700*1.1
             for plan in plans:
