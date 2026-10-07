@@ -27,7 +27,7 @@ from . import core, billing, wire_payment, durable_jobs, operations, accounts, a
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 from .media_formats import dubbing_output
-from . import provider_catalog
+from . import provider_catalog, provider_cost
 from . import voice_direction
 
 STATIC = Path(__file__).parent / "static"
@@ -56,6 +56,21 @@ async def startup():
     core.init()
     durable_jobs.ensure_schema()
     app.state.catalog_task=asyncio.create_task(provider_catalog.refresh(tools))
+    app.state.provider_cost_task=asyncio.create_task(refresh_provider_cost_loop())
+
+async def refresh_provider_cost_loop():
+    while True:
+        await provider_cost.refresh(tools)
+        await asyncio.sleep(300)
+
+@app.on_event('shutdown')
+async def stop_provider_cost_loop():
+    task=getattr(app.state,'provider_cost_task',None)
+    if task:
+        task.cancel()
+        try: await task
+        except asyncio.CancelledError: pass
+
 
 @app.middleware("http")
 async def security_headers(request:Request, call_next):
@@ -494,7 +509,9 @@ async def billing_wire_create(request:Request):
             (sess["user_id"],plan_id,time.time()-1800)
         ).fetchone()
     if not order:
-        created=billing.create_order(sess["user_id"],plan_id,"wire")
+        await provider_cost.refresh(tools,force=True)
+        try: created=billing.create_order(sess["user_id"],plan_id,"wire")
+        except ValueError as exc: raise HTTPException(503,str(exc))
         order=billing_order_for_user(created["id"],sess["user_id"])
 
     order_id=order["id"]
@@ -1697,6 +1714,18 @@ def admin_user(request:Request):
     if not allowed or str(sess["email"]).lower() not in allowed:
         raise HTTPException(403,"Admin эрх шаардлагатай.")
     return sess
+
+@app.get('/api/admin/provider-cost')
+def admin_provider_cost(request:Request):
+    admin_user(request)
+    return provider_cost.report()
+
+@app.post('/api/admin/provider-cost/refresh')
+async def admin_refresh_provider_cost(request:Request):
+    sess=admin_user(request); mutation_guard(request,sess)
+    throttle('provider-cost:'+sess['user_id'],2,60)
+    await provider_cost.refresh(tools,force=True)
+    return provider_cost.report()
 
 @app.get("/api/admin/provider-usage")
 def admin_provider_usage(request:Request):

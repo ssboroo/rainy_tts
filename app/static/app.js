@@ -983,7 +983,7 @@ async function loadAdmin(){
  try{
   const data=await api('/admin/overview');
   if(!state.user?.admin||state.user.email!==adminEmail)return;
-  const labels={users:'Бүртгэл',active_users:'Идэвхтэй бүртгэл',jobs:'Ажил',failed_jobs:'Амжилтгүй ажил',queued_jobs:'Дараалал дахь ажил',storage:'Хадгалалт',provider:'Үйлчилгээ',billing:'Төлбөр',readiness:'Бэлэн байдал',credits:'Кредит',usage:'Хэрэглээ',cost:'Зардал',worker:'Боловсруулагч',database:'Өгөгдлийн сан',status:'Төлөв',errors:'Алдаа',counts:'Тоо хэмжээ',payments:'Төлбөр',recent_failures:'Сүүлийн алдаа',storage_bytes:'Хадгалалтын хэмжээ',ok:'Хэвийн',configured:'Тохируулсан'};
+  const labels={provider_cost:'ElevenLabs өртөг ба үлдэгдэл',account:'Данс',tier:'Багц',remaining_credits:'ElevenLabs үлдэгдэл',used_credits:'Зарцуулсан кредит',limit_credits:'Нийт боломжит кредит',monthly_quota:'Сарын кредит',monthly_cost_usd:'Сарын өртөг · USD',usd_per_provider_credit:'Нэг ElevenLabs кредитийн тооцоолсон өртөг · USD',cost_basis:'Өртгийн эх сурвалж',fresh:'Мэдээлэл шинэ эсэх',reconciliation:'Бодит суутгалтай тулгалт',samples:'Тулгасан хүсэлт',measured_provider_credits:'Хэмжигдсэн ElevenLabs кредит',allocated_cost_usd:'Хуваарилсан өртөг · USD',cost_factor:'Өртгийн хамгаалалтын үржүүлэгч',note:'Тайлбар',users:'Бүртгэл',active_users:'Идэвхтэй бүртгэл',jobs:'Ажил',failed_jobs:'Амжилтгүй ажил',queued_jobs:'Дараалал дахь ажил',storage:'Хадгалалт',provider:'Үйлчилгээ',billing:'Төлбөр',readiness:'Бэлэн байдал',credits:'Кредит',usage:'Хэрэглээ',cost:'Зардал',worker:'Боловсруулагч',database:'Өгөгдлийн сан',status:'Төлөв',errors:'Алдаа',counts:'Тоо хэмжээ',payments:'Төлбөр',recent_failures:'Сүүлийн алдаа',storage_bytes:'Хадгалалтын хэмжээ',ok:'Хэвийн',configured:'Тохируулсан'};
   function show(value,container){
    Object.entries(value||{}).forEach(([key,item])=>{
     const card=document.createElement('article');card.className='admin-card';
@@ -995,6 +995,9 @@ async function loadAdmin(){
  }catch(e){root.textContent=customerMessage(e.message);}
 }
 $('admin-refresh').onclick=loadAdmin;
+const costRefresh=document.createElement('button');costRefresh.type='button';costRefresh.className='secondary';costRefresh.textContent='ElevenLabs багц, үлдэгдэл шинэчлэх';
+costRefresh.onclick=async()=>{costRefresh.disabled=true;try{await api('/admin/provider-cost/refresh',{method:'POST',body:{}});await loadAdmin();}catch(e){notice(customerMessage(e.message));}finally{costRefresh.disabled=false;}};
+$('admin-refresh').after(costRefresh);
 const catalogRefresh=document.createElement('button');catalogRefresh.type='button';catalogRefresh.className='secondary';catalogRefresh.textContent='Хоолой ба загварыг API-аас шинэчлэх';
 catalogRefresh.onclick=async()=>{catalogRefresh.disabled=true;try{const data=await api('/admin/studio/catalog/refresh',{method:'POST',body:{}});await refreshVoices();notice('Монгол хоолой: '+data.native_voices+' · Үндсэн хоолой: '+data.default_voices+(data.errors?.length?' · Зарим сан шинэчлэгдсэнгүй. Дараа дахин оролдоно уу.':''));}catch(e){notice(customerMessage(e.message));}finally{catalogRefresh.disabled=false;}};
 $('admin-refresh').after(catalogRefresh);

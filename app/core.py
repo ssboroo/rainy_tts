@@ -111,6 +111,7 @@ def init():
             created REAL NOT NULL,
             paid_at REAL
         );
+        CREATE TABLE IF NOT EXISTS billing_order_quotes(order_id TEXT PRIMARY KEY REFERENCES billing_orders(id) ON DELETE CASCADE,credits INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS billing_orders_user ON billing_orders(user_id,created DESC);
         CREATE TABLE IF NOT EXISTS wire_payments(
             order_id TEXT PRIMARY KEY REFERENCES billing_orders(id) ON DELETE CASCADE,
@@ -138,6 +139,7 @@ def init():
             updated REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS pvc_voices_user ON pvc_voices(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS provider_account_snapshot(id INTEGER PRIMARY KEY CHECK(id=1),payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS provider_usage(
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -101,11 +101,16 @@ def pricing_settings():
     provider_plan=os.getenv("ELEVENLABS_PROVIDER_PLAN","pro").strip().lower() or "pro"
     if provider_plan not in ELEVENLABS_PROVIDER_PLANS:
         provider_plan="pro"
+    from . import provider_cost
+    account=provider_cost.read(fresh=True)
+    live=bool(account and account.get('status') in {'active','trialing'})
+    if live: provider_plan=account['tier']
     provider_meta=ELEVENLABS_PROVIDER_PLANS[provider_plan]
+    provider_base=float(account['monthly_cost_usd']) if live else float(provider_meta['price_usd'])
     expected_active=max(1,int(os.getenv("BILLING_EXPECTED_ACTIVE_USERS","100")))
     fixed_per_user=max(
         float(os.getenv("BILLING_FIXED_COST_PER_ACTIVE_USER_USD","1.25")),
-        float(provider_meta["price_usd"])/expected_active,
+        provider_base/expected_active,
     )
     return {
         "usd_mnt_rate":fx,
@@ -114,7 +119,9 @@ def pricing_settings():
         "overhead_reserve":overhead,
         "fx_buffer":fx_buffer,
         "provider_plan":provider_plan,
-        "provider_base_usd":provider_meta["price_usd"],
+        "provider_base_usd":provider_base,
+        "provider_account_verified":live,
+        "observed_cost_factor":provider_cost.reconciliation(account)["cost_factor"] if live else 1.0,
         "provider_monthly_credits":provider_meta["monthly_credits"],
         "expected_active_users":expected_active,
         "fixed_cost_per_active_user_usd":fixed_per_user,
@@ -142,9 +149,11 @@ def safe_monthly_credits(price_mnt):
     net_revenue=float(price_mnt)*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
     total_cost_budget=net_revenue/settings["target_markup"]
     fixed_cost_mnt=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
-    variable_cost_budget=max(0.0,total_cost_budget-fixed_cost_mnt)
+    # With a live paid account, the subscription buys included usage. Allocate
+    # its cost once: max(base allocation, usage cost), not base + included usage.
+    variable_cost_budget=max(0.0,total_cost_budget if settings['provider_account_verified'] else total_cost_budget-fixed_cost_mnt)
     upstream_mnt_per_credit=CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
-    max_credits=variable_cost_budget/upstream_mnt_per_credit
+    max_credits=variable_cost_budget/(upstream_mnt_per_credit*settings["observed_cost_factor"])
     return max(0,int(max_credits//100)*100)
 
 def get_plan(plan_id):
@@ -396,10 +405,11 @@ def grant(user_id, credits, kind="admin_grant", reference=None, metadata=None):
         )
     return ledger_id
 
-def _activate_plan_tx(c, user_id, plan_id, order_id=None, now=None):
+def _activate_plan_tx(c, user_id, plan_id, order_id=None, now=None, quoted_credits=None):
     plan=get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Paid plan буруу байна.")
+    if quoted_credits is not None: plan["monthly_credits"]=int(quoted_credits)
     now=time.time() if now is None else now
     row=c.execute("SELECT balance FROM credit_wallets WHERE user_id=?",(user_id,)).fetchone()
     if not row:
@@ -443,10 +453,14 @@ def create_order(user_id, plan_id, provider="manual"):
     order_id=core.uid()
     now=time.time()
     with core.db() as c:
+        c.execute("BEGIN IMMEDIATE")
+        from . import provider_cost
+        provider_cost.ensure_capacity(c,plan,user_id)
         c.execute(
             "INSERT INTO billing_orders(id,user_id,plan_id,amount_mnt,status,provider,provider_ref,created,paid_at) VALUES(?,?,?,?,?,?,?,?,NULL)",
             (order_id,user_id,plan_id,plan["price_mnt"],"pending",provider,None,now)
         )
+        c.execute('INSERT INTO billing_order_quotes VALUES(?,?)',(order_id,plan['monthly_credits']))
     return {"id":order_id,"plan_id":plan_id,"amount_mnt":plan["price_mnt"],"status":"pending","provider":provider}
 
 def mark_order_paid(order_id, provider_ref=None):
@@ -467,7 +481,8 @@ def mark_order_paid(order_id, provider_ref=None):
         if changed.rowcount!=1:
             current=c.execute("SELECT * FROM billing_orders WHERE id=?",(order_id,)).fetchone()
             return dict(current)
-        _activate_plan_tx(c,order["user_id"],order["plan_id"],order_id,now)
+        quote=c.execute('SELECT credits FROM billing_order_quotes WHERE order_id=?',(order_id,)).fetchone()
+        _activate_plan_tx(c,order["user_id"],order["plan_id"],order_id,now,quote['credits'] if quote else None)
         return dict(c.execute("SELECT * FROM billing_orders WHERE id=?",(order_id,)).fetchone())
 
 def ledger(user_id, limit=100):
