@@ -24,8 +24,7 @@ ELEVENLABS_PROVIDER_PLANS = {
     "business": {"price_usd":990, "monthly_credits":6_000_000},
 }
 
-# RAINY customer subscription plans. Monthly credits are computed dynamically
-# from price and the protected cost model rather than hard-coded.
+# Public tiers sell fixed credit quantities; price rises to protect modeled cost.
 PLANS = {
     "trial": {
         "id":"trial","name":"Trial","price_mnt":0,
@@ -40,15 +39,15 @@ PLANS = {
         "description":"Контент бүтээгч · 2 хоолой хадгалах эрх","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":60_000,
+        "id":"pro","name":"Pro","price_mnt":90_000,
         "description":"Идэвхтэй хэрэглээ · 5 энгийн + 1 мэргэжлийн хоолой","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":150_000,
+        "id":"studio","name":"Studio","price_mnt":200_000,
         "description":"Студи, баг · 10 энгийн + 2 мэргэжлийн хоолой","sort":4,
     },
     "agency": {
-        "id":"agency","name":"Agency","price_mnt":350_000,
+        "id":"agency","name":"Agency","price_mnt":475_000,
         "description":"Байгууллага · 20 энгийн + 4 мэргэжлийн хоолой","sort":5,
     },
 }
@@ -94,7 +93,7 @@ RATES = {
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
-    markup=max(2.0,float(os.getenv("BILLING_TARGET_MARKUP","2.0")))
+    markup=max(2.2,float(os.getenv("BILLING_TARGET_MARKUP","2.2")))
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
@@ -139,7 +138,8 @@ def recommended_provider_plan(active_users):
 def minimum_safe_plan_price_mnt():
     settings=pricing_settings()
     fixed_cost=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
-    denominator=(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    net_fraction=(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
+    denominator=1-settings["target_markup"]*(1-net_fraction)
     if denominator<=0:
         return math.inf
     return math.ceil((fixed_cost*settings["target_markup"])/denominator)
@@ -147,7 +147,7 @@ def minimum_safe_plan_price_mnt():
 def safe_monthly_credits(price_mnt):
     settings=pricing_settings()
     net_revenue=float(price_mnt)*(1-settings["payment_fee"])*(1-settings["overhead_reserve"])
-    total_cost_budget=net_revenue/settings["target_markup"]
+    total_cost_budget=float(price_mnt)/settings["target_markup"]-(float(price_mnt)-net_revenue)
     fixed_cost_mnt=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
     # With a live paid account, the subscription buys included usage. Allocate
     # its cost once: max(base allocation, usage cost), not base + included usage.
@@ -155,6 +155,19 @@ def safe_monthly_credits(price_mnt):
     upstream_mnt_per_credit=CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
     max_credits=variable_cost_budget/(upstream_mnt_per_credit*settings["observed_cost_factor"])
     return max(0,int(max_credits//100)*100)
+
+PUBLIC_PLAN_CREDITS={'pro':7000,'studio':16000,'agency':38000}
+
+def protected_credit_price_mnt(credits, minimum_price=0):
+    settings=pricing_settings()
+    fixed=settings['fixed_cost_per_active_user_usd']*settings['usd_mnt_rate']*(1+settings['fx_buffer'])
+    usage=credits*CREDIT_USD*settings['usd_mnt_rate']*(1+settings['fx_buffer'])*settings['observed_cost_factor']
+    cost=max(fixed,usage) if settings['provider_account_verified'] else fixed+usage
+    net_fraction=(1-settings['payment_fee'])*(1-settings['overhead_reserve'])
+    denominator=1-settings['target_markup']*(1-net_fraction)
+    if denominator<=0: return None
+    required=cost*settings['target_markup']/denominator
+    return max(int(minimum_price),math.ceil(required/5000)*5000)
 
 def get_plan(plan_id):
     base=PLANS.get(plan_id)
@@ -164,6 +177,11 @@ def get_plan(plan_id):
     if plan_id=="trial":
         plan["monthly_credits"]=max(0,int(os.getenv("BILLING_TRIAL_CREDITS","0")))
         plan["profit_safe"]=True
+    elif plan_id in PUBLIC_PLAN_CREDITS:
+        plan['monthly_credits']=PUBLIC_PLAN_CREDITS[plan_id]
+        price=protected_credit_price_mnt(plan['monthly_credits'],plan['price_mnt'])
+        plan['profit_safe']=price is not None
+        if price is not None: plan['price_mnt']=price
     else:
         plan["monthly_credits"]=safe_monthly_credits(plan["price_mnt"])
         plan["profit_safe"]=plan["price_mnt"]>=minimum_safe_plan_price_mnt()
@@ -444,12 +462,14 @@ def activate_plan(user_id, plan_id, order_id=None):
         plan=_activate_plan_tx(c,user_id,plan_id,order_id,now)
     return plan.copy()
 
-def create_order(user_id, plan_id, provider="manual"):
+def create_order(user_id, plan_id, provider="manual", expected_price=None, expected_credits=None):
     plan=get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise ValueError("Plan буруу байна.")
     if not plan.get("profit_safe",False):
         raise ValueError("Plan pricing хамгаалалтын доод босгыг хангахгүй байна.")
+    if (expected_price is not None and plan['price_mnt']!=expected_price) or (expected_credits is not None and plan['monthly_credits']!=expected_credits):
+        raise ValueError('Багцын үнэ шинэчлэгдсэн байна. Шинэ үнийг шалгаад дахин сонгоно уу.')
     order_id=core.uid()
     now=time.time()
     with core.db() as c:

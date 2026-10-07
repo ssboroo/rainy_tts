@@ -652,7 +652,7 @@ function renderPlans(plans,wireConfigured){
     button.innerHTML='<span>Кредит цэнэглэх</span><span>↗</span>';
     button.disabled=!wireConfigured;
     if(!wireConfigured){button.querySelector('span').textContent='Тун удахгүй';button.title='Төлбөр авах боломж түр хаалттай';}
-    button.onclick=()=>buyPlan(plan.id,button);
+    button.onclick=()=>buyPlan(plan.id,button,plan);
     card.append(top,credits,desc,button);root.append(card);
   });
 }
@@ -701,17 +701,17 @@ async function loadBilling(silent=false){
   }catch(e){if(!silent)notice(customerMessage(e.message));}
 }
 
-async function buyPlan(planId,button){
+async function buyPlan(planId,button,plan){
   if(!ensureUser())return;
   setBusy(button,true,'Төлбөр бэлтгэж байна…');
   try{
-    const data=await api('/billing/wire/create',{method:'POST',body:{plan_id:planId}});
+    const data=await api('/billing/wire/create',{method:'POST',body:{plan_id:planId,expected_amount_mnt:plan.price_mnt,expected_credits:plan.monthly_credits}});
     $('payment-status').hidden=false;
     $('payment-status').textContent=formatMnt(data.amount_mnt)+' төлбөр хүлээгдэж байна. QPay төлбөрийн хуудас нээгдлээ.';
     const popup=window.open(data.pay_url,'_blank','noopener,noreferrer');
     if(!popup)window.location.href=data.pay_url;
     pollWirePayment(data.order_id);
-  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+  }catch(e){await loadBilling(true);notice(customerMessage(e.message));}finally{setBusy(button,false);}
 }
 
 async function pollWirePayment(orderId){

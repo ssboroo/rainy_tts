@@ -163,15 +163,15 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Pro | ₮60,000 | ~5,100 | 5 |
-| Studio | ₮150,000 | ~14,800 | 10 |
-| Agency | ₮350,000 | ~36,200 | 20 |
+| Pro | ₮90,000 | 7,000 | 5 |
+| Studio | ₮200,000 | 16,000 | 10 |
+| Agency | ₮475,000 | 38,000 | 20 |
 
-* Credit budgets are calculated at runtime. These examples use $1.25 fixed provider cost per active user, FX 3,700, 3% payment reserve, 10% overhead reserve, and 10% FX buffer. Net revenue must cover at least 2× modeled total cost (100% markup, equivalent to 50% gross margin on that modeled cost). With Starter provider cost allocated to one paying user, allowances are 400 / 10,000 / 31,500 instead. Legacy Starter and Creator IDs remain available for existing account records but are excluded from the public catalog. Actual accounting profit depends on actual costs and usage.
+* Public credit quantities are fixed. Prices above assume a verified active Starter account, FX 3,700, 3% payment reserve, 10% overhead reserve, 10% FX buffer and observed cost factor 1.0. Prices are rounded up in 5,000 MNT steps and automatically increase when modeled cost rises. For total-cost markup, `price >= 2.2 × (provider_cost + price × reserve_fraction)`, with `reserve_fraction = 1 − (1 − payment_fee) × (1 − overhead_reserve)`. This gives a denominator of 0.7206 at default reserves. Configurations with a nonpositive denominator are not sold. The 120% markup target covers modeled costs and reserves, not guaranteed accounting profit. Existing sold quotes retain their amount and credit quantity. Stale/missing provider snapshots use the more conservative additive model. Legacy Starter/Creator IDs remain for old records and are not shown for sale.
 
 Provider account reconciliation now refreshes `/v1/user/subscription` every five minutes server-side. Admins can force refresh and see sanitized tier, remaining quota, reset time, monthly cost basis and measured request-credit allocation. Recurring price floors exclude first-month discounts; rollover does not dilute the quota denominator. Header `character-cost` values are provider credits, not USD. Their USD allocation is an estimate using the recurring subscription quota; higher measured cost increases the conservative credit-budget factor, never reduces the normal API floor. Admin TTS test samples also calibrate the factor without debiting the admin wallet.
 
-With a fresh active paid account, included provider usage and the base subscription are allocated once as `max(shared base allocation, budgeted usage cost)`. Without verified fresh account data, the older additive conservative budget remains. This is a modeled 100% markup target, not an accounting-profit guarantee. No automatic overage purchase is enabled. Checkout reserves all current wallets, pending order quotes and queued/recent usage against included remaining capacity. Quotes freeze the promised credits at order creation; activation honors that quote. Insufficient or unverified capacity stops new checkout. Existing subscriptions are not rewritten by account refresh. Requests without usage headers remain priced by normal conservative API rates.
+With a fresh active paid account, included provider usage and the base subscription are allocated once as `max(shared base allocation, budgeted usage cost)`. Without verified fresh account data, the older additive conservative budget remains. This is a modeled 120% markup target, not an accounting-profit guarantee. No automatic overage purchase is enabled. Checkout reserves all current wallets, pending order quotes and queued/recent usage against included remaining capacity. Quotes freeze the promised credits at order creation; activation honors that quote. Insufficient or unverified capacity stops new checkout. Existing subscriptions are not rewritten by account refresh. Requests without usage headers remain priced by normal conservative API rates.
 
 Usage rates currently modeled from ElevenAPI public API rates:
 
@@ -207,7 +207,7 @@ Configure:
 ```env
 BILLING_ENABLED=true
 BILLING_USD_MNT_RATE=3700
-BILLING_TARGET_MARKUP=2.0
+BILLING_TARGET_MARKUP=2.2
 ELEVENLABS_PROVIDER_PLAN=pro
 BILLING_EXPECTED_ACTIVE_USERS=100
 BILLING_FIXED_COST_PER_ACTIVE_USER_USD=1.25
@@ -295,7 +295,7 @@ Do **not** create a separate worker service while RAINY is still using SQLite + 
 
 ## Production verification
 
-Metering defaults to enabled, and markup defaults to a minimum 2.0 multiplier (100% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
+Metering defaults to enabled, and markup defaults to a minimum 2.2 multiplier (120% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
 
 
 ### Expressive voice and video voiceover

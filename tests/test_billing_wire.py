@@ -76,7 +76,7 @@ class BillingUnitTests(unittest.TestCase):
             "BILLING_FIXED_COST_PER_ACTIVE_USER_USD":"1.25",
         },clear=False):
             settings=billing.pricing_settings()
-            self.assertEqual(settings["target_markup"],2.0)
+            self.assertEqual(settings["target_markup"],2.2)
             upstream_per_credit=billing.CREDIT_USD*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
             fixed=settings["fixed_cost_per_active_user_usd"]*settings["usd_mnt_rate"]*(1+settings["fx_buffer"])
             for plan in billing.plan_catalog():
@@ -86,7 +86,7 @@ class BillingUnitTests(unittest.TestCase):
                 modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
                 self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-            expected={"starter":5100,"creator":6200,"pro":5100,"studio":14800,"agency":36200}
+            expected={"starter":3500,"creator":4300,"pro":7000,"studio":16000,"agency":38000}
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
 
@@ -97,21 +97,21 @@ class BillingUnitTests(unittest.TestCase):
         },clear=True):
             plans=[p for p in billing.public_plan_catalog() if p['id']!='trial']
             self.assertEqual([p['id'] for p in plans],['pro','studio','agency'])
-            self.assertEqual([p['price_mnt'] for p in plans],[60000,150000,350000])
-            self.assertEqual([p['monthly_credits'] for p in plans],[400,10000,31500])
+            self.assertEqual([p['price_mnt'] for p in plans],[165000,275000,550000])
+            self.assertEqual([p['monthly_credits'] for p in plans],[7000,16000,38000])
             settings=billing.pricing_settings()
             fixed=6*3700*1.1
             for plan in plans:
                 self.assertGreater(plan['monthly_credits'],0)
                 cost=fixed+plan['monthly_credits']*0.001*3700*1.1
-                self.assertGreaterEqual(plan['price_mnt']*0.97*0.9,cost*2)
+                self.assertGreaterEqual(plan['price_mnt']*0.97*0.9,cost*2.2)
 
-    def test_default_markup_is_two_and_metering_enabled(self):
+    def test_default_markup_is_2_2_and_metering_enabled(self):
         with patch.dict(os.environ,{},clear=True):
-            self.assertEqual(billing.pricing_settings()["target_markup"],2.0)
+            self.assertEqual(billing.pricing_settings()["target_markup"],2.2)
             self.assertTrue(billing.billing_enabled())
         with patch.dict(os.environ,{"BILLING_TARGET_MARKUP":"1.0"}):
-            self.assertEqual(billing.pricing_settings()["target_markup"],2.0)
+            self.assertEqual(billing.pricing_settings()["target_markup"],2.2)
 
     def test_provider_plan_scales_with_active_users(self):
         self.assertEqual(billing.recommended_provider_plan(5),"starter")
@@ -193,6 +193,11 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         self.csrf=response.json()["user"]["csrf"]
         self.headers={"Origin":"http://testserver","X-CSRF-Token":self.csrf}
+
+    def test_checkout_does_not_silently_change_displayed_price(self):
+        with patch.object(server.wire_payment,'configured',return_value=True), patch.object(server.provider_cost,'refresh',new=AsyncMock(return_value=None)):
+            response=self.client.post('/api/billing/wire/create',json={'plan_id':'pro','expected_amount_mnt':60000,'expected_credits':7000},headers=self.headers)
+        self.assertEqual(response.status_code,409,response.text)
 
     def test_tts_voice_library_multiplier_is_billed(self):
         from app.engine import ElevenLabsEngine

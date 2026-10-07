@@ -487,6 +487,10 @@ async def billing_wire_create(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("wire-create:"+sess["user_id"],10,900)
     data=await json_body(request)
     plan_id=str(data.get("plan_id","")).strip()
+    expected_price=data.get('expected_amount_mnt'); expected_credits=data.get('expected_credits')
+    for value in (expected_price,expected_credits):
+        if value is not None and (type(value) is not int or value<0):
+            raise HTTPException(422,'Багцын үнэ эсвэл кредит буруу байна.')
     plan=billing.get_plan(plan_id)
     if not plan or plan_id=="trial":
         raise HTTPException(422,"Subscription plan буруу байна.")
@@ -510,10 +514,16 @@ async def billing_wire_create(request:Request):
         ).fetchone()
     if not order:
         await provider_cost.refresh(tools,force=True)
-        try: created=billing.create_order(sess["user_id"],plan_id,"wire")
-        except ValueError as exc: raise HTTPException(503,str(exc))
+        try: created=billing.create_order(sess["user_id"],plan_id,"wire",expected_price,expected_credits)
+        except ValueError as exc: raise HTTPException(409 if 'Үнэ' in str(exc) or 'үнэ шинэчлэгдсэн' in str(exc) else 503,str(exc))
         order=billing_order_for_user(created["id"],sess["user_id"])
 
+    with core.db() as db:
+        quote=db.execute('SELECT credits FROM billing_order_quotes WHERE order_id=?',(order['id'],)).fetchone()
+    if expected_credits is not None and (not quote or quote['credits']!=expected_credits):
+        raise HTTPException(409,'Өмнөх төлбөрийн захиалгын кредит өөр байна. Төлбөрийн төлөвөө шалгана уу.')
+    if expected_price is not None and order['amount_mnt']!=expected_price:
+        raise HTTPException(409,'Өмнөх төлбөрийн захиалга өөр үнээр хүлээгдэж байна. Төлбөрийн төлөвөө шалгана уу.')
     order_id=order["id"]
     with core.db() as db:
         payment=db.execute("SELECT * FROM wire_payments WHERE order_id=?",(order_id,)).fetchone()
