@@ -80,9 +80,10 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('SELECT balance FROM credit_wallets WHERE user_id=?',(self.user,)).fetchone()[0],1000)
 
-    def test_single_customer_launch_excludes_unsafe_plan(self):
+    def test_single_customer_launch_has_profitable_entry_plan(self):
         with patch.dict(os.environ,{'ELEVENLABS_PROVIDER_PLAN':'starter','BILLING_EXPECTED_ACTIVE_USERS':'1'}):
-            self.assertFalse(billing.get_plan('starter')['profit_safe'])
+            self.assertTrue(billing.get_plan('pro')['profit_safe'])
+            self.assertNotIn('starter',{p['id'] for p in billing.public_plan_catalog()})
             self.assertTrue(billing.get_plan('pro')['profit_safe'])
 
     def test_interrupted_daily_snapshot_is_repaired(self):

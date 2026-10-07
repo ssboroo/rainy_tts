@@ -163,13 +163,11 @@ Default customer plans are:
 
 | Plan | Price | Protected monthly credits* | Clone slots |
 | --- | ---: | ---: | ---: |
-| Starter | ₮39,900 | ~1,600 | 1 |
-| Creator | ₮69,900 | ~3,700 | 2 |
-| Pro | ₮139,900 | ~8,700 | 5 |
-| Studio | ₮259,900 | ~17,300 | 10 |
-| Agency | ₮499,900 | ~34,400 | 20 |
+| Pro | ₮60,000 | ~5,100 | 5 |
+| Studio | ₮150,000 | ~14,800 | 10 |
+| Agency | ₮350,000 | ~36,200 | 20 |
 
-\* Credit budgets are calculated at runtime, not hard-coded. The default multi-user model uses a shared ElevenLabs backend, allocates a conservative $1.25 fixed provider cost per active paying user, reserves 3% for payment processing, 10% for hosting/support overhead, 10% for FX movement, and requires at least 3× coverage of modeled total cost. This is 200% markup on modeled cost; selling price equals modeled cost × 3 after reserves. Change `BILLING_USD_MNT_RATE` when the operating FX assumption changes; plan credit allowances automatically adjust downward or upward to preserve the margin floor.
+* Credit budgets are calculated at runtime. These examples use $1.25 fixed provider cost per active user, FX 3,700, 3% payment reserve, 10% overhead reserve, and 10% FX buffer. Net revenue must cover at least 2× modeled total cost (100% markup, equivalent to 50% gross margin on that modeled cost). With Starter provider cost allocated to one paying user, allowances are 400 / 10,000 / 31,500 instead. Legacy Starter and Creator IDs remain available for existing account records but are excluded from the public catalog. Actual accounting profit depends on actual costs and usage.
 
 Usage rates currently modeled from ElevenAPI public API rates:
 
@@ -205,7 +203,7 @@ Configure:
 ```env
 BILLING_ENABLED=true
 BILLING_USD_MNT_RATE=3700
-BILLING_TARGET_MARKUP=3.0
+BILLING_TARGET_MARKUP=2.0
 ELEVENLABS_PROVIDER_PLAN=pro
 BILLING_EXPECTED_ACTIVE_USERS=100
 BILLING_FIXED_COST_PER_ACTIVE_USER_USD=1.25
@@ -293,7 +291,7 @@ Do **not** create a separate worker service while RAINY is still using SQLite + 
 
 ## Production verification
 
-Metering defaults to enabled, and markup defaults to a minimum 3.0 multiplier (200% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
+Metering defaults to enabled, and markup defaults to a minimum 2.0 multiplier (100% markup). Configure a paid eligible ElevenLabs account, live Wire credentials and transactional SMTP before launch. Read [production operations](docs/PRODUCTION.md) for preservation, backup/restore and readiness. Configuration checks do not establish successful live payments, mail delivery or generation.
 
 
 ### Expressive voice and video voiceover

@@ -40,15 +40,15 @@ PLANS = {
         "description":"Контент бүтээгч · 2 хоолой хадгалах эрх","sort":2,
     },
     "pro": {
-        "id":"pro","name":"Pro","price_mnt":139_900,
+        "id":"pro","name":"Pro","price_mnt":60_000,
         "description":"Идэвхтэй хэрэглээ · 5 энгийн + 1 мэргэжлийн хоолой","sort":3,
     },
     "studio": {
-        "id":"studio","name":"Studio","price_mnt":259_900,
+        "id":"studio","name":"Studio","price_mnt":150_000,
         "description":"Студи, баг · 10 энгийн + 2 мэргэжлийн хоолой","sort":4,
     },
     "agency": {
-        "id":"agency","name":"Agency","price_mnt":499_900,
+        "id":"agency","name":"Agency","price_mnt":350_000,
         "description":"Байгууллага · 20 энгийн + 4 мэргэжлийн хоолой","sort":5,
     },
 }
@@ -94,7 +94,7 @@ RATES = {
 
 def pricing_settings():
     fx=max(1.0,float(os.getenv("BILLING_USD_MNT_RATE","3700")))
-    markup=max(3.0,float(os.getenv("BILLING_TARGET_MARKUP","3.0")))
+    markup=max(2.0,float(os.getenv("BILLING_TARGET_MARKUP","2.0")))
     payment_fee=min(max(float(os.getenv("BILLING_PAYMENT_FEE_PERCENT","3.0"))/100,0),0.25)
     overhead=min(max(float(os.getenv("BILLING_OVERHEAD_RESERVE_PERCENT","10.0"))/100,0),0.50)
     fx_buffer=min(max(float(os.getenv("BILLING_FX_BUFFER_PERCENT","10.0"))/100,0),0.50)
@@ -167,6 +167,9 @@ def plan_catalog():
 def public_plan_catalog():
     public=[]
     for plan in plan_catalog():
+        # Retain legacy IDs for existing subscriptions, but sell three current tiers.
+        if plan["id"] in {"starter", "creator"}:
+            continue
         if plan["id"]!="trial" and not plan.get("profit_safe",False):
             continue
         item={k:v for k,v in plan.items() if k not in {"profit_safe","sort"}}

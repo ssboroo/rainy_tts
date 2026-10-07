@@ -50,7 +50,7 @@ Never commit or embed `ELEVENLABS_API_KEY` in frontend JavaScript. Store it in `
 
 ## Production acceptance
 
-Follow [production operations](PRODUCTION.md) before public paid launch. Configure paid ElevenLabs access, live Wire credentials and transactional SMTP; retain `BILLING_ENABLED=true` and `BILLING_TARGET_MARKUP=3.0`. Verify real generation, payment, reset email, authorization and isolated restore. Configuration readiness alone is insufficient.
+Follow [production operations](PRODUCTION.md) before public paid launch. Configure paid ElevenLabs access, live Wire credentials and transactional SMTP; retain `BILLING_ENABLED=true` and `BILLING_TARGET_MARKUP=2.0`. Verify real generation, payment, reset email, authorization and isolated restore. Configuration readiness alone is insufficient.
 
 For Railway use one service/replica through `python -m app.railway`, one persistent volume at `/data`, and `DATA_DIR=/data`. **Export and verify existing accounts/database/media before mounting storage.** An empty volume must never hide existing data. Keep `/api/health` as liveness; inspect readiness separately. Set `PERSISTENT_STORAGE_CONFIRMED=true` only after migration and redeploy survival checks.
 

@@ -8,11 +8,11 @@ Run one service with one web process and one worker, one shared volume, and one 
 
 Set `ELEVENLABS_API_KEY` from an eligible paid ElevenLabs account. `ELEVENLABS_PROVIDER_PLAN` is a cost-model declaration, not proof of entitlement; validate each enabled capability using a bounded real request. Free account shared-library errors explicitly require a paid plan. The operator must activate the plan; the application cannot do so.
 
-Set `BILLING_ENABLED=true`, `BILLING_TARGET_MARKUP=3.0`, live `WIRE_MN_API_KEY`, and `WIRE_MN_WEBHOOK_SECRET`. Remove `sandbox` from `WIRE_MN_ALLOWED_OPERATORS` for live payments; use connected operator IDs or an empty value. Configure the gateway webhook at `https://YOUR_DOMAIN/api/billing/wire/webhook`. Verify a real payment's exact MNT amount and plan activation, then replay its signed event to confirm no duplicate grant.
+Set `BILLING_ENABLED=true`, `BILLING_TARGET_MARKUP=2.0`, live `WIRE_MN_API_KEY`, and `WIRE_MN_WEBHOOK_SECRET`. Remove `sandbox` from `WIRE_MN_ALLOWED_OPERATORS` for live payments; use connected operator IDs or an empty value. Configure the gateway webhook at `https://YOUR_DOMAIN/api/billing/wire/webhook`. Verify a real payment's exact MNT amount and plan activation, then replay its signed event to confirm no duplicate grant.
 
 Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` and `SMTP_TLS` for the selected transactional sender. Verify delivery and a single-use reset link without publishing secrets. Readiness checks configuration only; SMTP can be unauthenticated for a trusted relay, so credentials are not universally required.
 
-At default FX 3700, 3% payment reserve, 10% overhead, 10% FX reserve and $1.25 fixed cost allocation, monthly allowances are Starter 1,600, Creator 3,700, Pro 8,700, Studio 17,300 and Agency 34,400. The 3.0 multiplier floor protects modeled costs, not accounting profit. Existing subscriptions retain their stored allowance until the next activation cycle.
+At FX 3700, 3% payment reserve, 10% overhead, 10% FX buffer and $1.25 fixed allocation, the public 60,000 / 150,000 / 350,000 MNT tiers receive 5,100 / 14,800 / 36,200 credits. With a Starter provider subscription allocated to one paying user, these become 400 / 10,000 / 31,500. The 2.0 multiplier floor protects modeled total costs (100% markup), not guaranteed accounting profit. Existing subscriptions retain stored allowances until the next activation cycle.
 
 ## Preserve storage before attaching a volume
 
