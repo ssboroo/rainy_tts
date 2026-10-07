@@ -48,7 +48,7 @@
         <div class="rail-label inline" hidden data-admin-only>БИЗНЕС</div>
         <button class="nav" data-page="reception" hidden data-admin-only><span class="nav-icon" aria-hidden="true">☎️</span><span>Reception.ai</span></button>
         <div class="rail-label inline">МИНИЙ СТУДИ</div>
-        <button class="nav" data-page="billing"><span class="nav-icon" aria-hidden="true">💳</span><span>Сарын багц</span></button>
+        <button class="nav" data-page="billing"><span class="nav-icon" aria-hidden="true">💳</span><span>Кредит цэнэглэх</span></button>
         <button class="nav" data-page="analytics"><span class="nav-icon" aria-hidden="true">📊</span><span>Хэрэглээний тайлан</span></button>
         <button class="nav" data-page="history"><span class="nav-icon" aria-hidden="true">🗂️</span><span>Бүтээлийн түүх</span></button>
       <button class="nav" data-page="voice-design"><span class="nav-icon" aria-hidden="true">🎨</span><span>Хоолой зохиох</span></button><button class="nav" data-page="voice-remix"><span class="nav-icon" aria-hidden="true">🪄</span><span>Хоолой шинэчлэх</span></button><button class="nav" data-page="alignment"><span class="nav-icon" aria-hidden="true">💬</span><span>Хадмал тааруулах</span></button><button class="nav" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Бүртгэлийн тохиргоо</span></button><button class="nav" data-page="admin" hidden data-admin-only><span class="nav-icon" aria-hidden="true">🛡️</span><span>Удирдлага</span></button></nav>
@@ -59,7 +59,7 @@
       <header class="topbar">
         <a class="mobile-brand" href="/" aria-label="RAINY Voice Studio"><img src="/brand-mark.svg?v=2" alt="" width="32" height="32"><span>RAINY<small>VOICE STUDIO</small></span></a>
         <div class="top-left"><span class="route-index">01</span><span id="breadcrumb">Дуу бүтээх / Текстээс дуу</span></div>
-        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><span class="engine-chip"><i></i> VOICE STUDIO</span><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
+        <div class="top-actions"><button id="credit-chip" class="engine-chip credit-chip" type="button" hidden>0 кредит</button><button id="topup-button" class="topup-button" type="button"><span aria-hidden="true">💳</span> Кредит цэнэглэх</button><button aria-label="Өнгөний горим солих" id="theme-toggle" class="icon-button" type="button">☼</button><button id="register" class="secondary" type="button">Бүртгүүлэх</button><button id="account" class="account" type="button">Нэвтрэх</button><button id="logout" class="quiet logout" type="button" hidden>Гарах</button></div>
       </header>
       <div id="admin-test-note" class="studio-readiness" hidden>Админ туршилтын горим · RAINY кредит суутгахгүй. Бодит үүсгэлт ElevenLabs хэрэглээнээс тооцогдоно.</div><div id="notice" role="status" class="notice" hidden></div><div id="studio-readiness" class="studio-readiness" role="status" hidden data-admin-only>Үйлчилгээний төлөвийг шалгаж байна…</div>
 
@@ -203,13 +203,13 @@
       </section>
 
       <section id="billing" class="page tool-page" hidden>
-        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">💳</span><p class="kicker"><span></span>САРЫН БАГЦ БА КРЕДИТ</p><h1>Хэрэглэсэн хэмжээгээрээ <em>кредит.</em></h1><p>Сарын багцаа QPay-ээр төлнө. Төлбөр баталгаажмагц кредит автоматаар нэмэгдэнэ.</p></div>
+        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">💳</span><p class="kicker"><span></span>САРЫН БАГЦ БА КРЕДИТ</p><h1>Кредитээ <em>цэнэглээрэй.</em></h1><p><span id="billing-start-price">Тохирох сарын багцаа сонгоорой.</span> Төлбөр баталгаажмагц кредит автоматаар нэмэгдэнэ.</p></div>
         <div class="wallet-card">
           <div><small>ОДООГИЙН БАГЦ</small><strong id="billing-plan">—</strong><p id="billing-cycle">Нэвтэрсний дараа харагдана.</p></div>
           <div class="wallet-balance"><small>ҮЛДЭГДЭЛ</small><strong id="billing-balance">0</strong><span>кредит</span></div>
         </div>
         <div id="payment-status" class="result-box" hidden></div>
-        <div id="plan-grid" class="plan-grid"></div>
+        <h2 id="choose-plan" class="billing-heading">Сарын багцаа сонгох</h2><p class="field-help">Багцын кредитээр дуу, хөгжим, орчуулга болон бусад хэрэгслээ ашиглана.</p><div id="plan-grid" class="plan-grid"></div>
         <div class="credit-guide">
           <h3>Кредит зарцуулалт</h3>
           <div class="credit-rate-grid">

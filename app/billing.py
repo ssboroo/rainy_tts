@@ -32,7 +32,7 @@ PLANS = {
         "description":"Үйлчилгээг харах үнэгүй бүртгэл","sort":0,
     },
     "starter": {
-        "id":"starter","name":"Starter","price_mnt":39_900,
+        "id":"starter","name":"Starter","price_mnt":60_000,
         "description":"Эхлэх хэрэглээ · 1 хоолой хадгалах эрх","sort":1,
     },
     "creator": {

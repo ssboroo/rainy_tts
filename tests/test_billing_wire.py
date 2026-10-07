@@ -86,9 +86,17 @@ class BillingUnitTests(unittest.TestCase):
                 modeled_cost=fixed+plan["monthly_credits"]*upstream_per_credit
                 self.assertGreaterEqual(usable,modeled_cost*settings["target_markup"])
 
-            expected={"starter":1600,"creator":3700,"pro":8700,"studio":17300,"agency":34400}
+            expected={"starter":3000,"creator":3700,"pro":8700,"studio":17300,"agency":34400}
             for plan_id,credits in expected.items():
                 self.assertEqual(billing.get_plan(plan_id)["monthly_credits"],credits)
+
+    def test_starter_price_is_60000_and_unsafe_launch_is_hidden(self):
+        with patch.dict(os.environ,{'ELEVENLABS_PROVIDER_PLAN':'starter','BILLING_EXPECTED_ACTIVE_USERS':'1'}):
+            self.assertEqual(billing.get_plan('starter')['price_mnt'],60000)
+            self.assertNotIn('starter',{p['id'] for p in billing.public_plan_catalog()})
+        with patch.dict(os.environ,{'ELEVENLABS_PROVIDER_PLAN':'starter','BILLING_EXPECTED_ACTIVE_USERS':'2'}):
+            self.assertIn('starter',{p['id'] for p in billing.public_plan_catalog()})
+            self.assertGreater(billing.get_plan('starter')['monthly_credits'],0)
 
     def test_default_markup_is_three_and_metering_enabled(self):
         with patch.dict(os.environ,{},clear=True):
@@ -220,7 +228,7 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(billing.wallet(user)["wallet"]["balance"],after_charge+80)
 
     def test_wire_checkout_then_status_activates_plan(self):
-        intent={"id":"pi_test","status":"requires_payment_method","amount":39900,"currency":"MNT"}
+        intent={"id":"pi_test","status":"requires_payment_method","amount":60000,"currency":"MNT"}
         checkout={"id":"cs_test","url":"https://pay.wire.mn/test"}
         with patch.object(server.wire_payment,"configured",return_value=True), \
              patch.object(server.wire_payment,"create_payment_intent",new=AsyncMock(return_value=intent)), \
@@ -228,10 +236,10 @@ class BillingApiTests(unittest.TestCase):
             created=self.client.post("/api/billing/wire/create",json={"plan_id":"starter"},headers=self.headers)
         self.assertEqual(created.status_code,200,created.text)
         data=created.json()
-        self.assertEqual(data["amount_mnt"],39900)
+        self.assertEqual(data["amount_mnt"],60000)
         self.assertEqual(data["pay_url"],"https://pay.wire.mn/test")
 
-        paid={"id":"pi_test","status":"succeeded","amount":39900,"currency":"MNT"}
+        paid={"id":"pi_test","status":"succeeded","amount":60000,"currency":"MNT"}
         with patch.object(server.wire_payment,"retrieve_payment_intent",new=AsyncMock(return_value=paid)):
             status=self.client.get("/api/billing/wire/status/"+data["order_id"])
         self.assertEqual(status.status_code,200,status.text)

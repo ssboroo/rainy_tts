@@ -159,6 +159,7 @@ $('logout').onclick=async()=>{
   }catch(e){notice(customerMessage(e.message));}
 };
 $('credit-chip').onclick=()=>page('billing');
+$('topup-button').onclick=()=>page('billing');
 
 function setTheme(theme){
   document.documentElement.dataset.theme=theme;
@@ -634,18 +635,21 @@ $('sync-voices').onclick=async()=>{
 function formatMnt(value){return '₮'+Number(value||0).toLocaleString('en-US');}
 function formatCycle(ts){return ts?new Date(Number(ts)*1000).toLocaleDateString('mn-MN'):'—';}
 
+function customerPlanName(id,fallback){return ({trial:'Үнэгүй',starter:'Эхлэх',creator:'Контент бүтээгч',pro:'Мэргэжлийн',studio:'Студи',agency:'Байгууллага'})[id]||fallback||id;}
 function renderPlans(plans,wireConfigured){
   const root=$('plan-grid');root.replaceChildren();
+  const paidPlans=plans.filter(p=>p.id!=='trial'&&Number(p.price_mnt)>0);
+  $('billing-start-price').textContent=paidPlans.length?'Сарын багц '+formatMnt(Math.min(...paidPlans.map(p=>Number(p.price_mnt))))+'-өөс эхэлнэ.':'Сарын багц одоогоор авах боломжгүй байна.';
   plans.filter(plan=>plan.id!=='trial').forEach(plan=>{
     const card=document.createElement('article');card.className='plan-card';
     const top=document.createElement('div');top.className='plan-card-top';
-    const name=document.createElement('strong');name.textContent=plan.name;
+    const name=document.createElement('strong');name.textContent=customerPlanName(plan.id,plan.name);
     const price=document.createElement('span');price.textContent=formatMnt(plan.price_mnt)+'/сар';
     top.append(name,price);
     const credits=document.createElement('h3');credits.textContent=Number(plan.monthly_credits).toLocaleString('en-US')+' кредит';
     const desc=document.createElement('p');desc.textContent=plan.description||'';
     const button=document.createElement('button');button.className='generate plan-buy';button.type='button';
-    button.innerHTML='<span>QPay-ээр авах</span><span>↗</span>';
+    button.innerHTML='<span>Кредит цэнэглэх</span><span>↗</span>';
     button.disabled=!wireConfigured;
     if(!wireConfigured){button.querySelector('span').textContent='Тун удахгүй';button.title='Төлбөр авах боломж түр хаалттай';}
     button.onclick=()=>buyPlan(plan.id,button);
@@ -686,10 +690,10 @@ async function loadBilling(silent=false){
     const account=await api('/billing/me');
     state.billing={...account,plans:catalog.plans,wire_configured:catalog.wire_configured};
     const wallet=account.wallet||{},sub=account.subscription||{};
-    $('billing-plan').textContent=(sub.plan_id||'trial').toUpperCase();
+    $('billing-plan').textContent=customerPlanName(sub.plan_id||'trial');
     $('billing-balance').textContent=Number(wallet.balance||0).toLocaleString('en-US');
     $('billing-cycle').textContent='Дуусах: '+formatCycle(sub.cycle_end);
-    $('credit-chip').textContent=state.user?.admin_test?'Админ туршилт':Number(wallet.balance||0).toLocaleString('en-US')+' кредит';
+    $('credit-chip').textContent=state.user?.admin_test?'Админ туршилт':Number(wallet.balance||0).toLocaleString('en-US')+' кредит · Үлдэгдэл';
     $('credit-chip').hidden=false;
     renderPlans(catalog.plans,catalog.wire_configured);
     renderLedger(account.ledger||[]);
@@ -783,7 +787,7 @@ async function loadAnalytics(){
     const data=await api('/analytics');
     const sub=data.subscription||{},wallet=data.wallet||{},local=data.local_30d||{};
     const cards=[
-      ['Багц',(sub.plan_id||'trial').toUpperCase()],
+      ['Багц',customerPlanName(sub.plan_id||'trial')],
       ['Кредитийн үлдэгдэл',Number(wallet.balance||0).toLocaleString('en-US')],
       ['30 хоногт ашигласан',Number(data.credits_spent_30d||0).toLocaleString('en-US')],
       ['Багц дуусах',sub.cycle_end?new Date(sub.cycle_end*1000).toLocaleDateString('mn-MN'):'—']

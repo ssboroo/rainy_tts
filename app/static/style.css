@@ -492,3 +492,13 @@ textarea{border-radius:16px;font-size:.98rem;line-height:1.7}
 @media(max-width:860px){.full-sidebar{height:78px;padding:7px;background:var(--panel)}.full-sidebar .nav{grid-template-columns:30px auto!important;height:58px;padding:8px 10px}.nav-icon{width:30px;height:30px;font-size:1.2rem}.tool-hero{padding:24px 0}.hero-tool-icon{width:54px;height:54px;border-radius:18px;font-size:2rem}.topbar{height:auto;min-height:76px;gap:10px;padding:12px 0;flex-wrap:wrap}.top-actions{margin-left:auto}}
 @media(max-width:700px){.tool-workspace-side{grid-template-columns:1fr}.tool-hero h1{font-size:clamp(2.1rem,8vw,3.2rem)}.tool-hero>p:last-child{font-size:.88rem}.tool-card,.tool-form{padding:20px}.tool-card.wide{min-height:0}.big-textarea{min-height:220px}.top-left{font-size:.65rem}.voice-library-card{padding:20px}}
 @media(prefers-reduced-motion:reduce){.generate:hover:not(:disabled),.voice-library-card:hover{transform:none}.generate,.voice-library-card{transition:none}}
+
+/* Keep the wallet and recharge action visible, including small screens. */
+.topup-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--cyan);border-radius:12px;background:var(--bg-soft);color:var(--text);min-height:44px;padding:10px 14px;font-size:.82rem;font-weight:650}
+:root[data-theme="light"] .topup-button{background:#edf1ff;border-color:#d0dafa;color:#294bb5}
+.top-actions .credit-chip:not([hidden]){display:inline-flex;align-items:center;min-height:44px;font-size:.8rem;letter-spacing:0;text-transform:none;border:1px solid var(--line-strong);color:var(--text);padding:10px 14px;background:var(--panel)}
+.billing-heading{font-size:1.3rem;margin:30px 0 8px}
+.wallet-card{padding:26px;border-radius:22px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow)}
+.wallet-balance strong{font-size:2.7rem;color:var(--lime)}
+.plan-card-top span{font-size:1rem}.plan-card p{font-size:.85rem;line-height:1.6}.plan-card-top strong{font-size:1rem}
+@media(max-width:600px){.topup-button{font-size:.75rem;padding:9px 11px}.top-actions .credit-chip:not([hidden]){font-size:.75rem;padding:9px 11px}.top-actions{max-width:100%}.wallet-card{padding:20px}.wallet-balance strong{font-size:2.3rem}}
