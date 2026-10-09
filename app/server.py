@@ -398,6 +398,16 @@ def srt_from_words(words):
 def root():
     return FileResponse(STATIC/"index.html",media_type="text/html")
 
+# Register the authenticated MCP discovery GET before the single-segment asset catch-all.
+@app.get("/mcp")
+def voice_mcp_discovery(request: Request):
+    if not mcp_remote.active():
+        raise HTTPException(404, "MCP холболт идэвхгүй байна.")
+    if not mcp_remote.principal(request):
+        return JSONResponse({"error": "OAuth required"}, status_code=401, headers={
+            "WWW-Authenticate": f'Bearer resource_metadata="{mcp_remote.origin()}/.well-known/oauth-protected-resource/mcp"'})
+    return Response(status_code=405,headers={"Allow":"POST"})
+
 @app.get("/{name}")
 def static_file(name:str):
     if name not in {"app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg"}:
@@ -1814,6 +1824,9 @@ def admin_provider_usage(request:Request):
         except Exception:item["metadata"]={}
         items.append(item)
     return {"items":items}
+
+from . import mcp_remote
+mcp_remote.register_routes(app, session, allowed_voice_ids, voice_cost_multiplier)
 
 accounts.register_routes(app,session,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
