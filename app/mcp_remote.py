@@ -324,7 +324,39 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
         if not active(): raise HTTPException(404)
         if not principal(request): return require_bearer()
         return Response(status_code=405,headers={"Allow":"POST"})
+    @app.get("/mcp/access")
+    def connected_apps(request:Request):
+        if not active(): raise HTTPException(404)
+        user=session(request,False)
+        if not user: return HTMLResponse("<h2>Voice Studio-д нэвтэрнэ үү.</h2><a href='/'>Нэвтрэх</a>",status_code=401)
+        with core.db() as c:
+            rows=c.execute("""SELECT t.client,c.name,COUNT(*) AS sessions FROM vmcp_tokens t
+                JOIN vmcp_clients c ON c.id=t.client WHERE t.uid=? AND t.revoked=0
+                AND t.refresh_expiry>? GROUP BY t.client,c.name""",(user["user_id"],time.time())).fetchall()
+        forms="".join(
+            "<form method='POST' action='/mcp/access'><input type='hidden' name='csrf' value='"+
+            html.escape(user["csrf"],quote=True)+"'><input type='hidden' name='client_id' value='"+
+            html.escape(row["client"],quote=True)+"'><b>"+html.escape(row["name"])+
+            "</b> ("+str(row["sessions"])+") <button>Холболтыг цуцлах</button></form>"
+            for row in rows
+        )
+        return HTMLResponse("<html lang='mn'><meta charset='utf-8'><h1>RAINY Voice — Зөвшөөрсөн аппууд</h1>"+
+            (forms or "<p>Идэвхтэй холболт алга.</p>")+"</html>",headers={"Cache-Control":"no-store","X-Frame-Options":"DENY"})
+    @app.post("/mcp/access")
+    async def revoke_app(request:Request):
+        if not active(): raise HTTPException(404)
+        user=session(request,False)
+        if not user: return error("login_required",401)
+        form=await request.form()
+        csrf=str(form.get("csrf",""))
+        if not secrets.compare_digest(csrf,str(user["csrf"])): return error("csrf_failed",403)
+        cid=str(form.get("client_id",""))
+        if len(cid)>200: return error("invalid_client")
+        with core.db() as c:
+            c.execute("UPDATE vmcp_tokens SET revoked=1 WHERE uid=? AND client=?",
+                      (user["user_id"],cid))
+        return RedirectResponse("/mcp/access",status_code=303)
     @app.get("/mcp/connect")
     def connect():
         if not active(): raise HTTPException(404)
-        return HTMLResponse(f"<h1>RAINY Voice × ChatGPT / Claude</h1><p>Remote MCP: <code>{html.escape(resource())}</code></p><p>OAuth-р зөвшөөрөөд RAVS Video MCP-г бас тусад нь нэмнэ. Кредит тусдаа.</p>")
+        return HTMLResponse(f"<h1>RAINY Voice × ChatGPT / Claude</h1><p>Remote MCP: <code>{html.escape(resource())}</code></p><p>OAuth-р зөвшөөрөөд RAVS Video MCP-г бас тусад нь нэмнэ. Кредит тусдаа.</p><a href='/mcp/access'>Холбогдсон аппуудын эрхийг цуцлах</a>")
