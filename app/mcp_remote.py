@@ -219,7 +219,10 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
         if not client or redirect not in json.loads(client["redirects"]): return error("invalid_client")
         user=session(request,False)
         if not user:
-            return HTMLResponse("<h2>RAINY Voice-д нэвтэрнэ үү.</h2><p>Voice Studio-д тусдаа табаар нэвтрээд энэ OAuth холбоосыг дахин нээнэ үү.</p><a href='/'>Нэвтрэх</a>",status_code=401)
+            # Browser SameSite=Strict excludes the session on a cross-site
+            # OAuth redirect. A user-initiated same-origin continuation restores it.
+            continue_url=html.escape(origin()+"/oauth/authorize?"+str(request.url.query),quote=True)
+            return HTMLResponse(f"<h2>RAINY Voice — OAuth</h2><p>Voice Studio руу нэвтэрсэн бол доорх Continue холбоосоор энэ зөвшөөрлийг үргэлжлүүл.</p><p>Нэвтрээгүй бол <a href='/'>Voice Studio-д нэвтрэх</a>.</p><p><a href='{continue_url}'>OAuth зөвшөөрлийг үргэлжлүүлэх</a></p>",headers={"Cache-Control":"no-store"})
         nonce=secrets.token_urlsafe(32)
         with core.db() as c:
             c.execute("INSERT INTO vmcp_consent VALUES(?,?,?,?,?,?,?,?)",(nonce,cid,user["user_id"],redirect,challenge,scope,q.get("state",""),time.time()+600))
