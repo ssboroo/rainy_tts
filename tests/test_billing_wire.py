@@ -199,6 +199,55 @@ class BillingApiTests(unittest.TestCase):
             response=self.client.post('/api/billing/wire/create',json={'plan_id':'pro','expected_amount_mnt':60000,'expected_credits':7000},headers=self.headers)
         self.assertEqual(response.status_code,409,response.text)
 
+    def test_orders_are_owned_and_resume_the_original_quote(self):
+        with core.db() as db:
+            uid=db.execute('SELECT id FROM users WHERE email=?',(self.email,)).fetchone()[0]
+            db.execute("INSERT INTO users VALUES('other-orders','other-orders@example.com','x',1) ON CONFLICT DO NOTHING")
+            for order_id,owner,url in [('mine',uid,'https://pay.wire.mn/original'),('theirs','other-orders','https://pay.wire.mn/private')]:
+                oid=order_id+uid
+                db.execute("INSERT INTO billing_orders VALUES(?,?,?,?,'pending','wire',NULL,?,NULL)",(oid,owner,'hobby',12345,time.time()))
+                db.execute('INSERT INTO billing_order_quotes VALUES(?,?)',(oid,777))
+                db.execute("INSERT INTO wire_payments VALUES(?,NULL,NULL,?,'pending',?)",(oid,url,time.time()))
+        response=self.client.get('/api/billing/orders')
+        self.assertEqual(response.status_code,200)
+        orders=response.json()['orders']
+        self.assertEqual(len(orders),1)
+        self.assertEqual(orders[0]['amount_mnt'],12345)
+        self.assertEqual(orders[0]['credits'],777)
+        self.assertEqual(orders[0]['pay_url'],'https://pay.wire.mn/original')
+        self.assertNotIn('payment_intent_id',orders[0])
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get('/api/billing/orders').status_code,401)
+
+    def test_orders_never_resume_unsafe_checkout_urls(self):
+        with core.db() as db:
+            uid=db.execute('SELECT id FROM users WHERE email=?',(self.email,)).fetchone()[0]
+            db.execute("INSERT INTO billing_orders VALUES(?,?,?,?,'pending','wire',NULL,?,NULL)",(uid,uid,'hobby',20000,time.time()))
+            db.execute("INSERT INTO wire_payments VALUES(?,NULL,NULL,?,'pending',?)",(uid,'https://pay.wire.mn.attacker.example/pay',time.time()))
+        self.assertIsNone(self.client.get('/api/billing/orders').json()['orders'][0]['pay_url'])
+
+    def test_checkout_url_validation(self):
+        self.assertTrue(wire_payment.safe_checkout_url('https://pay.wire.mn/test?x=1'))
+        for url in ['http://pay.wire.mn/x','https://pay.wire.mn.evil.example/x','https://evil@pay.wire.mn/x','https://pay.wire.mn:8443/x','javascript:alert(1)',None]:
+            self.assertFalse(wire_payment.safe_checkout_url(url))
+
+    def test_support_persists_owned_request_and_admin_reply(self):
+        created=self.client.post('/api/support',json={'message':'Багцын зөвлөгөө авах хүсэлт байна.'},headers=self.headers)
+        self.assertEqual(created.status_code,200,created.text)
+        request_id=created.json()['id']
+        self.assertEqual(self.client.get('/api/support').json()['requests'][0]['reply'],'')
+        self.assertEqual(self.client.get('/api/admin/support').status_code,403)
+        self.assertEqual(self.client.post('/api/admin/support/'+request_id,json={'reply':'test'},headers=self.headers).status_code,403)
+        with patch.dict(os.environ,{'ADMIN_EMAILS':self.email}):
+            self.assertEqual(self.client.get('/api/admin/support').status_code,200)
+            response=self.client.post('/api/admin/support/'+request_id,json={'reply':'Танд тохирох багцыг санал болгоё.'},headers=self.headers)
+            self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(self.client.get('/api/support').json()['requests'][0]['status'],'answered')
+        self.assertEqual(self.client.post('/api/support',json={'message':'short'},headers=self.headers).status_code,422)
+        self.assertEqual(self.client.post('/api/support',json={'message':'No csrf request'},headers={'Origin':'http://testserver'}).status_code,403)
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get('/api/support').status_code,401)
+
     def test_tts_voice_library_multiplier_is_billed(self):
         from app.engine import ElevenLabsEngine
         with core.db() as db:

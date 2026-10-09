@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -16,6 +17,15 @@ class WireError(RuntimeError):
         self.status=int(status)
         self.code=code
         self.request_id=request_id
+
+def safe_checkout_url(value):
+    if not isinstance(value,str) or any(c.isspace() for c in value):
+        return False
+    try:
+        url=urlsplit(value)
+        return url.scheme=='https' and url.hostname=='pay.wire.mn' and not url.username and not url.password and url.port in {None,443}
+    except ValueError:
+        return False
 
 def api_key():
     value=(os.getenv("WIRE_MN_API_KEY","") or "").strip()

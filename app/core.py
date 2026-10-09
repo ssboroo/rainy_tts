@@ -167,6 +167,16 @@ def init():
             created REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS reception_events_user ON reception_events(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS support_requests(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            message TEXT NOT NULL,
+            reply TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open',
+            created REAL NOT NULL,
+            updated REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS support_requests_user ON support_requests(user_id,created DESC);
         ''')
 
 def uid():

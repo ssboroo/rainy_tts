@@ -183,7 +183,7 @@ def register_routes(app,session,mutation_guard,throttle):
             for table in ('voices','pvc_voices'):
                 for row in c.execute(f'SELECT id FROM {table} WHERE user_id=?',(uid,)).fetchall():
                     c.execute("INSERT OR IGNORE INTO account_provider_cleanup(voice_id,user_id,created) VALUES(?,?,?)",(row['id'],uid,time.time()))
-            for table in ('sessions','account_reset_tokens','artifacts','tool_jobs','jobs','voices','pvc_voices','reception_events','reception_integrations'):
+            for table in ('sessions','account_reset_tokens','artifacts','tool_jobs','jobs','voices','pvc_voices','reception_events','reception_integrations','support_requests'):
                 c.execute(f'DELETE FROM {table} WHERE user_id=?',(uid,))
             c.execute("UPDATE users SET email=?,password=? WHERE id=?",(core.uid()+'@deleted.invalid',core.hash_password(secrets.token_urlsafe(48)),uid))
             c.execute("UPDATE subscriptions SET status='cancelled',auto_renew=0 WHERE user_id=?",(uid,))

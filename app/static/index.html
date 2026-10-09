@@ -208,7 +208,9 @@
           <div><small>ОДООГИЙН БАГЦ</small><strong id="billing-plan">—</strong><p id="billing-cycle">Нэвтэрсний дараа харагдана.</p></div>
           <div class="wallet-balance"><small>ҮЛДЭГДЭЛ</small><strong id="billing-balance">0</strong><span>кредит</span></div>
         </div>
-        <div id="payment-status" class="result-box" hidden></div>
+        <div id="payment-status" class="result-box" hidden role="status"></div>
+        <div id="payment-orders" class="ledger-wrap" hidden><h3>Миний төлбөрийн захиалгууд</h3><div id="payment-order-list" class="ledger-list"></div></div>
+        <div class="credit-guide"><h3>Эхлэхэд 3 алхам</h3><p>Хоолойн сангаас дээж сонсоно → сарын багцаа авна → текстээ оруулж кредитийн тооцоогоо шалгаад үүсгэнэ.</p><p>Бүртгэл үүсгэх нь үнэгүй. Үүсгэлт хийхэд төлбөртэй кредит шаардлагатай. Багц автоматаар сунгагдахгүй. Яг дуусах огноо таны дансанд харагдана.</p><p>Эхлээд богино текстээр дуудлагаа шалгаарай. Хадмал болон чухал нэр, тоог нийтлэхээс өмнө хянана уу.</p><p>Хоолой хувилах лимит нь үйлчилгээний эрхийг батлахгүй. Мэргэжлийн хоолой хувилах зэрэг нэмэлт хэрэгслийн эрхийг худалдан авахаас өмнө тусламжийн хэсгээс лавлана уу. Багц нь нэг хэрэглэгчийн дансанд хамаарна.</p><p id="checkout-availability" role="status"></p></div>
         <h2 id="choose-plan" class="billing-heading">Сарын багцаа сонгох</h2><p class="field-help">Багцын кредитээр дуу, хөгжим, орчуулга болон бусад хэрэгслээ ашиглана.</p><div id="plan-grid" class="plan-grid"></div>
         <div class="credit-guide">
           <h3>Кредит зарцуулалт</h3>
@@ -225,6 +227,7 @@
           </div>
         </div>
         <div class="ledger-wrap"><h3>Кредитийн түүх</h3><div id="credit-ledger" class="ledger-list"></div></div>
+        <form id="support-form" class="tool-form"><h3>Багцын зөвлөгөө, тусламж</h3><p class="field-help">Хүсэлтээ илгээгээд энэ хэсгээс хариугаа шалгана. Бүртгэл шаардлагатай. Нууц үг, API түлхүүр, картын мэдээлэл оруулахгүй.</p><label for="support-message">Таны хэрэгцээ эсвэл асуудал</label><textarea id="support-message" required minlength="10" maxlength="2000" placeholder="Ямар бүтээл хийх, хэр хэмжээний хэрэглээтэйгээ бичээрэй."></textarea><button class="generate" type="submit"><span>Хүсэлт илгээх</span><span>↗</span></button><p id="support-status" role="status"></p></form><button id="support-refresh" class="secondary" type="button">Хариу шалгах</button><div id="support-list" class="ledger-list"></div>
       </section>
 
       <section id="analytics" class="page tool-page" hidden>

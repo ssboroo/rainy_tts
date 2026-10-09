@@ -417,13 +417,53 @@ def health():
         "limitations":{
             "voice_changer_mongolian_source":"ElevenLabs multilingual STS v2 одоогоор Монгол source speech-ийг албан ёсны supported language жагсаалтдаа оруулаагүй."
         },
-        "registration_open":env_flag("ALLOW_REGISTRATION",False)
+        "registration_open":env_flag("ALLOW_REGISTRATION",False),
+        "password_reset_available":accounts.email_configured(),
     }
 
 @app.get("/api/me")
 def me(request:Request):
     sess=session(request,False)
     return {"user":{"email":sess["email"],"csrf":sess["csrf"],"admin":accounts._admin(sess["email"]),"admin_test":billing.admin_test_mode(sess["user_id"])} if sess else None}
+
+@app.get('/api/support')
+def support_list(request:Request):
+    sess=session(request)
+    with core.db() as db:
+        rows=db.execute('SELECT id,message,reply,status,created,updated FROM support_requests WHERE user_id=? ORDER BY created DESC LIMIT 20',(sess['user_id'],)).fetchall()
+    return {'requests':[dict(row) for row in rows]}
+
+@app.post('/api/support')
+async def support_create(request:Request):
+    sess=session(request);mutation_guard(request,sess);throttle('support:'+sess['user_id'],5,3600)
+    data=await json_body(request)
+    message=data.get('message')
+    if not isinstance(message,str) or not 10<=len(message.strip())<=2000:
+        raise HTTPException(422,'Хүсэлт 10–2,000 тэмдэгттэй байна.')
+    uid=core.uid();now=time.time()
+    with core.db() as db:
+        db.execute('INSERT INTO support_requests(id,user_id,message,created,updated) VALUES(?,?,?,?,?)',(uid,sess['user_id'],message.strip(),now,now))
+    return {'id':uid,'status':'open'}
+
+@app.get('/api/admin/support')
+def admin_support(request:Request):
+    sess=session(request)
+    if not accounts._admin(sess['email']):raise HTTPException(403,'Админ эрх шаардлагатай.')
+    with core.db() as db:
+        rows=db.execute("SELECT s.*,u.email FROM support_requests s JOIN users u ON u.id=s.user_id ORDER BY (s.status='open') DESC,s.created DESC LIMIT 100").fetchall()
+    return {'requests':[dict(row) for row in rows]}
+
+@app.post('/api/admin/support/{request_id}')
+async def admin_support_reply(request_id:str,request:Request):
+    sess=session(request);mutation_guard(request,sess)
+    if not accounts._admin(sess['email']):raise HTTPException(403,'Админ эрх шаардлагатай.')
+    data=await json_body(request);reply=data.get('reply')
+    if not isinstance(reply,str) or not 1<=len(reply.strip())<=2000:
+        raise HTTPException(422,'Хариу 1–2,000 тэмдэгттэй байна.')
+    with core.db() as db:
+        if not db.execute("UPDATE support_requests SET reply=?,status='answered',updated=? WHERE id=?",(reply.strip(),time.time(),request_id)).rowcount:
+            raise HTTPException(404,'Хүсэлт олдсонгүй.')
+    return {'ok':True}
 
 @app.post("/api/register")
 @app.post("/api/login")
@@ -482,6 +522,27 @@ def billing_me(request:Request):
     data["ledger"]=billing.ledger(sess["user_id"],50)
     return data
 
+@app.get("/api/billing/orders")
+def billing_orders(request:Request):
+    """Owned immutable quotes let customers resume checkout after leaving the tab."""
+    sess=session(request)
+    with core.db() as db:
+        rows=db.execute(
+            "SELECT o.id,o.plan_id,o.amount_mnt,o.status,o.created,o.paid_at,q.credits,"
+            "p.checkout_url FROM billing_orders o "
+            "LEFT JOIN billing_order_quotes q ON q.order_id=o.id "
+            "LEFT JOIN wire_payments p ON p.order_id=o.id "
+            "WHERE o.user_id=? AND o.provider='wire' ORDER BY o.created DESC LIMIT 20",
+            (sess['user_id'],)
+        ).fetchall()
+    orders=[]
+    for row in rows:
+        item=dict(row)
+        url=item.pop('checkout_url') or ''
+        item['pay_url']=url if item['status']=='pending' and wire_payment.safe_checkout_url(url) else None
+        orders.append(item)
+    return {'orders':orders}
+
 @app.post("/api/billing/wire/create")
 async def billing_wire_create(request:Request):
     sess=session(request); mutation_guard(request,sess); throttle("wire-create:"+sess["user_id"],10,900)
@@ -527,7 +588,7 @@ async def billing_wire_create(request:Request):
     order_id=order["id"]
     with core.db() as db:
         payment=db.execute("SELECT * FROM wire_payments WHERE order_id=?",(order_id,)).fetchone()
-    if payment and payment["checkout_url"] and payment["status"]=="pending":
+    if payment and wire_payment.safe_checkout_url(payment["checkout_url"]) and payment["status"]=="pending":
         return {
             "order_id":order_id,"plan_id":plan_id,"amount_mnt":order["amount_mnt"],
             "pay_url":payment["checkout_url"],"status":"pending"
@@ -543,6 +604,8 @@ async def billing_wire_create(request:Request):
             if not intent_id:
                 raise wire_payment.WireError("Wire PaymentIntent ID буцаасангүй.",502,"invalid_response")
             direct_url=intent.get("checkout_url")
+            if direct_url and not wire_payment.safe_checkout_url(direct_url):
+                direct_url=None
             with core.db() as db:
                 db.execute(
                     "INSERT OR REPLACE INTO wire_payments(order_id,payment_intent_id,checkout_session_id,checkout_url,status,updated) VALUES(?,?,?,?,?,?)",
@@ -558,7 +621,7 @@ async def billing_wire_create(request:Request):
             intent_id,order_id,wire_payment.success_url(order_id)
         )
         pay_url=str(checkout.get("url") or checkout.get("checkout_url") or "")
-        if not pay_url.startswith("https://"):
+        if not wire_payment.safe_checkout_url(pay_url):
             raise wire_payment.WireError("Wire checkout URL буруу байна.",502,"checkout_url_invalid")
         session_id=str(checkout.get("id") or "") or None
         with core.db() as db:

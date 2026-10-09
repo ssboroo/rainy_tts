@@ -157,6 +157,8 @@ The built-in voice IDs are passed directly to the ElevenLabs SDK. The Voice Libr
 
 ## RAINY subscriptions, credits and Wire.mn
 
+[Борлуулалтын нээлтийн заавар, төлбөр үргэлжлүүлэх ба тусламжийн урсгал](docs/SALES_LAUNCH_MN.md).
+
 RAINY can meter customer usage with its own credits while keeping the ElevenLabs API key private.
 
 Default customer plans are:

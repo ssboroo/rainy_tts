@@ -94,6 +94,7 @@ function renderAccount(){
     $('provider-plan').textContent='';$('provider-status-text').textContent='';$('studio-readiness').textContent='';
     if(['admin','reception'].includes(state.page))page('tts');
   }
+  if(!state.user){$('payment-orders').hidden=true;$('payment-order-list').replaceChildren();$('support-list').replaceChildren();$('support-status').textContent='';}
   document.querySelectorAll('[data-admin-only]').forEach(el=>el.hidden=!state.user?.admin);
   $('account').textContent=state.user?state.user.email:'Нэвтрэх';
   $('logout').hidden=!state.user;
@@ -636,10 +637,11 @@ function formatMnt(value){return '₮'+Number(value||0).toLocaleString('en-US');
 function formatCycle(ts){return ts?new Date(Number(ts)*1000).toLocaleDateString('mn-MN'):'—';}
 
 function customerPlanName(id,fallback){return ({trial:'Үнэгүй',hobby:'Сонирхогч',starter:'Эхлэх',creator:'Контент бүтээгч',pro:'Мэргэжлийн',studio:'Студи',agency:'Байгууллага'})[id]||fallback||id;}
-function renderPlans(plans,wireConfigured){
+function renderPlans(plans,wireConfigured,rates={}){
   const root=$('plan-grid');root.replaceChildren();
   const paidPlans=plans.filter(p=>p.id!=='trial'&&Number(p.price_mnt)>0);
   $('billing-start-price').textContent=paidPlans.length?'Сарын багц '+formatMnt(Math.min(...paidPlans.map(p=>Number(p.price_mnt))))+'-өөс эхэлнэ.':'Сарын багц одоогоор авах боломжгүй байна.';
+  $('checkout-availability').textContent=wireConfigured?'Төлбөрийн хуудас дээр боломжтой аргаа сонгоно. Төлбөр серверээр баталгаажсаны дараа кредит нэмэгдэнэ.':'Онлайн төлбөр одоогоор нээгдээгүй. Багц худалдан авах боломжгүй байна; хоолойн дээж, жишээ тексттэй танилцаж болно.';
   plans.filter(plan=>plan.id!=='trial').forEach(plan=>{
     const card=document.createElement('article');card.className='plan-card';
     const top=document.createElement('div');top.className='plan-card-top';
@@ -648,12 +650,15 @@ function renderPlans(plans,wireConfigured){
     top.append(name,price);
     const credits=document.createElement('h3');credits.textContent=Number(plan.monthly_credits).toLocaleString('en-US')+' кредит';
     const desc=document.createElement('p');desc.textContent=plan.description||'';
+    const allowance=document.createElement('p');allowance.className='field-help';
+    const rate=Number(rates.tts?.eleven_v4||80);
+    allowance.textContent='Зөвхөн текстээс дуу ашиглавал ойролцоогоор '+(Math.floor(Number(plan.monthly_credits)/rate)*1000).toLocaleString('en-US')+' тэмдэгт. Хоолойн нэмэлт үржүүлэгч, tag болон бусад хэрэгслийн хэрэглээгүй тооцоо.';
     const button=document.createElement('button');button.className='generate plan-buy';button.type='button';
     button.innerHTML='<span>Кредит цэнэглэх</span><span>↗</span>';
     button.disabled=!wireConfigured;
     if(!wireConfigured){button.querySelector('span').textContent='Тун удахгүй';button.title='Төлбөр авах боломж түр хаалттай';}
     button.onclick=()=>buyPlan(plan.id,button,plan);
-    card.append(top,credits,desc,button);root.append(card);
+    card.append(top,credits,desc,allowance,button);root.append(card);
   });
 }
 
@@ -683,7 +688,7 @@ async function loadBilling(silent=false){
       $('billing-plan').textContent='Нэвтэрнэ үү';
       $('billing-balance').textContent='0';
       $('billing-cycle').textContent='Сарын багц авахын тулд нэвтэрнэ үү.';
-      renderPlans(catalog.plans,catalog.wire_configured);
+      renderPlans(catalog.plans,catalog.wire_configured,catalog.rates);
       renderLedger([]);
       return;
     }
@@ -695,11 +700,51 @@ async function loadBilling(silent=false){
     $('billing-cycle').textContent='Дуусах: '+formatCycle(sub.cycle_end);
     $('credit-chip').textContent=state.user?.admin_test?'Админ туршилт':Number(wallet.balance||0).toLocaleString('en-US')+' кредит · Үлдэгдэл';
     $('credit-chip').hidden=false;
-    renderPlans(catalog.plans,catalog.wire_configured);
+    renderPlans(catalog.plans,catalog.wire_configured,catalog.rates);
     renderLedger(account.ledger||[]);
+    await loadPaymentOrders();
+    await loadSupport();
     if(!catalog.wire_configured&&!silent)notice('Төлбөр авах боломж түр хаалттай байна. Дараа дахин оролдоно уу.');
   }catch(e){if(!silent)notice(customerMessage(e.message));}
 }
+
+async function loadPaymentOrders(){
+  if(!state.user)return;
+  const email=state.user.email;
+  const data=await api('/billing/orders');
+  if(state.user?.email!==email)return;
+  const root=$('payment-order-list');root.replaceChildren();
+  $('payment-orders').hidden=!data.orders?.length;
+  for(const order of data.orders||[]){
+    const row=document.createElement('article');row.className='admin-card';
+    const text=document.createElement('p');text.textContent=customerPlanName(order.plan_id)+' · '+formatMnt(order.amount_mnt)+' · '+statusLabel(order.status)+' · '+new Date(order.created*1000).toLocaleString('mn-MN');row.append(text);
+    if(order.status==='pending'){
+      if(order.pay_url){const link=document.createElement('a');link.className='secondary';link.textContent='Төлбөр үргэлжлүүлэх';link.href=order.pay_url;link.target='_blank';link.rel='noopener noreferrer';row.append(link);}
+      const check=document.createElement('button');check.className='secondary';check.type='button';check.textContent='Төлбөр шалгах';check.onclick=()=>pollWirePayment(order.id);row.append(check);
+    }
+    root.append(row);
+  }
+}
+
+async function loadSupport(){
+  if(!state.user)return;
+  const email=state.user.email,data=await api('/support');
+  if(state.user?.email!==email)return;
+  const root=$('support-list');root.replaceChildren();
+  for(const item of data.requests||[]){
+    const card=document.createElement('article');card.className='admin-card';
+    const question=document.createElement('p');question.textContent=item.message;
+    const reply=document.createElement('p');reply.textContent=item.reply?'RAINY: '+item.reply:'Хариу хүлээгдэж байна.';
+    card.append(question,reply);root.append(card);
+  }
+}
+$('support-refresh').onclick=()=>{if(ensureUser())loadSupport().catch(e=>notice(e.message));};
+$('support-form').onsubmit=async e=>{
+  e.preventDefault();if(!ensureUser())return;
+  const button=e.currentTarget.querySelector('button');if(button.disabled)return;setBusy(button,true);
+  try{await api('/support',{method:'POST',body:{message:$('support-message').value}});$('support-message').value='';$('support-status').textContent='Хүсэлт хадгалагдлаа. Энэ хэсгээс хариугаа шалгана уу.';await loadSupport();}
+  catch(err){$('support-status').textContent=customerMessage(err.message);}finally{setBusy(button,false);}
+};
 
 async function buyPlan(planId,button,plan){
   if(!ensureUser())return;
@@ -714,12 +759,17 @@ async function buyPlan(planId,button,plan){
   }catch(e){await loadBilling(true);notice(customerMessage(e.message));}finally{setBusy(button,false);}
 }
 
+let paymentPollVersion=0;
 async function pollWirePayment(orderId){
+  if(!state.user){notice('Төлбөрөө шалгахын тулд нэвтэрнэ үү.');return;}
+  const version=++paymentPollVersion,email=state.user.email;
   let tries=0;
   const tick=async()=>{
-    if(++tries>120)return;
+    if(version!==paymentPollVersion||state.user?.email!==email)return;
+    if(++tries>120){$('payment-status').textContent='Төлбөрийн баталгаажуулалт хүлээгдэж байна. Захиалгын “Төлбөр шалгах” товчоор дахин шалгаж болно. Дахин төлөх шаардлагагүй.';return;}
     try{
       const data=await api('/billing/wire/status/'+encodeURIComponent(orderId));
+      if(version!==paymentPollVersion||state.user?.email!==email)return;
       $('payment-status').hidden=false;
       if(data.status==='paid'){
         $('payment-status').textContent='Төлбөр баталгаажлаа. Сарын багц болон кредит идэвхжлээ.';
@@ -732,7 +782,7 @@ async function pollWirePayment(orderId){
         return;
       }
       $('payment-status').textContent='QPay төлбөр хүлээгдэж байна…';
-    }catch(e){$('payment-status').textContent=customerMessage(e.message);return;}
+    }catch(e){if(version===paymentPollVersion&&state.user?.email===email)$('payment-status').textContent=customerMessage(e.message)+' Захиалгын төлөвийг дахин шалгана уу.';return;}
     setTimeout(tick,3000);
   };
   tick();
@@ -992,7 +1042,27 @@ async function loadAdmin(){
     else{const text=document.createElement('p');text.textContent=typeof item==='boolean'?(item?'Тийм':'Үгүй'):statusLabel(item);card.append(text);}container.append(card);
    });
   }show(data,root);
+  const tasks={wire:'Wire live түлхүүр, webhook secret-ийг Railway Variables-д тохируулж, бодит төлбөр ба давтан webhook-ийг шалгах.',smtp:'SMTP тохируулж нууц үг сэргээх захидлыг бодитоор хүргэж шалгах.',provider_configured:'ElevenLabs API холболтыг тохируулах.',provider_paid_plan:'Төлбөртэй provider багцын эрхийг баталгаажуулах.',persistent_storage:'Байнгын хадгалалт болон тусдаа backup/restore шалгах.',worker:'Worker ажиллагааг шалгах.',database:'Өгөгдлийн сангийн integrity шалгах.',storage:'Файл хадгалах эрх, сул зай шалгах.',billing:'Кредитийн тооцоог идэвхжүүлэх.'};
+  const launch=document.createElement('article');launch.className='admin-card';
+  const heading=document.createElement('h3');heading.textContent='Борлуулалтын өмнө дуусгах';launch.append(heading);
+  for(const [key,ok] of Object.entries(data.readiness?.checks||{})){if(!ok){const p=document.createElement('p');p.textContent=tasks[key]||key;launch.append(p);}}
+  const note=document.createElement('p');note.textContent='Тохиргоо байгаа нь бодит төлбөр, үүсгэлт, email delivery амжилттайг батлахгүй. Live тест болон media backup/restore тусдаа шалгана.';launch.append(note);root.prepend(launch);
+  await loadAdminSupport(root,adminEmail);
  }catch(e){root.textContent=customerMessage(e.message);}
+}
+async function loadAdminSupport(root,email){
+ const data=await api('/admin/support');if(!state.user?.admin||state.user.email!==email)return;
+ const section=document.createElement('article');section.className='admin-card';
+ const h=document.createElement('h3');h.textContent='Хэрэглэгчийн хүсэлтүүд';section.append(h);
+ for(const item of data.requests||[]){
+  const form=document.createElement('form');form.className='tool-form';
+  const p=document.createElement('p');p.textContent=item.email+' · '+item.message;form.append(p);
+  const input=document.createElement('textarea');input.value=item.reply||'';input.required=true;input.maxLength=2000;input.setAttribute('aria-label','Хэрэглэгчид өгөх хариу');form.append(input);
+  const button=document.createElement('button');button.className='secondary';button.type='submit';button.textContent='Хариу хадгалах';form.append(button);
+  form.onsubmit=async e=>{e.preventDefault();button.disabled=true;try{await api('/admin/support/'+encodeURIComponent(item.id),{method:'POST',body:{reply:input.value}});notice('Хариу хадгалагдлаа. Хэрэглэгч өөрийн данснаас харна.');}catch(err){notice(err.message);}finally{button.disabled=false;}};
+  section.append(form);
+ }
+ root.prepend(section);
 }
 $('admin-refresh').onclick=loadAdmin;
 const costRefresh=document.createElement('button');costRefresh.type='button';costRefresh.className='secondary';costRefresh.textContent='ElevenLabs багц, үлдэгдэл шинэчлэх';
