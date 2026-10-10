@@ -47,6 +47,7 @@ class MovieTests(unittest.TestCase):
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://attacker.example.com/movie.mp4")
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://media.example.com@evil.example.com/movie.mp4")
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://media.example.com:8443/movie.mp4")
+        with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://media.example.com:bad/movie.mp4")
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://media.example.com/movie.mp4#fragment")
         video="https://media.example.com/scene01.mp4"
         estimate=movie_assembly.quote_movie([video],30,"9:16",user_id="movie-user")
@@ -81,6 +82,22 @@ class MovieTests(unittest.TestCase):
         with core.db() as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM vmcp_movie_requests").fetchone()[0],0)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM tool_jobs").fetchone()[0],0)
+    def test_long_voice_is_rejected_before_download(self):
+        if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+            self.skipTest("FFmpeg is not installed")
+        import subprocess
+        audio=core.DATA/"outputs"/"voice-demo.wav"
+        subprocess.run(["ffmpeg","-v","error","-f","lavfi","-i","anullsrc=r=48000:cl=mono",
+                        "-t","5","-c:a","pcm_s16le","-y",str(audio)],
+                       check=True,timeout=15)
+        with core.db() as db:
+            db.execute("INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)",
+                       ("voice-demo","movie-user","voice","Narration","{}","done",1))
+        with patch.object(movie_assembly,"public_ip_resolves",return_value=True):
+            with self.assertRaisesRegex(ValueError,"тайрч алга болгохгүй"):
+                asyncio.run(movie_assembly.assemble_movie("movie-user","movie-unused",
+                           ["https://media.example.com/scene.mp4"],4,"16:9","voice-demo"))
+
     def test_assemble_with_local_stub_clips(self):
         if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
             self.skipTest("FFmpeg is not installed")
