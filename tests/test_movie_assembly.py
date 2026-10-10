@@ -91,6 +91,10 @@ class MovieTests(unittest.TestCase):
         with patch.object(movie_assembly,"download_clip",mock_download),patch.object(movie_assembly,"public_ip_resolves",return_value=True):
             result=asyncio.run(movie_assembly.assemble_movie("movie-user","movie-test-job",args,4,"1:1",None))
         self.assertEqual(result["clip_count"],2)
+        self.assertEqual(result["quality_report"]["status"],"structural_pass")
+        self.assertEqual(result["quality_report"]["width"],720)
+        self.assertEqual(result["quality_report"]["height"],720)
+        self.assertEqual(result["quality_report"]["semanticQuality"],"not_verified")
         artifact=core.DATA/"artifacts"
         self.assertEqual(len(list(artifact.glob("*.mp4"))),1)
         self.assertGreater(next(artifact.glob("*.mp4")).stat().st_size,4096)
