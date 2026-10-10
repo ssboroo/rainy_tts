@@ -84,6 +84,9 @@ class MovieTests(unittest.TestCase):
             shutil.copyfile(source,out)
             total[0]+=out.stat().st_size
             return out
+        with core.db() as db:
+            db.execute("INSERT INTO tool_jobs(id,user_id,tool_type,title,payload,status,created,updated) VALUES(?,?,?,?,?,?,?,?)",
+                       ("movie-test-job","movie-user","video_assembly","Test","{}","running",1,1))
         args=["https://media.example.com/s1.mp4","https://media.example.com/s2.mp4"]
         with patch.object(movie_assembly,"download_clip",mock_download),patch.object(movie_assembly,"public_ip_resolves",return_value=True):
             result=asyncio.run(movie_assembly.assemble_movie("movie-user","movie-test-job",args,4,"1:1",None))
