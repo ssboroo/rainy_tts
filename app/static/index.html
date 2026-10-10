@@ -29,29 +29,45 @@
     <aside class="sidebar full-sidebar" id="studio-navigation" aria-label="Студийн хэрэгслүүд">
       <a class="brand" href="/" aria-label="RAINY Voice Studio — Нүүр"><img class="brand-logo" src="/brand-mark.svg?v=2" width="42" height="42" alt=""><span class="brand-type">RAINY <small>VOICE STUDIO</small></span></a>
       <button id="close-menu" class="icon-button drawer-close" type="button" aria-label="Цэс хаах">×</button>
-      <div class="rail-label">ДУУ БҮТЭЭХ</div>
-      <nav aria-label="Үндсэн цэс">
+      <nav class="studio-tool-nav" aria-label="Студийн үндсэн цэс">
+        <div class="nav-section-title">БҮТЭЭХ</div>
         <button class="nav active" data-page="tts"><span class="nav-icon" aria-hidden="true">🎙️</span><span>Текстээс дуу</span></button>
-        <button class="nav" data-page="clone"><span class="nav-icon" aria-hidden="true">🧬</span><span>Хоолой хувилах</span></button>
-        <button class="nav" data-page="pvc"><span class="nav-icon" aria-hidden="true">💎</span><span>Мэргэжлийн хувилбар</span></button>
         <button class="nav" data-page="dialogue"><span class="nav-icon" aria-hidden="true">🎧</span><span>Подкаст / Харилцан яриа</span></button>
         <button class="nav" data-page="music"><span class="nav-icon" aria-hidden="true">🎵</span><span>Хөгжим</span></button>
-        <button class="nav" data-page="sfx"><span class="nav-icon" aria-hidden="true">✨</span><span>Дууны эффект</span></button>
-        <div class="rail-label inline">АУДИО БОЛОВСРУУЛАХ</div>
-        <button class="nav" data-page="stt"><span class="nav-icon" aria-hidden="true">📝</span><span>Ярианаас бичвэр</span></button>
-        <button class="nav" data-page="realtime"><span class="nav-icon" aria-hidden="true">🔴</span><span>Шууд бичвэр</span></button>
-        <button class="nav" data-page="isolator"><span class="nav-icon" aria-hidden="true">🫧</span><span>Яриа цэвэрлэх</span></button>
-        <button class="nav" data-page="changer"><span class="nav-icon" aria-hidden="true">🎭</span><span>Хоолой солих · Туршилт</span></button>
-        <div class="rail-label inline">ВИДЕО БА ХООЛОЙ</div><a class="movie-nav-link" href="/movie">🎞️ &nbsp;Movie Sound & Mastering <span>↗</span></a>
         <button class="nav" data-page="dubbing"><span class="nav-icon" aria-hidden="true">🎬</span><span>Видео орчуулах</span></button>
-        <button class="nav" data-page="voices"><span class="nav-icon" aria-hidden="true">🗣️</span><span>Хоолойн сан</span></button>
-        <div class="rail-label inline" hidden data-admin-only>БИЗНЕС</div>
-        <button class="nav" data-page="reception" hidden data-admin-only><span class="nav-icon" aria-hidden="true">☎️</span><span>Reception.ai</span></button>
-        <div class="rail-label inline">МИНИЙ СТУДИ</div>
+        <div class="nav-section-title nav-section-feature">AI КИНО &amp; MCP</div>
+        <a class="nav-destination nav-destination-feature" href="/movie"><span class="nav-icon" aria-hidden="true">🎞️</span><span>Нэг санаанаас бүтэн кино<small>AI Director · Movie Sound</small></span><span class="nav-chevron" aria-hidden="true">↗</span></a>
+        <a class="nav-destination" href="/integrations"><span class="nav-icon" aria-hidden="true">⌘</span><span>ChatGPT / Claude MCP<small>AI туслахтай холбох</small></span><span class="nav-chevron" aria-hidden="true">↗</span></a>
+        <details class="nav-disclosure" id="voice-tools-nav">
+          <summary>ХООЛОЙН ХЭРЭГСЛҮҮД <small>5 хэрэгсэл</small></summary>
+          <div class="nav-disclosure-items">
+            <button class="nav" data-page="voices"><span class="nav-icon" aria-hidden="true">🗣️</span><span>Хоолойн сан</span></button>
+            <button class="nav" data-page="clone"><span class="nav-icon" aria-hidden="true">🧬</span><span>Хоолой хувилах</span></button>
+            <button class="nav" data-page="pvc"><span class="nav-icon" aria-hidden="true">💎</span><span>Мэргэжлийн хувилбар</span></button>
+            <button class="nav" data-page="voice-design"><span class="nav-icon" aria-hidden="true">🎨</span><span>Хоолой зохиох</span></button>
+            <button class="nav" data-page="voice-remix"><span class="nav-icon" aria-hidden="true">🪄</span><span>Хоолой шинэчлэх</span></button>
+          </div>
+        </details>
+        <details class="nav-disclosure" id="audio-tools-nav">
+          <summary>АУДИО БОЛОВСРУУЛАХ <small>6 хэрэгсэл</small></summary>
+          <div class="nav-disclosure-items">
+            <button class="nav" data-page="stt"><span class="nav-icon" aria-hidden="true">📝</span><span>Ярианаас бичвэр</span></button>
+            <button class="nav" data-page="realtime"><span class="nav-icon" aria-hidden="true">🔴</span><span>Шууд бичвэр</span></button>
+            <button class="nav" data-page="isolator"><span class="nav-icon" aria-hidden="true">🫧</span><span>Яриа цэвэрлэх</span></button>
+            <button class="nav" data-page="changer"><span class="nav-icon" aria-hidden="true">🎭</span><span>Хоолой солих · Туршилт</span></button>
+            <button class="nav" data-page="sfx"><span class="nav-icon" aria-hidden="true">✨</span><span>Дууны эффект</span></button>
+            <button class="nav" data-page="alignment"><span class="nav-icon" aria-hidden="true">💬</span><span>Хадмал тааруулах</span></button>
+          </div>
+        </details>
+        <div class="nav-section-title">МИНИЙ СТУДИ</div>
+        <button class="nav" data-page="history"><span class="nav-icon" aria-hidden="true">🗂️</span><span>Бүтээлийн түүх</span></button>
         <button class="nav" data-page="billing"><span class="nav-icon" aria-hidden="true">💳</span><span>Кредит цэнэглэх</span></button>
         <button class="nav" data-page="analytics"><span class="nav-icon" aria-hidden="true">📊</span><span>Хэрэглээний тайлан</span></button>
-        <button class="nav" data-page="history"><span class="nav-icon" aria-hidden="true">🗂️</span><span>Бүтээлийн түүх</span></button>
-      <button class="nav" data-page="voice-design"><span class="nav-icon" aria-hidden="true">🎨</span><span>Хоолой зохиох</span></button><button class="nav" data-page="voice-remix"><span class="nav-icon" aria-hidden="true">🪄</span><span>Хоолой шинэчлэх</span></button><button class="nav" data-page="alignment"><span class="nav-icon" aria-hidden="true">💬</span><span>Хадмал тааруулах</span></button><button class="nav" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Бүртгэлийн тохиргоо</span></button><button class="nav" data-page="admin" hidden data-admin-only><span class="nav-icon" aria-hidden="true">🛡️</span><span>Удирдлага</span></button></nav>
+        <button class="nav" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Бүртгэлийн тохиргоо</span></button>
+        <div class="nav-section-title" hidden data-admin-only>УДИРДЛАГА</div>
+        <button class="nav" data-page="reception" hidden data-admin-only><span class="nav-icon" aria-hidden="true">☎️</span><span>Reception.ai</span></button>
+        <button class="nav" data-page="admin" hidden data-admin-only><span class="nav-icon" aria-hidden="true">🛡️</span><span>Удирдлага</span></button>
+      </nav>
       <div class="side-bottom"><div class="studio-signature"><div class="signature-top"><img src="/brand-mark.svg?v=2" width="24" height="28" alt=""><span>ТАНЫ БҮТЭЭЛИЙН ОРОН ЗАЙ</span></div><p>Санаагаа<br><strong>дуу болго.</strong></p><div class="signature-bottom"><span class="signature-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>RAINY VOICE STUDIO</span></div></div></div>
     </aside>
 
@@ -64,15 +80,7 @@
       <div id="admin-test-note" class="studio-readiness" hidden>Админ туршилтын горим · RAINY кредит суутгахгүй. Бодит үүсгэлт ElevenLabs хэрэглээнээс тооцогдоно.</div><div id="notice" role="status" class="notice" hidden></div><div id="studio-readiness" class="studio-readiness" role="status" hidden data-admin-only>Үйлчилгээний төлөвийг шалгаж байна…</div>
 
       <section id="tts" class="page tool-page">
-        <div class="tool-hero studio-hero"><div class="hero-copy"><p class="kicker"><span></span>МОНГОЛ АУДИО БҮТЭЭХ СТУДИ</p><h1>Таны санаа.<br><em>Таны дуу хоолой.</em></h1><p>Үг бүрээ амилуул. Бичвэрээ оруулаад, хоолойгоо сонго.<br class="desktop-break"> Бэлэн дуугаа сонсож, татаж аваарай.</p><div class="hero-tags"><span>Монгол хоолой</span><span>WAV / MP3</span><span>Өөрийн хоолой</span></div><p class="movie-promo-note"><a href="/movie">Киноны Монгол дуу, хадмал, MP4 экспорт болон AI Mastering →</a></p></div><div class="sound-art" aria-hidden="true"><div class="sound-orbit"></div><div class="sound-disc"><img src="/brand-mark.svg?v=2" alt="" width="84" height="84"></div><div class="sound-bars"><i style="--bar:20px"></i><i style="--bar:38px"></i><i style="--bar:64px"></i><i style="--bar:92px"></i><i style="--bar:55px"></i><i style="--bar:76px"></i><i style="--bar:112px"></i><i style="--bar:82px"></i><i style="--bar:52px"></i><i style="--bar:68px"></i><i style="--bar:35px"></i><i style="--bar:20px"></i></div><span class="sound-caption">IDEAS INTO SOUND</span></div></div>
-        <section aria-labelledby="movie-beta-title" class="tool-card wide" style="margin:12px 0 24px;padding:24px;border:1px solid rgba(183,255,74,.3);border-radius:22px;background:linear-gradient(135deg,rgba(183,255,74,.07),rgba(120,232,255,.04))">
-          <p class="kicker">RAINY VOICE × RAINY VIDEO · ONE-PROMPT MOVIE</p>
-          <h2 id="movie-beta-title" style="margin:8px 0;font-size:clamp(1.25rem,3vw,1.8rem)">Нэг санаанаас бүтэн кино · Монгол дуу · Mastering</h2>
-          <p class="field-help">ChatGPT эсвэл Claude-аас RAINY Video болон Voice MCP-г тус тусад нь холбон удирдана. Video Studio кадруудыг background-д боловсруулж, Voice Studio Монгол TTS, дуу, хөгжим, хадмал, эцсийн MP4-ийн mastering-ийг хариуцна.</p>
-          <div class="hero-tags"><span>Монгол TTS</span><span>Хөгжим ба SRT</span><span>1080p export beta</span><span>4K · Нөөцийн шалгалттай</span></div>
-          <p class="field-help"><strong>Хөгжүүлэлтийн төлөв:</strong> Видео эвлүүлэг болон чанарын шалгалтын код нэмэгдсэн. Аюулгүй CDN allowlist, 4K render нөөц, бодит төлбөртэй end-to-end тест баталгаажих хүртэл One-Prompt Movie export хэрэгслийг идэвхгүй байлгана. AI Vision QA нь тусдаа зөвшөөрөл шаарддаг; бодит lip-sync хөдөлгүүр хараахан бүрэн идэвхгүй.</p>
-          <p><a href="https://video.rainy.studio/movie" target="_blank" rel="noopener noreferrer">RAINY Movie Producer-ийн боломжууд ↗</a> · <a href="/mcp/connect">ChatGPT / Claude Voice MCP холбох ↗</a></p>
-        </section>
+        <div class="tool-hero studio-hero"><div class="hero-copy"><p class="kicker"><span></span>МОНГОЛ АУДИО БҮТЭЭХ СТУДИ</p><h1>Таны санаа.<br><em>Таны дуу хоолой.</em></h1><p>Үг бүрээ амилуул. Бичвэрээ оруулаад, хоолойгоо сонго.<br class="desktop-break"> Бэлэн дуугаа сонсож, татаж аваарай.</p><div class="hero-tags"><span>Монгол хоолой</span><span>WAV / MP3</span><span>Өөрийн хоолой</span></div></div><div class="sound-art" aria-hidden="true"><div class="sound-orbit"></div><div class="sound-disc"><img src="/brand-mark.svg?v=2" alt="" width="84" height="84"></div><div class="sound-bars"><i style="--bar:20px"></i><i style="--bar:38px"></i><i style="--bar:64px"></i><i style="--bar:92px"></i><i style="--bar:55px"></i><i style="--bar:76px"></i><i style="--bar:112px"></i><i style="--bar:82px"></i><i style="--bar:52px"></i><i style="--bar:68px"></i><i style="--bar:35px"></i><i style="--bar:20px"></i></div><span class="sound-caption">IDEAS INTO SOUND</span></div></div>
         <div class="tool-grid">
           <div class="tool-card wide">
             <div class="editor-heading"><span class="section-eyebrow">01 / БИЧВЭР</span><span class="editor-badge">Текстээс дуу</span></div><label class="field-label">Бүтээлийн нэр</label><input id="tts-title" class="field-input" placeholder="Шинэ бүтээл">
@@ -90,7 +98,7 @@
             <button id="tts-quote" class="secondary" type="button">Кредитийг нарийн тооцох</button><button id="generate" class="generate"><span class="generate-label">Дуу үүсгэх</span><span class="generate-arrow">↗</span></button>
           </aside>
         </div>
-        <form id="video-voiceover-form" class="tool-form"><h2>Видеонд өөрийн дууг оруулах</h2><p class="field-help">Сэтгэл хөдлөлтэй дуугаа дээр үүсгээд, бүтээлийн түүхээс «Видеонд оруулах» сонгоно уу. Эх видеоны дууг сольж, видеог бүтэн уртаар нь MP4 болгож хадгална. 10 минут хүртэл · эхэлсэн минут бүр 10 кредит, хамгийн багадаа 10 кредит. Дахин TTS API төлбөр үүсэхгүй.</p><input id="voiceover-job" name="source_job_id" type="hidden"><p id="voiceover-selection" class="field-help">Бүтээлийн түүхээс бэлэн дуу сонгоно уу.</p><label class="field-label" for="voiceover-file">Видео файл</label><input id="voiceover-file" name="file" type="file" accept="video/*" required><button class="secondary" type="submit">Дуутай MP4 бүтээх ↗</button></form>
+
       </section>
 
       <section id="clone" class="page tool-page" hidden>
@@ -189,6 +197,8 @@
         <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">🎬</span><p class="kicker"><span></span>ВИДЕО ОРЧУУЛАХ</p><h1>Видео-г <em>өөр хэлээр.</em></h1><p>Видеоны яриаг сонгосон хэл рүү орчуулж дуу оруулна.</p></div>
         <form id="dubbing-form" class="tool-form"><p class="tool-warning">Видео орчуулахад кредит зарцуулна. Видео файл оруулсан бол бэлэн болсон орчуулсан дууг эх видеотой нэгтгэн MP4 үүсгэнэ.</p><div class="field"><label>Видео / Аудио файл</label><input name="file" type="file" accept="audio/*,video/*"></div><div class="field"><label>эсвэл Нийтийн холбоос</label><input name="source_url" type="url" placeholder="https://…"></div><div class="field-grid"><div class="field"><label>Эх хэл</label><input name="source_language" placeholder="en / auto"></div><div class="field"><label>Орчуулах хэл</label><input name="target_language" value="mn" required placeholder="mn"></div></div><div class="field"><label>Төслийн нэр</label><input name="reference" value="RAINY Dubbing"></div><div class="field"><label for="dubbing-keyterms">Нэр, брэнд, нэр томьёо</label><textarea id="dubbing-keyterms" name="keyterms" class="field-input" placeholder="RAINY, Улаанбаатар, бүтээгдэхүүний нэр"></textarea><p class="field-help">Таслал эсвэл шинэ мөрөөр тусгаарлана. Dubbing v2 эх яриаг таних, орчуулахдаа ашиглана. 1 минут ≈ 2,200 кредит; хүсэлтийг provider хүлээж авмагц төлбөр үүсдэг.</p></div><button class="generate" type="submit"><span>Видео орчуулж эхлэх</span><span>↗</span></button></form>
         <div id="dubbing-status" class="result-box" hidden></div>
+        <div class="subtool-divider"><span>ЭСВЭЛ · ӨӨРИЙН МОНГОЛ ДУУГААР MP4 БҮТЭЭХ</span></div>
+        <form id="video-voiceover-form" class="tool-form"><h2>Видеонд өөрийн дууг оруулах</h2><p class="field-help">Сэтгэл хөдлөлтэй дуугаа дээр үүсгээд, бүтээлийн түүхээс «Видеонд оруулах» сонгоно уу. Эх видеоны дууг сольж, видеог бүтэн уртаар нь MP4 болгож хадгална. 10 минут хүртэл · эхэлсэн минут бүр 10 кредит, хамгийн багадаа 10 кредит. Дахин TTS API төлбөр үүсэхгүй.</p><input id="voiceover-job" name="source_job_id" type="hidden"><p id="voiceover-selection" class="field-help">Бүтээлийн түүхээс бэлэн дуу сонгоно уу.</p><label class="field-label" for="voiceover-file">Видео файл</label><input id="voiceover-file" name="file" type="file" accept="video/*" required><button class="secondary" type="submit">Дуутай MP4 бүтээх ↗</button></form>
       </section>
 
       <section id="reception" class="page tool-page" hidden>
