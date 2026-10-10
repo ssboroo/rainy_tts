@@ -113,7 +113,13 @@ def listed(writable):
              {"video_urls":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":120},
               "target_seconds":{"type":"number","minimum":4,"maximum":3600},
               "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
-              "voice_job_id":{"type":"string"}},
+              "voice_job_id":{"type":"string"},
+              "output_quality":{"type":"string","enum":["720p","1080p","4k"]},
+              "music_artifact_id":{"type":"string"},
+              "subtitle_artifact_id":{"type":"string"},
+              "subtitle_burn_in":{"type":"boolean"},
+              "master_audio":{"type":"boolean"},
+              "ai_qa_consent":{"type":"boolean"}},
              ["video_urls","target_seconds","aspect_ratio"]),
         tool("rainy_voice_movie_status","Эцсийн MP4 төлөв","Эвлүүлгийн дугаар, progress ба бэлэн MP4 татах холбоосыг харуулна.",
              {"job_id":{"type":"string"}},["job_id"])
@@ -125,6 +131,12 @@ def listed(writable):
               "target_seconds":{"type":"number","minimum":4,"maximum":3600},
               "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
               "voice_job_id":{"type":"string"},
+              "output_quality":{"type":"string","enum":["720p","1080p","4k"]},
+              "music_artifact_id":{"type":"string"},
+              "subtitle_artifact_id":{"type":"string"},
+              "subtitle_burn_in":{"type":"boolean"},
+              "master_audio":{"type":"boolean"},
+              "ai_qa_consent":{"type":"boolean"},
               "maxCredits":{"type":"integer","minimum":0},
               "idempotencyKey":{"type":"string","minLength":16,"maxLength":128},
               "confirmGeneration":{"type":"boolean","const":True}},
@@ -154,7 +166,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         target=args.get("target_seconds")
         ratio=args.get("aspect_ratio")
         voice=args.get("voice_job_id")
-        estimate=movie_assembly.quote_movie(urls,target,ratio,voice,uid)
+        options={key:args[key] for key in ("output_quality","music_artifact_id","subtitle_artifact_id","subtitle_burn_in","master_audio","ai_qa_consent") if key in args}
+        estimate=movie_assembly.quote_movie(urls,target,ratio,voice,uid,options)
         if name=="rainy_voice_movie_quote":
             return estimate
         maximum=args.get("maxCredits")
@@ -163,8 +176,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         key=args.get("idempotencyKey")
         if not isinstance(key,str) or not KEY_RE.fullmatch(key):
             raise ValueError("idempotencyKey 16–128 тэмдэгт байна.")
-        body_hash=digest(json.dumps([urls,target,ratio,voice],sort_keys=True,ensure_ascii=False))
-        return movie_assembly.enqueue_movie(uid,urls,target,ratio,voice,key,body_hash,estimate["credits"])
+        body_hash=digest(json.dumps([urls,target,ratio,voice,options],sort_keys=True,ensure_ascii=False))
+        return movie_assembly.enqueue_movie(uid,urls,target,ratio,voice,key,body_hash,estimate["credits"],options)
     if name=="rainy_voice_movie_status":
         if not movie_active():
             raise ValueError("MP4 эвлүүлэг идэвхгүй.")
