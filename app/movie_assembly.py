@@ -44,8 +44,13 @@ def public_ip_resolves(host):
 def validate_video_url(value, resolve=False):
     if not isinstance(value,str) or not 12<=len(value)<=3000:
         raise ValueError("Видео URL буруу байна.")
-    url=urlsplit(value)
-    if url.scheme!="https" or not url.hostname or url.username or url.password or url.fragment or url.port not in (None,443):
+    try:
+        url=urlsplit(value)
+        permitted=(url.scheme=="https" and bool(url.hostname) and
+                   not url.username and not url.password and not url.fragment and url.port in (None,443))
+    except ValueError:
+        permitted=False
+    if not permitted:
         raise ValueError("Видео зөвхөн HTTPS, 443 порттой URL байх ёстой.")
     host=url.hostname.lower()
     if not trusted_hosts() or host not in trusted_hosts():
@@ -59,10 +64,10 @@ def validate_video_url(value, resolve=False):
 def quote_movie(video_urls, target_seconds, aspect_ratio, voice_job_id=None, user_id=None):
     if not isinstance(video_urls,list) or not 1<=len(video_urls)<=MAX_CLIPS:
         raise ValueError("1–120 бэлэн видео клип оруулна.")
-    if len(set(video_urls))!=len(video_urls):
-        raise ValueError("Клипийн URL давхардсан байна.")
     for url in video_urls:
         validate_video_url(url)
+    if len(set(video_urls))!=len(video_urls):
+        raise ValueError("Клипийн URL давхардсан байна.")
     if type(target_seconds) not in (int,float) or not math.isfinite(target_seconds) or not 4<=target_seconds<=MAX_MOVIE_SECONDS:
         raise ValueError("Эцсийн кино 4–3600 секундийн хооронд байна.")
     if aspect_ratio not in RATIOS:
@@ -154,6 +159,20 @@ async def download_clip(url,output,total):
                 raise ValueError("MP4 container танигдсангүй.")
     return output
 
+def probe_audio_duration(path):
+    try:
+        p=subprocess.run(
+            ["ffprobe","-v","error","-show_entries","format=duration",
+             "-of","default=noprint_wrappers=1:nokey=1",str(path)],
+            check=True,timeout=35,capture_output=True,text=True,
+        )
+        duration=float(p.stdout.strip())
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("Дууны урт буруу.")
+        return duration
+    except (subprocess.SubprocessError, ValueError, TypeError):
+        raise ValueError("Voice аудионы үргэлжлэх хугацааг уншиж чадсангүй.")
+
 def run_ffmpeg(args,timeout=900):
     try:
         subprocess.run(["ffmpeg","-nostdin","-hide_banner","-loglevel","error","-y",*args],
@@ -221,6 +240,9 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
         candidate=core.DATA/"outputs"/(voice_id+".wav")
         if not source or source["status"]!="done" or not candidate.is_file():
             raise ValueError("Voice аудио файл олдсонгүй.")
+        audio_seconds=await asyncio.to_thread(probe_audio_duration,candidate)
+        if audio_seconds > target_seconds+0.35:
+            raise ValueError(f"Voice audio ({audio_seconds:.1f}s) нь хүссэн киноны урт ({target_seconds:.1f}s)-аас их; тайрч алга болгохгүй.")
         voice_file=candidate
     work=Path(tempfile.mkdtemp(prefix="movie-",dir=core.DATA/"tmp"))
     out=core.DATA/"artifacts"/(core.uid()+".mp4")
@@ -240,7 +262,7 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
                 args+=["-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=48000"]
             vf=f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps=24,format=yuv420p"
             args+=["-map","0:v:0","-map","0:a:0" if has_audio else "1:a:0",
-                   "-vf",vf,"-c:v","libx264","-preset","veryfast","-crf","22",
+                   "-vf",vf,"-c:v","libx264","-preset","medium","-crf","18",
                    "-c:a","aac","-ar","48000","-b:a","128k","-af","apad",
                    "-t",str(round(duration,3)),"-movflags","+faststart",str(converted)]
             await asyncio.to_thread(run_ffmpeg,args,300)
