@@ -64,6 +64,9 @@ class VoiceNavigationTests(unittest.TestCase):
             else:
                 self.assertIn(keyword,result.text)
         self.assertEqual(client.get("/unknown.css").status_code,404)
+        legacy=client.get("/mcp/connect",follow_redirects=False)
+        self.assertEqual(legacy.status_code,303)
+        self.assertEqual(legacy.headers["location"],"/integrations#connections")
         self.assertNotIn("<style>",(STATIC/"movie.html").read_text(encoding="utf-8"))
         self.assertIn('href="/movie.css?v=2"',(STATIC/"movie.html").read_text(encoding="utf-8"))
         self.assertIn('href="/integrations.css?v=1"',(STATIC/"integrations.html").read_text(encoding="utf-8"))
