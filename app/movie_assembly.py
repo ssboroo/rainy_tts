@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from . import core, billing, durable_jobs
+from . import movie_mastering
 
 MAX_CLIPS = 120
 MAX_CLIP_BYTES = 100 * 1024 * 1024
@@ -61,7 +62,7 @@ def validate_video_url(value, resolve=False):
     if resolve: public_ip_resolves(host)
     return value
 
-def quote_movie(video_urls, target_seconds, aspect_ratio, voice_job_id=None, user_id=None):
+def quote_movie(video_urls, target_seconds, aspect_ratio, voice_job_id=None, user_id=None, options=None):
     if not isinstance(video_urls,list) or not 1<=len(video_urls)<=MAX_CLIPS:
         raise ValueError("1–120 бэлэн видео клип оруулна.")
     for url in video_urls:
@@ -79,16 +80,22 @@ def quote_movie(video_urls, target_seconds, aspect_ratio, voice_job_id=None, use
             voice=c.execute("SELECT status FROM jobs WHERE id=? AND user_id=?",(voice_job_id,user_id)).fetchone()
         if not voice or voice["status"]!="done":
             raise ValueError("Voice audio хараахан бэлэн биш эсвэл таны бүтээл биш байна.")
+    master=movie_mastering.master_settings(options,target_seconds,aspect_ratio)
+    if user_id:
+        movie_mastering.owned_artifact(user_id,master["music_artifact_id"],"audio")
+        movie_mastering.owned_artifact(user_id,master["subtitle_artifact_id"],"subtitle")
     rate=int(os.getenv("RAINY_MOVIE_ASSEMBLY_CREDITS_PER_MIN", "20"))
     if not 0<=rate<=100000:
         raise ValueError("Видео эвлүүлгийн кредитийн тохиргоо буруу байна.")
     credits=max(0,math.ceil(target_seconds/60)*rate)
     return {"credits":credits,"clipCount":len(video_urls),"targetSeconds":target_seconds,
             "aspectRatio":aspect_ratio,"voiceAudioAttached":bool(voice_job_id),
+            "outputQuality":master["quality"],"dimensions":master["dimensions"],
+            "native4KRequired":master["quality"]=="4k",
             "maxMovieSeconds":MAX_MOVIE_SECONDS,
             "note":"Урьдчилсан эвлүүлгийн кредит. Видео болон Voice генерацын кредит тусдаа; media CDN allowlist зайлшгүй."}
 
-def enqueue_movie(user_id, urls, seconds, ratio, voice_job_id, key, payload_hash, credits):
+def enqueue_movie(user_id, urls, seconds, ratio, voice_job_id, key, payload_hash, credits, options=None):
     """Atomically reserve compute credits, queue local work and the replay key."""
     billing.ensure_wallet(user_id)
     billing._expire_if_needed(user_id)
@@ -124,7 +131,7 @@ def enqueue_movie(user_id, urls, seconds, ratio, voice_job_id, key, payload_hash
         c.execute("INSERT INTO tool_jobs(id,user_id,tool_type,title,payload,status,created,updated) VALUES(?,?,?,?,?,?,?,?)",
                   (job_id,user_id,"video_assembly","RAINY One-Prompt Movie",json.dumps({"billing":{"credits":credits if paid else 0,"charge_id":charge_id}}),
                    "queued",now,now))
-        execution={"method":"assemble_video","args":[urls,float(seconds),ratio,voice_job_id]}
+        execution={"method":"assemble_video","args":[urls,float(seconds),ratio,voice_job_id,options or {}]}
         c.execute("INSERT INTO durable_jobs VALUES(?,?,?,?,?,?,?,?,?)",
                   (job_id,json.dumps(execution,ensure_ascii=False),charge_id,credits if paid else 0,
                    "rainy-final-movie.mp4","video/mp4",None,None,None))
@@ -193,7 +200,17 @@ def probe_media(path):
     except (ValueError,subprocess.SubprocessError,KeyError):
         raise ValueError("Клипийн кодек эсвэл хугацааг шалгаж чадсангүй.")
 
-def verify_export(path, expected_seconds, ratio):
+def probe_dimensions(path):
+    try:
+        p=subprocess.run(["ffprobe","-v","error","-select_streams","v:0",
+                          "-show_entries","stream=width,height","-of","json",str(path)],
+                         capture_output=True,text=True,check=True,timeout=25)
+        entry=json.loads(p.stdout)["streams"][0]
+        return int(entry["width"]),int(entry["height"])
+    except (ValueError,IndexError,KeyError,subprocess.SubprocessError):
+        raise ValueError("Эх клипийн нягтаршил тодорхойгүй.")
+
+def verify_export(path, expected_seconds, ratio, quality="720p"):
     """Measure objective output properties; do not claim semantic/cinematic quality."""
     try:
         p=subprocess.run(
@@ -208,7 +225,7 @@ def verify_export(path, expected_seconds, ratio):
         audio=next((t for t in data.get("streams",[]) if t.get("codec_type")=="audio"),None)
         if not video or not audio:
             raise ValueError("MP4 video эсвэл audio track дутуу.")
-        width,height=RATIOS[ratio]
+        width,height=movie_mastering.PROFILE_DIMS[quality][ratio]
         if video.get("width")!=width or video.get("height")!=height:
             raise ValueError("Эцсийн видео харьцаа буруу байна.")
         if not math.isfinite(duration) or abs(duration-expected_seconds)>1.1:
@@ -228,11 +245,14 @@ def verify_export(path, expected_seconds, ratio):
     except (subprocess.SubprocessError,StopIteration,KeyError,ValueError,TypeError) as exc:
         raise ValueError("Эцсийн MP4 QA шалгалт амжилтгүй: "+str(exc)[:150])
 
-async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
+async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id,options=None):
     if shutil.disk_usage(core.DATA).free < 1024*1024*1024:
         raise ValueError("Media storage-д 1 GB сул зай шаардлагатай.")
     if ratio not in RATIOS: raise ValueError("Хэмжээ буруу.")
+    master=movie_mastering.master_settings(options,target_seconds,ratio)
     for url in urls: validate_video_url(url,resolve=True)
+    music_file=movie_mastering.owned_artifact(user_id,master["music_artifact_id"],"audio")
+    subtitle_file=movie_mastering.owned_artifact(user_id,master["subtitle_artifact_id"],"subtitle") if master["subtitle_burn_in"] else None
     voice_file=None
     if voice_id:
         with core.db() as c:
@@ -248,13 +268,17 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
     out=core.DATA/"artifacts"/(core.uid()+".mp4")
     try:
         count=[0]
-        width,height=RATIOS[ratio]
+        width,height=master["dimensions"]
         normalized=[]
         total_duration=0
         for i,url in enumerate(urls):
             original=work/f"source-{i:03d}.mp4"
             await download_clip(url,original,count)
             duration,has_audio=await asyncio.to_thread(probe_media,original)
+            if master["quality"]=="4k":
+                original_size=await asyncio.to_thread(probe_dimensions,original)
+                if original_size[0]<width or original_size[1]<height:
+                    raise ValueError("4K гэж бичсэн боловч эх клип 4K биш. Upscale-ийг native 4K гэж зарахгүй.")
             total_duration+=duration
             converted=work/f"clip-{i:03d}.mp4"
             args=["-i",str(original)]
@@ -275,18 +299,37 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
         await asyncio.to_thread(run_ffmpeg,["-f","concat","-safe","0","-i",str(concat_file),
                                             "-map","0:v:0","-map","0:a:0","-c","copy",
                                             "-t",str(target_seconds),"-movflags","+faststart",str(silent)],1800)
-        if voice_file:
-            mix=["-i",str(silent),"-i",str(voice_file),
-                 "-filter_complex","[0:a]volume=0.18[bg];[bg][1:a]amix=inputs=2:duration=first:dropout_transition=0[mix]",
-                 "-map","0:v:0","-map","[mix]","-c:v","copy","-c:a","aac","-b:a","192k",
-                 "-t",str(target_seconds),"-movflags","+faststart",str(out)]
-            await asyncio.to_thread(run_ffmpeg,mix,2400)
+        if voice_file or music_file or subtitle_file:
+            args=["-i",str(silent)]
+            voice_index=None
+            music_index=None
+            if voice_file:
+                voice_index=len(args)//2
+                args+=["-i",str(voice_file)]
+            if music_file:
+                music_index=1+(1 if voice_file else 0)
+                args+=["-i",str(music_file)]
+            graph=movie_mastering.audio_filtergraph(1 if voice_file else None,music_index,master["master_audio"])
+            args+=["-filter_complex",graph,"-map","0:v:0","-map","[mix]"]
+            if subtitle_file:
+                local_srt=work/"subtitles.srt"
+                shutil.copyfile(subtitle_file,local_srt)
+                args+=["-vf","subtitles="+str(local_srt),"-c:v","libx264",
+                       "-preset","medium","-crf","18"]
+            else:
+                args+=["-c:v","copy"]
+            args+=["-c:a","aac","-b:a","192k","-t",str(target_seconds),
+                   "-movflags","+faststart",str(out)]
+            await asyncio.to_thread(run_ffmpeg,args,2400)
         else:
             shutil.move(str(silent),str(out))
-        quality_report=await asyncio.to_thread(verify_export,out,target_seconds,ratio)
+        quality_report=await asyncio.to_thread(verify_export,out,target_seconds,ratio,master["quality"])
         artifact_id=core.add_artifact(job_id,user_id,"movie","rainy-final-movie.mp4","video/mp4",out)
         return {"artifact_id":artifact_id,"clip_count":len(urls),"requested_seconds":target_seconds,
-                "voice_over":bool(voice_file),"quality_report":quality_report}
+                "voice_over":bool(voice_file),"music_added":bool(music_file),
+                "subtitles_burned":bool(subtitle_file),"output_quality":master["quality"],
+                "upscaling_warning":master["quality"]=="1080p",
+                "quality_report":quality_report}
     except Exception:
         out.unlink(missing_ok=True)
         raise
