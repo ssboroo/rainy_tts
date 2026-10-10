@@ -66,9 +66,67 @@ class AudioExtensionTests(unittest.TestCase):
     def test_alignment_exports(self):
         with patch('app.audio_extensions.validate_media',return_value=2):
             self.provider._request.return_value.json.return_value={'words':[{'text':'Сайн','start':0,'end':1},{'text':'байна','start':1,'end':2}]}
-            response=self.client.post('/api/tools/alignment',data={'text':'Сайн байна'},files={'file':('audio.wav',b'audio','audio/wav')})
+            response=self.client.post('/api/tools/alignment',data={'text':'Сайн байна','language_code':'en'},files={'file':('audio.wav',b'audio','audio/wav')})
         self.assertEqual(response.status_code,200,response.text); self.assertEqual(set(response.json()['artifacts']),{'txt','json','srt','vtt'})
         self.assertEqual(self.provider._request.call_args.args,('POST','/v1/forced-alignment'))
+    def test_mongolian_subtitles_without_reference_using_scribe_word_times(self):
+        self.provider.speech_to_text=AsyncMock(return_value={
+            'language_code':'mn','text':'Сайн байна уу.',
+            'words':[
+                {'type':'word','text':'Сайн','start':0,'end':0.4},
+                {'type':'spacing','text':' ','start':0.4,'end':0.45},
+                {'type':'word','text':'байна','start':0.5,'end':1.1},
+                {'type':'word','text':'уу.','start':1.2,'end':1.8}
+            ]})
+        with patch('app.audio_extensions.validate_media',return_value=2):
+            response=self.client.post('/api/tools/alignment',data={'language_code':'mn'},
+                        files={'file':('audio.wav',b'audio','audio/wav')})
+        self.assertEqual(response.status_code,200,response.text)
+        data=response.json()
+        self.assertEqual(data['alignment_method'],'scribe_v2_word_timestamps')
+        self.assertTrue(data['review_required'])
+        self.assertEqual(set(data['artifacts']),{'txt','json','srt','vtt'})
+        self.provider._request.assert_not_called()
+        self.provider.speech_to_text.assert_awaited_once()
+        srt=self.artifacts[data['artifacts']['srt']][3]
+        self.assertIn('00:00:00,000 --> 00:00:01,800',srt)
+        self.assertIn('Сайн байна уу.',srt)
+
+    def test_mongolian_reference_differences_are_visible_not_falsely_aligned(self):
+        self.provider.speech_to_text=AsyncMock(return_value={
+            'language_code':'mn','text':'Өөрөөр хэлсэн үг.',
+            'words':[{'type':'word','text':'Өөрөөр','start':.2,'end':.5},
+                     {'type':'word','text':'хэлсэн','start':.5,'end':.9},
+                     {'type':'word','text':'үг.','start':1.,'end':1.5}]})
+        with patch('app.audio_extensions.validate_media',return_value=2):
+            response=self.client.post('/api/tools/alignment',
+                data={'language_code':'mn','text':'Сайн байна уу'},
+                files={'file':('audio.wav',b'audio','audio/wav')})
+        self.assertEqual(response.status_code,200,response.text)
+        data=response.json()
+        self.assertLess(data['reference_similarity'],.83)
+        self.assertEqual(set(data['artifacts']),{'txt','json','srt','vtt','reference'})
+        self.assertTrue(any('зөрж' in item for item in data['warnings']))
+        self.assertEqual(self.artifacts[data['artifacts']['reference']][3],'Сайн байна уу')
+        self.assertIn('Өөрөөр',self.artifacts[data['artifacts']['srt']][3])
+
+    def test_mongolian_timestamp_invalid_is_error_not_fake_srt(self):
+        self.provider.speech_to_text=AsyncMock(return_value={
+            'language_code':'mn','text':'Сайн',
+            'words':[{'type':'word','text':'Сайн','start':None,'end':1.}]})
+        with patch('app.audio_extensions.validate_media',return_value=2):
+            response=self.client.post('/api/tools/alignment',
+                data={'language_code':'mn'},files={'file':('audio.wav',b'audio','audio/wav')})
+        self.assertGreaterEqual(response.status_code,400)
+        self.assertEqual(self.artifacts,{})
+
+    def test_non_mongolian_requires_reference(self):
+        with patch('app.audio_extensions.validate_media',return_value=2):
+            response=self.client.post('/api/tools/alignment',
+                data={'language_code':'en'},files={'file':('audio.wav',b'audio','audio/wav')})
+        self.assertEqual(response.status_code,422)
+        self.provider._request.assert_not_called()
+
     def test_subtitle_timing(self):
         srt,vtt=subtitle_exports([{'text':'Сайн','start':1.234,'end':2.345}])
         self.assertIn('00:00:01,234 --> 00:00:02,345',srt); self.assertIn('00:00:01.234 --> 00:00:02.345',vtt)
@@ -125,3 +183,4 @@ class AudioExtensionTests(unittest.TestCase):
         args=queued.call_args.args
         self.assertEqual(args[0],{'user_id':'u'}); self.assertEqual(args[1],'forced_alignment')
         self.assertEqual(args[3]['method'],'forced_alignment'); self.assertEqual(args[3]['args'][:2],['Сайн байна',2])
+        self.assertEqual(args[3]['args'][3],'mn')
