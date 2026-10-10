@@ -11,7 +11,7 @@ PROFILE_DIMS={
 def master_settings(options,seconds,ratio):
     if options is None: options={}
     if not isinstance(options,dict): raise ValueError("MP4 mastering мэдээлэл буруу.")
-    allowed={"output_quality","music_artifact_id","subtitle_artifact_id","master_audio","subtitle_burn_in"}
+    allowed={"output_quality","music_artifact_id","subtitle_artifact_id","master_audio","subtitle_burn_in","ai_qa_consent"}
     if set(options)-allowed: raise ValueError("Mastering-д танихгүй параметр байна.")
     quality=options.get("output_quality","720p")
     if quality not in PROFILE_DIMS or ratio not in PROFILE_DIMS[quality]:
@@ -32,7 +32,9 @@ def master_settings(options,seconds,ratio):
         raise ValueError("Хадмалын сонголт буруу.")
     if options.get("subtitle_burn_in") and not options.get("subtitle_artifact_id"):
         raise ValueError("Хадмалын файл шаардлагатай.")
-    return {"quality":quality,"dimensions":PROFILE_DIMS[quality][ratio],
+    if options.get("ai_qa_consent",False) not in (True,False):
+        raise ValueError("AI QA зөвшөөрлийн утга буруу.")
+    return {"ai_qa_consent":options.get("ai_qa_consent",False),"quality":quality,"dimensions":PROFILE_DIMS[quality][ratio],
             "music_artifact_id":options.get("music_artifact_id"),
             "subtitle_artifact_id":options.get("subtitle_artifact_id"),
             "master_audio":options.get("master_audio",True),
