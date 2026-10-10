@@ -174,6 +174,41 @@ def probe_media(path):
     except (ValueError,subprocess.SubprocessError,KeyError):
         raise ValueError("Клипийн кодек эсвэл хугацааг шалгаж чадсангүй.")
 
+def verify_export(path, expected_seconds, ratio):
+    """Measure objective output properties; do not claim semantic/cinematic quality."""
+    try:
+        p=subprocess.run(
+            ["ffprobe","-v","error","-show_entries",
+             "format=duration,size:stream=index,codec_type,codec_name,width,height,avg_frame_rate",
+             "-of","json",str(path)],
+            timeout=50,capture_output=True,check=True,text=True,
+        )
+        data=json.loads(p.stdout)
+        duration=float(data.get("format",{}).get("duration",0))
+        video=next((t for t in data.get("streams",[]) if t.get("codec_type")=="video"),None)
+        audio=next((t for t in data.get("streams",[]) if t.get("codec_type")=="audio"),None)
+        if not video or not audio:
+            raise ValueError("MP4 video эсвэл audio track дутуу.")
+        width,height=RATIOS[ratio]
+        if video.get("width")!=width or video.get("height")!=height:
+            raise ValueError("Эцсийн видео харьцаа буруу байна.")
+        if not math.isfinite(duration) or abs(duration-expected_seconds)>1.1:
+            raise ValueError("Видео duration ба захиалсан хугацаа зөрж байна.")
+        rate=video.get("avg_frame_rate","0/1").split("/")
+        fps=float(rate[0])/float(rate[1]) if len(rate)==2 and float(rate[1]) else 0
+        if not 23<=fps<=60:
+            raise ValueError("Эцсийн MP4 frame rate шаардлага хангахгүй.")
+        if path.stat().st_size<4096:
+            raise ValueError("MP4 файл хоосон байна.")
+        return {"status":"structural_pass","durationSeconds":round(duration,3),
+                "width":width,"height":height,"fps":round(fps,3),
+                "videoCodec":video.get("codec_name"),"audioCodec":audio.get("codec_name"),
+                "fileBytes":path.stat().st_size,
+                "semanticQuality":"not_verified",
+                "note":"Structure, duration, fps, audio шалгасан. Кадрын дүр, нүүр, текст/брэнд, уран сайхны continuity болон дууны агуулгыг хүний хяналтаар шалгана."}
+    except (subprocess.SubprocessError,StopIteration,KeyError,ValueError,TypeError) as exc:
+        raise ValueError("Эцсийн MP4 QA шалгалт амжилтгүй: "+str(exc)[:150])
+
 async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
     if shutil.disk_usage(core.DATA).free < 1024*1024*1024:
         raise ValueError("Media storage-д 1 GB сул зай шаардлагатай.")
@@ -226,11 +261,10 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id):
             await asyncio.to_thread(run_ffmpeg,mix,2400)
         else:
             shutil.move(str(silent),str(out))
-        if not out.is_file() or out.stat().st_size<4096:
-            raise ValueError("Эцсийн MP4 файл бүрэн үүссэнгүй.")
+        quality_report=await asyncio.to_thread(verify_export,out,target_seconds,ratio)
         artifact_id=core.add_artifact(job_id,user_id,"movie","rainy-final-movie.mp4","video/mp4",out)
         return {"artifact_id":artifact_id,"clip_count":len(urls),"requested_seconds":target_seconds,
-                "voice_over":bool(voice_file)}
+                "voice_over":bool(voice_file),"quality_report":quality_report}
     except Exception:
         out.unlink(missing_ok=True)
         raise
