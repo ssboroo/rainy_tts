@@ -513,5 +513,6 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
         return RedirectResponse("/mcp/access",status_code=303)
     @app.get("/mcp/connect")
     def connect():
-        if not active(): raise HTTPException(404)
-        return HTMLResponse(f"<h1>RAINY Voice × ChatGPT / Claude</h1><p>Remote MCP: <code>{html.escape(resource())}</code></p><p>OAuth-р зөвшөөрөөд RAVS Video MCP-г бас тусад нь нэмнэ. Кредит тусдаа.</p><a href='/mcp/access'>Холбогдсон аппуудын эрхийг цуцлах</a>")
+        # Legacy connector setup URL now points to the accessible styled hub.
+        # OAuth discovery, actual /mcp transport and credentials are unchanged.
+        return RedirectResponse("/integrations#connections",status_code=303)
