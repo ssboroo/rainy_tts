@@ -50,20 +50,20 @@ class VoiceNavigationTests(unittest.TestCase):
         self.assertIn('id="open-menu"',(STATIC/"index.html").read_text(encoding="utf-8"))
 
     def test_static_mcp_and_movie_pages_render_under_content_security_policy(self):
-        with TestClient(server.app) as client:
-            for route,keyword in [
+        client=TestClient(server.app)
+        for route,keyword in [
                 ("/integrations","ChatGPT / Claude MCP"),
                 ("/movie","Нэг санаанаас"),
                 ("/movie.css","text/css"),
                 ("/integrations.css","text/css")
-            ]:
-                result=client.get(route)
-                self.assertEqual(result.status_code,200,(route,result.text[:180]))
-                if route.endswith(".css"):
-                    self.assertIn(keyword,result.headers.get("content-type",""))
-                else:
-                    self.assertIn(keyword,result.text)
-            self.assertEqual(client.get("/unknown.css").status_code,404)
+        ]:
+            result=client.get(route)
+            self.assertEqual(result.status_code,200,(route,result.text[:180]))
+            if route.endswith(".css"):
+                self.assertIn(keyword,result.headers.get("content-type",""))
+            else:
+                self.assertIn(keyword,result.text)
+        self.assertEqual(client.get("/unknown.css").status_code,404)
         self.assertNotIn("<style>",(STATIC/"movie.html").read_text(encoding="utf-8"))
         self.assertIn('href="/movie.css?v=2"',(STATIC/"movie.html").read_text(encoding="utf-8"))
         self.assertIn('href="/integrations.css?v=1"',(STATIC/"integrations.html").read_text(encoding="utf-8"))
