@@ -14,11 +14,17 @@ def available():
 
 def frames(video,work):
     images=[]
-    for index, position in enumerate(("0.15","0.50","0.85")):
+    probe=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
+                          "-of","default=noprint_wrappers=1:nokey=1",str(video)],
+                         check=True,capture_output=True,text=True,timeout=20)
+    duration=float(probe.stdout.strip())
+    if not 0.5<=duration<=60: raise ValueError("QA clip хугацаа буруу.")
+    for index, fraction in enumerate((0.15,0.50,0.85)):
         output=work/("review-%s.jpg"%index)
-        # Only local FFmpeg reads; no arbitrary remote URL touches this process.
-        subprocess.run(["ffmpeg","-nostdin","-v","error","-y","-i",str(video),
-                        "-vf","thumbnail,scale=512:-2","-frames:v","1",str(output)],
+        # Only local FFmpeg reads; sample three distinct timestamps.
+        subprocess.run(["ffmpeg","-nostdin","-v","error","-y",
+                        "-ss",str(round(duration*fraction,3)),"-i",str(video),
+                        "-vf","scale=512:-2","-frames:v","1",str(output)],
                        check=True,capture_output=True,timeout=60)
         if output.stat().st_size>1_000_000:
             raise ValueError("AI QA зураг 1 MB-аас хэтэрлээ.")
@@ -53,8 +59,8 @@ async def inspect_video(video:Path,work:Path,consent:bool):
         candidates=[item.get("text","") for out in data.get("output",[])
                     for item in out.get("content",[]) if item.get("type")=="output_text"]
         raw="".join(candidates).strip()
-        if raw.startswith("&#96;&#96;&#96;"):
-            raw=raw.strip("&#96;").replace("json","",1).strip()
+        if raw.startswith("&#96;"):
+            raise ValueError("Invalid JSON response")
         result=json.loads(raw)
         score=result.get("score")
         if not isinstance(score,(int,float)) or isinstance(score,bool) or not 0<=score<=100:
