@@ -114,7 +114,8 @@ async def execute(job):
             args=[upload]+args
         if method=='forced_alignment':
             from .audio_extensions import execute_alignment
-            result=await execute_alignment(job['user_id'],job['id'],*args[:3],job['credits'])
+            result=await execute_alignment(job['user_id'],job['id'],*args[:3],job['credits'],
+                                           language_code=args[3] if len(args)>3 else 'en')
             core.update_tool_job(job['id'],'done',result=result)
             return
         if method=='assemble_video':
