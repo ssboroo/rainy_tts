@@ -55,7 +55,7 @@
   if(!drawer.classList.contains('is-open'))return;
   if(event.key==='Escape'){event.preventDefault();setMenu(false);}
   if(event.key==='Tab'){
-   const items=[...drawer.querySelectorAll('a,button')].filter(el=>!el.hidden&&!el.disabled&&el.getClientRects().length);
+   const items=[...drawer.querySelectorAll('a,button,summary')].filter(el=>!el.hidden&&!el.disabled&&el.getClientRects().length);
    const first=items[0],last=items[items.length-1];
    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
