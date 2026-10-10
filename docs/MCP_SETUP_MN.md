@@ -48,3 +48,19 @@ Run: python -m compileall -q app
 Run: python -m unittest discover -s tests -p test_mcp_remote.py -v
 
 Provider-free tests do not prove a live ChatGPT/Claude installation, end-to-end Wire payment, Railway deployment or live ElevenLabs generation.
+## RAINY One-Prompt Movie (preview, production gate)
+
+- RAVS `ravs_long_movie_plan` нэг prompt-оос 4–3600 секундийн хүрээнд кадрын хуваарь, киноны rhythm, continuity bible, video credit plan бэлдэнэ.
+- Туслах (ChatGPT/Claude) scene бүрийн өөр prompt-ыг боловсруулж, **нийт видео + Voice + MP4** кредитийн таазыг нэг удаа танилцуулж зөвшөөрүүлнэ. Видео генерацын үнийг ашиглахаас өмнө `ravs_scene_batch_estimate` болон `ravs_estimate`-ээр нягтал.
+- Видео бүтээл `COMPLETED`, Voice `done` болсны дараа (зөвхөн баталгаатай CDN host) `rainy_voice_movie_quote`, `rainy_voice_create_movie`, `rainy_voice_movie_status` алхмаар MP4 гаргана.
+- Voice-д `RAINY_MOVIE_ENABLED=false` анхдагч. Үүнийг live болгож `RAINY_MOVIE_MEDIA_HOSTS` exact allowlist оруулахын өмнө provider completed output-ийн бодит hostname, storage volume, FFmpeg smoke-test, performance, media right, asset validity-ийг шалгах ёстой. Хоосон host list-тэй үед бүх MP4 MCP tools **санаатайгаар харагдахгүй**.
+- Үүссэн MP4 Voice login session-ээр татагдана. Структур QA нь duration, fps, dimensions, video/audio codec, file size шалгана; **дүрийн нүүр, логог, continuity, Mongolian pronunciation-ийг 100% баталж чадахгүй.**
+- Нэг цаг хүртэлх movie assembly нь хамгийн ихдээ 120 clip, input <= 900 MB, нэг user-д нэг зэрэг job; Railway /data volume сул байдал, compute зэргээс хамаарна. 60 минутаас дээш урт бүтээлд chapter-level storyboard, ажлын багц, safe final concatenation нэмэх ажил үлдсэн.
+- **Энэ нь одоохондоо бүрэн нэг даруултаар бие даан background ажиллах producer биш.** ChatGPT/Claude нь олон paid model calls-ийг ээлжлэн удирдах шаардлагатай. Хэрэглэгч offline болсон ч кадр бүрийг backend ажиллуулдаг persistent Video batch scheduler дараагийн хөгжүүлэлт.
+
+### Production acceptance gate
+
+1. Бодит RAVS нэг `COMPLETED` video-д media URL domain-г шалгаж зөвшөөрөгдөх host exact allowlist-д нэм.
+2. CDN TLS + public DNS, no redirects, no credentials, MIME/size, malformed media, auth scope, signed URL expiry QA хийнэ.
+3. Бодит preview clip + Voice TTS-ийг өөрсдийн эрхтэй хэрэглэгчээр quote → approve → queue → MP4 → download туршина; credit refund/idempotency батална.
+4. Production variable `RAINY_MOVIE_ENABLED=true` зөвхөн дээрх шалгалт PASS болсон тохиолдолд.

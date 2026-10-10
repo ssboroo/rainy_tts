@@ -16,6 +16,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from . import core, billing, voice_direction
 from .engine import ElevenLabsEngine
+from . import movie_assembly
 
 SCOPES={"voice:read","voice:generate","offline_access"}
 KEY_RE=re.compile(r"^[A-Za-z0-9_-]{16,128}$")
@@ -26,6 +27,12 @@ RATE={}
 
 def active():
     return os.getenv("VOICE_MCP_ENABLED","false").lower() in {"1","true","yes","on"}
+
+def movie_active():
+    # Fail closed until a VERIFIED real completed Higgsfield media host has been
+    # allowlisted and the FFmpeg worker was smoke-tested in production.
+    return (os.getenv("RAINY_MOVIE_ENABLED","false").lower() in {"1","true","yes","on"}
+            and bool(movie_assembly.trusted_hosts()))
 
 def origin():
     value=os.getenv("PUBLIC_ORIGIN","http://localhost:8080").rstrip("/")
@@ -55,6 +62,7 @@ def schema():
         CREATE TABLE IF NOT EXISTS vmcp_code(hash TEXT PRIMARY KEY,client TEXT NOT NULL,uid TEXT NOT NULL,redirect TEXT NOT NULL,challenge TEXT NOT NULL,scope TEXT NOT NULL,expiry REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS vmcp_tokens(access TEXT PRIMARY KEY,refresh TEXT UNIQUE,client TEXT NOT NULL,uid TEXT NOT NULL,scope TEXT NOT NULL,access_expiry REAL NOT NULL,refresh_expiry REAL NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS vmcp_tts_requests(uid TEXT NOT NULL,request_key TEXT NOT NULL,payload_hash TEXT NOT NULL,job TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(uid,request_key));
+        CREATE TABLE IF NOT EXISTS vmcp_movie_requests(uid TEXT NOT NULL,request_key TEXT NOT NULL,payload_hash TEXT NOT NULL,job TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(uid,request_key));
         """)
 
 def grant_scopes(value):
@@ -97,9 +105,30 @@ def listed(writable):
         tool("rainy_voice_prepare_script","Монгол бичвэрийн шалгалт","Текст/SRT-г цэгцэлж, унших хурд, сэтгэл хөдлөлийн дэмжлэг шалгана. Кредит зарцуулахгүй.",
              {"text":{"type":"string","maxLength":12000},"glossary":v["glossary"]},["text"]),
         tool("rainy_voice_job_status","Дууны төлөв","Өөрийн TTS ажлын төлөв",{"job_id":{"type":"string"}},["job_id"]),
-        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"])
+        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),
     ]
+    if movie_active():
+        tools.extend([
+        tool("rainy_voice_movie_quote","MP4 эвлүүлгийн үнэ","1–120 бэлэн RAVS видео клип, 4–3600 секунд, эсвэл Voice audio сонгож нийт MP4 экспортын үнийг тооцно. Бодит ажил эхлэхгүй.",
+             {"video_urls":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":120},
+              "target_seconds":{"type":"number","minimum":4,"maximum":3600},
+              "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
+              "voice_job_id":{"type":"string"}},
+             ["video_urls","target_seconds","aspect_ratio"]),
+        tool("rainy_voice_movie_status","Эцсийн MP4 төлөв","Эвлүүлгийн дугаар, progress ба бэлэн MP4 татах холбоосыг харуулна.",
+             {"job_id":{"type":"string"}},["job_id"])
+        ])
     if writable:
+        if movie_active():
+            tools.append(tool("rainy_voice_create_movie","Нэг MP4 эвлүүлэх","Бэлэн клипүүдийг тусдаа RAVS MCP-ээс авч, optional Voice TTS audio-тай FFmpeg worker-д өгнө. Кредит зарцуулна. Төлөвийг rainy_voice_movie_status-оор шалга.",
+             {"video_urls":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":120},
+              "target_seconds":{"type":"number","minimum":4,"maximum":3600},
+              "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
+              "voice_job_id":{"type":"string"},
+              "maxCredits":{"type":"integer","minimum":0},
+              "idempotencyKey":{"type":"string","minLength":16,"maxLength":128},
+              "confirmGeneration":{"type":"boolean","const":True}},
+             ["video_urls","target_seconds","aspect_ratio","maxCredits","idempotencyKey","confirmGeneration"],True))
         tools.append(tool("rainy_voice_create_tts","Монгол дуу үүсгэх","Кредит зарцуулна. Quote хийж хэрэглэгчээс тусдаа зөвшөөрөл ав. Нэг ажлын retry-д ижил idempotencyKey ашигла.",
                           {**v,"title":{"type":"string","maxLength":100},"maxCredits":{"type":"integer","minimum":1},
                            "idempotencyKey":{"type":"string","minLength":16,"maxLength":128},"confirmGeneration":{"type":"boolean","const":True}},
@@ -115,7 +144,44 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
                      "Хэрэглэгчээс тус тусын төлбөртэй хүсэлт бүрт зөвшөөрөл ав",
                      "Зөвшөөрсөн үед ravs_create_generation ба rainy_voice_create_tts-г тус тусад нь эхлүүл",
                      "ravs_generation_status болон rainy_voice_job_status-г шалга",
-                     "Бэлэн видео ба аудиог тус тусад нь өг; MCP одоогоор автомат эвлүүлэг хийхгүй"]}
+                     "Бэлэн видео болон аудионы дараа Voice rainy_voice_movie_quote + rainy_voice_create_movie -> rainy_voice_movie_status-аар эцсийн MP4 экспорт хийж болно (баталгаажсан CDN host дээр)"]}
+    if name in {"rainy_voice_movie_quote","rainy_voice_create_movie"}:
+        if not movie_active():
+            raise ValueError("MP4 эвлүүлэг одоогоор идэвхгүй. CDN зөвшөөрөл ба QA шаардлагатай.")
+        if name=="rainy_voice_create_movie" and "voice:generate" not in who["scope"].split():
+            raise ValueError("MP4 эвлүүлэх эрх зөвшөөрөгдөөгүй.")
+        urls=args.get("video_urls")
+        target=args.get("target_seconds")
+        ratio=args.get("aspect_ratio")
+        voice=args.get("voice_job_id")
+        estimate=movie_assembly.quote_movie(urls,target,ratio,voice,uid)
+        if name=="rainy_voice_movie_quote":
+            return estimate
+        maximum=args.get("maxCredits")
+        if args.get("confirmGeneration") is not True or type(maximum) is not int or maximum<estimate["credits"]:
+            raise ValueError("MP4 эвлүүлгийн кредитийг зөвшөөрөөгүй эсвэл лимит хүрэлцэхгүй.")
+        key=args.get("idempotencyKey")
+        if not isinstance(key,str) or not KEY_RE.fullmatch(key):
+            raise ValueError("idempotencyKey 16–128 тэмдэгт байна.")
+        body_hash=digest(json.dumps([urls,target,ratio,voice],sort_keys=True,ensure_ascii=False))
+        return movie_assembly.enqueue_movie(uid,urls,target,ratio,voice,key,body_hash,estimate["credits"])
+    if name=="rainy_voice_movie_status":
+        if not movie_active():
+            raise ValueError("MP4 эвлүүлэг идэвхгүй.")
+        job=str(args.get("job_id",""))
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}",job):
+            raise ValueError("MP4 job ID буруу байна.")
+        with core.db() as c:
+            row=c.execute("SELECT * FROM tool_jobs WHERE id=? AND user_id=? AND tool_type='video_assembly'",(job,uid)).fetchone()
+            if not row:
+                raise ValueError("Таны MP4 ажил олдсонгүй.")
+            artifacts=core.tool_artifacts(job,uid) if row["status"]=="done" else []
+        response={"job_id":job,"status":row["status"],"error":row["error"],"ready":bool(artifacts),
+                  "quality_report":(core.public_tool_job(row).get("result") or {}).get("quality_report") if row["status"]=="done" else None}
+        if artifacts:
+            response["movie_url"]=origin()+"/api/artifacts/"+artifacts[0]["id"]
+            response["download_note"]="Voice бүртгэлээр браузерт нэвтэрч байж татна. Бэлэн файл 2 дахь сайтын хадгалах сан дээр байна."
+        return response
     if name=="rainy_voice_wallet":
         w=billing.wallet(uid)
         return {"balance":w["wallet"]["balance"],"plan":w["subscription"] and w["subscription"]["plan_id"]}
