@@ -72,6 +72,11 @@ function page(name){
   document.dispatchEvent(new CustomEvent('rainy:page',{detail:{name}}));
   document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==name);
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
+  // An advanced tool must reveal its containing group when opened from
+  // history, a mobile shortcut, or another tool.
+  const selectedSidebarItem=document.querySelector('.full-sidebar .nav[data-page="'+name+'"]');
+  const parentGroup=selectedSidebarItem?.closest('.nav-disclosure');
+  if(parentGroup)parentGroup.open=true;
   const meta=pageMeta[name]||['•','Миний студи'];
   $('breadcrumb').textContent=meta[1];
   document.querySelector('.route-index').textContent=meta[0];
@@ -856,7 +861,7 @@ function renderHistoryItem(item){
   left.append(title,meta);const badge=document.createElement('span');badge.className='badge';badge.textContent=statusLabel(item.status);head.append(left,badge);card.append(head);
   if(item.source==='tts'&&item.status==='done'){
     const use=document.createElement('button');use.type='button';use.className='secondary';use.textContent='Видеонд оруулах ↗';
-    use.onclick=()=>{$('voiceover-job').value=item.id;$('voiceover-selection').textContent='Сонгосон дуу: '+item.title;page('tts');$('video-voiceover-form').scrollIntoView({behavior:'smooth',block:'center'});};card.append(use);
+    use.onclick=()=>{$('voiceover-job').value=item.id;$('voiceover-selection').textContent='Сонгосон дуу: '+item.title;page('dubbing');$('video-voiceover-form').scrollIntoView({behavior:'smooth',block:'center'});};card.append(use);
   }
   if(item.result?.text){const p=document.createElement('p');p.className='result-preview';p.textContent=item.result.text.slice(0,400);card.append(p);}
   if(item.status==='failed'&&item.error){const p=document.createElement('p');p.className='danger-text';p.textContent='Алдаа: '+customerMessage(item.error);card.append(p);}
