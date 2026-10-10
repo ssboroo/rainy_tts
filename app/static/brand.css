@@ -86,3 +86,6 @@ button,input,textarea,select,summary{font-family:inherit}h1,h2,h3,p,label,small,
 @media(prefers-reduced-motion:reduce){
  .nav-destination,.nav-disclosure summary::after{transition:none}
 }
+
+/* Account-gated controls remain hidden even inside grid navigations. */
+.studio-tool-nav [hidden]{display:none!important}
