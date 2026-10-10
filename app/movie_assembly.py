@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from . import core, billing, durable_jobs
-from . import movie_mastering
+from . import movie_mastering, movie_visual_qa
 
 MAX_CLIPS = 120
 MAX_CLIP_BYTES = 100 * 1024 * 1024
@@ -275,6 +275,10 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id,optio
             original=work/f"source-{i:03d}.mp4"
             await download_clip(url,original,count)
             duration,has_audio=await asyncio.to_thread(probe_media,original)
+            if master["ai_qa_consent"]:
+                visual=await movie_visual_qa.inspect_video(original,work,True)
+                if visual["status"]=="reviewed" and not visual["passed"]:
+                    raise ValueError("AI QA энэ клипийг дахин боловсруулах шаардлагатай гэж үзлээ. RAVS-д scene retry зөвшөөрөх эсэхийг шийднэ.")
             if master["quality"]=="4k":
                 original_size=await asyncio.to_thread(probe_dimensions,original)
                 if original_size[0]<width or original_size[1]<height:
@@ -329,6 +333,7 @@ async def assemble_movie(user_id,job_id,urls,target_seconds,ratio,voice_id,optio
                 "voice_over":bool(voice_file),"music_added":bool(music_file),
                 "subtitles_burned":bool(subtitle_file),"output_quality":master["quality"],
                 "upscaling_warning":master["quality"]=="1080p",
+                "vision_qa":"consent_gated" if master["ai_qa_consent"] else "not_requested",
                 "quality_report":quality_report}
     except Exception:
         out.unlink(missing_ok=True)
