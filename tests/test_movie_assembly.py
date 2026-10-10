@@ -33,6 +33,14 @@ class MovieTests(unittest.TestCase):
         self.env.stop()
         core.DATA=self.old_data
         self.folder.cleanup()
+    def test_movie_tools_remain_hidden_until_verified_media_hosts_are_enabled(self):
+        self.assertFalse(mcp_remote.movie_active())
+        self.assertFalse(any(t["name"]=="rainy_voice_create_movie" for t in mcp_remote.listed(True)))
+        with patch.dict(os.environ,{"RAINY_MOVIE_ENABLED":"true"}):
+            self.assertTrue(mcp_remote.movie_active())
+            self.assertTrue(any(t["name"]=="rainy_voice_create_movie" for t in mcp_remote.listed(True)))
+        with patch.dict(os.environ,{"RAINY_MOVIE_ENABLED":"true","RAINY_MOVIE_MEDIA_HOSTS":""}):
+            self.assertFalse(mcp_remote.movie_active())
     def test_urls_are_fail_closed_and_quotes_do_not_charge(self):
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("http://media.example.com/movie.mp4")
         with self.assertRaises(ValueError): movie_assembly.validate_video_url("https://127.0.0.1/internal.mp4")
