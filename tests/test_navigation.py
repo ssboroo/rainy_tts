@@ -41,6 +41,19 @@ class VoiceNavigationTests(unittest.TestCase):
         self.assertEqual(html.count('id="video-voiceover-form"'),1)
         self.assertEqual(html.count('id="voiceover-file"'),1)
 
+    def test_mongolian_subtitle_ui_and_movie_deep_link(self):
+        html=(STATIC/"index.html").read_text(encoding="utf-8")
+        app=(STATIC/"app.js").read_text(encoding="utf-8")
+        movie=(STATIC/"movie.html").read_text(encoding="utf-8")
+        self.assertIn('name="language_code"',html)
+        self.assertIn('<option value="mn" selected>',html)
+        self.assertIn('id="alignment-text"',html)
+        self.assertIn("Scribe v2",html)
+        self.assertIn("data.status==='queued'",app)
+        self.assertIn("new URLSearchParams(location.search).get('tool')==='alignment'",app)
+        self.assertIn('href="/?tool=alignment"',movie)
+        self.assertIn('Монгол яриаг ElevenLabs Scribe v2',movie)
+
     def test_mobile_navigation_closable_and_submenus_keyboard_accessible(self):
         script=(STATIC/"brand.js").read_text(encoding="utf-8")
         app=(STATIC/"app.js").read_text(encoding="utf-8")

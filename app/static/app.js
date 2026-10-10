@@ -990,18 +990,56 @@ for(const mode of ['voice-design','voice-remix']){
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
  };
 }
-$('alignment-form').onsubmit=async event=>{
- event.preventDefault();if(!ensureUser())return;
- const form=event.currentTarget,button=form.querySelector('[type=submit]');if(button.disabled)return;setBusy(button,true,'Хугацаа тааруулж байна…');
- try{
-  const data=await api('/tools/alignment',{method:'POST',body:new FormData(form),form:true});
-  const root=$('alignment-result');root.hidden=false;root.replaceChildren();
-  const heading=document.createElement('p');heading.textContent='Хадмал бэлэн. Татах форматаа сонгоно уу.';root.append(heading);
-  const entries=Array.isArray(data.artifacts)?data.artifacts.map(x=>[x.filename||x.kind,x]):Object.entries(data.artifacts||{});
-  entries.forEach(([format,artifact])=>{const link=document.createElement('a');link.href=artifactUrl(artifact);link.textContent=format.toUpperCase()+' ↓';link.className='secondary';link.download='';root.append(link);});
-  loadHistory();loadBilling(true);
- }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+// Mongolian Scribe v2 does not require pre-written text; Forced Alignment does.
+$('alignment-language').onchange=()=>{
+  const mongolian=$('alignment-language').value==='mn';
+  $('alignment-text').required=!mongolian;
+  $('alignment-reference-label').textContent=mongolian?'(Монгол хэлэнд сонголтоор)':'(заавал оруулна)';
+  $('alignment-text').placeholder=mongolian?'Монгол хэлний эхийг хоосон үлдээж болно; оруулбал танигдсан бичвэртэй харьцуулна.':'Аудиод яг яригдсан үгсийг оруулна уу.';
+  $('alignment-language-help').textContent=mongolian
+    ?'Монгол хэлний SRT/VTT-ийг Scribe v2-ийн үг бүрийн timestamp-аас гаргана. Forced Alignment биш; нэр, тоо, аялгыг хянана уу.'
+    :'Энэ хэлэнд Forced Alignment-ээр бэлэн бичвэрийг аудиотой тааруулна. Бичвэр шаардлагатай.';
 };
+$('alignment-language').onchange();
+
+$('alignment-form').onsubmit=async event=>{
+  event.preventDefault();if(!ensureUser())return;
+  const form=event.currentTarget,button=form.querySelector('[type=submit]');
+  if(button.disabled)return;
+  setBusy(button,true,'Монгол хадмал боловсруулж байна…');
+  try{
+    const data=await api('/tools/alignment',{method:'POST',body:new FormData(form),form:true});
+    const root=$('alignment-result');root.hidden=false;root.replaceChildren();
+    if(data.status==='queued'){
+      const pending=document.createElement('p');
+      pending.textContent='Аудио серверийн дараалалд орлоо. Бэлэн болмогц SRT, VTT файлууд «Бүтээлийн түүх»-д гарна.';
+      root.append(pending);
+      const history=document.createElement('button');
+      history.type='button';history.className='secondary';history.textContent='Бүтээлийн түүх →';
+      history.onclick=()=>page('history');
+      root.append(history);
+      return;
+    }
+    const heading=document.createElement('p');
+    heading.textContent=data.review_required?'Хадмал үүссэн. Буруу танигдсан үг болон хугацааг нийтлэхээс өмнө шалгана уу.':'Хадмал бэлэн. Татах форматаа сонгоно уу.';
+    root.append(heading);
+    for(const warning of data.warnings||[]){
+      const line=document.createElement('p');line.className='field-help';line.textContent=warning;root.append(line);
+    }
+    if(typeof data.reference_similarity==='number'){
+      const match=document.createElement('p');match.className='field-help';
+      match.textContent='Эх бичвэртэй ойролцоо байдал: '+Math.round(data.reference_similarity*100)+'% · Энэ нь аудио Forced Alignment-ийн баталгаа биш.';
+      root.append(match);
+    }
+    const entries=Array.isArray(data.artifacts)?data.artifacts.map(x=>[x.filename||x.kind,x]):Object.entries(data.artifacts||{});
+    for(const [format,artifact] of entries){
+      const link=document.createElement('a');link.href=artifactUrl(artifact);
+      link.textContent=format.toUpperCase()+' ↓';link.className='secondary';link.download='';root.append(link);
+    }
+    loadHistory();loadBilling(true);
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+
 async function loadSettings(){
  if(!ensureUser())return;
  try{const data=await api('/account');state.user={...state.user,admin:data.admin,admin_test:data.admin_test};renderAccount();$('settings-info').textContent=data.email;}
@@ -1130,11 +1168,11 @@ const toolGuides={
  dubbing:['Видео файл эсвэл дэмжигдсэн холбоос оруулна.','Эх хэл болон орчуулах хэлийг сонгоно.','Орчуулга дуусмагц MP3 аудио, бэлэн бол видеогоо татна.'],
  'voice-design':['Хоолойн өнгө, нас, хэмнэлийг тайлбарлана.','Сонсох жишээ бичвэрээ оруулж дээж үүсгэнэ.','Дээжүүдийг сонсоод хүссэн хоолойгоо нэрлэж хадгална.'],
  'voice-remix':['Өөрийн хадгалсан хоолойг сонгоно.','Яаж өөрчлөхөө тайлбарлаж дээж үүсгэнэ.','Таалагдсан хувилбарыг шинэ нэрээр хадгална.'],
- alignment:['Аудио болон түүнд уншсан бичвэрийг оруулна.','Хугацаа тааруулах товчийг дарна.','Бэлэн хадмалыг SRT эсвэл VTT файлаар татна.']
+ alignment:['Монгол хэлээ сонгоод аудио файлаа оруулна. Эх бичвэр сонголтоор.','Scribe v2 үг бүрийн хугацааг боловсруулж, ажил дараалалд орно.','Бүтээлийн түүхээс SRT/VTT-ээ татаж аваад нийтлэхээс өмнө хянана.']
 };
 const toolKinds={tts:'tts',dialogue:'dialogue',music:'music',sfx:'sound_effects',stt:'speech_to_text',realtime:'realtime_stt',isolator:'voice_isolator',changer:'voice_changer',dubbing:'dubbing','voice-design':'voice_design','voice-remix':'voice_remix',alignment:['alignment','forced_alignment']};
 const toolResultRequests=new Map();
-const studioAdvice={tts:'Чанартай сонголт нь өгүүлэмж, ном, сурталчилгаанд тохирно. Хурдан сонголтыг богино бичвэр болон шуурхай ажилд хэрэглэнэ.',dialogue:'Яригч бүрд өөр Монгол хоолой сонгоно. Нэг хэсэгт нэг яригчийн өгүүлбэр оруулбал хэмнэлээ удирдахад хялбар.',stt:'Монгол яриаг таних тохиргоо ашиглана. Цэвэр бичлэг, ойр микрофон танилтын чанарыг сайжруулна.',realtime:'Монгол яриаг шууд бичвэр болгоно. Чимээгүй орчинд тод ярьж, дууссаны дараа нэр болон тоог шалгана.',dubbing:'Монгол руу орчуулахад яригчийн өнгө ба цагийг хадгалах загвар ашиглана. Нэр томьёо, орчуулгын утгыг эцэст нь шалгана.',changer:'Монгол дуудлагын дэмжлэг хязгаарлагдмал. Эхлээд богино дээжээр шалгаарай; Монгол бичвэрээс дуу үүсгэх нь илүү тохиромжтой.',music:'Хөгжмийн төрөл, хэмнэл, хөгжмийн зэмсэг, уур амьсгалыг тодорхой бичнэ. Монгол үгтэй дууны дуудлагыг сонсож шалгана.',sfx:'Дууны эх үүсвэр, орчин, зай болон хөдөлгөөнийг тайлбарлаарай.',clone:'Монгол хэлээр тод, шуугиангүй ярьсан олон өгүүлбэртэй дээж ашиглаарай.',pvc:'Өөрийн Монгол хоолойн тогтвортой өнгө, өндөр чанартай урт бичлэг ашиглана.',isolator:'Яриаг тодруулах хэрэгсэл. Хэт шуугиантай эх бичлэгийн алдагдсан үгийг нөхөн үүсгэхгүй.',alignment:'Монгол аудиотой яг таарсан бичвэр хэрэглэнэ. Эхлээд аудиогоо бичвэр болгоод засаж болно.','voice-design':'Монгол дуудлагыг жишээ бичвэрээр шалгана. Хоолойг хадгалахаасаа өмнө бүх дээжийг сонсоорой.','voice-remix':'Өөрийн хоолойн шинэ өнгө үүсгэнэ. Монгол дуудлага болон эх хоолойтой төстэй байдлыг дээжээр шалгана.'};
+const studioAdvice={tts:'Чанартай сонголт нь өгүүлэмж, ном, сурталчилгаанд тохирно. Хурдан сонголтыг богино бичвэр болон шуурхай ажилд хэрэглэнэ.',dialogue:'Яригч бүрд өөр Монгол хоолой сонгоно. Нэг хэсэгт нэг яригчийн өгүүлбэр оруулбал хэмнэлээ удирдахад хялбар.',stt:'Монгол яриаг таних тохиргоо ашиглана. Цэвэр бичлэг, ойр микрофон танилтын чанарыг сайжруулна.',realtime:'Монгол яриаг шууд бичвэр болгоно. Чимээгүй орчинд тод ярьж, дууссаны дараа нэр болон тоог шалгана.',dubbing:'Монгол руу орчуулахад яригчийн өнгө ба цагийг хадгалах загвар ашиглана. Нэр томьёо, орчуулгын утгыг эцэст нь шалгана.',changer:'Монгол дуудлагын дэмжлэг хязгаарлагдмал. Эхлээд богино дээжээр шалгаарай; Монгол бичвэрээс дуу үүсгэх нь илүү тохиромжтой.',music:'Хөгжмийн төрөл, хэмнэл, хөгжмийн зэмсэг, уур амьсгалыг тодорхой бичнэ. Монгол үгтэй дууны дуудлагыг сонсож шалгана.',sfx:'Дууны эх үүсвэр, орчин, зай болон хөдөлгөөнийг тайлбарлаарай.',clone:'Монгол хэлээр тод, шуугиангүй ярьсан олон өгүүлбэртэй дээж ашиглаарай.',pvc:'Өөрийн Монгол хоолойн тогтвортой өнгө, өндөр чанартай урт бичлэг ашиглана.',isolator:'Яриаг тодруулах хэрэгсэл. Хэт шуугиантай эх бичлэгийн алдагдсан үгийг нөхөн үүсгэхгүй.',alignment:'Монгол ярианы аудионоос Scribe v2-оор SRT/VTT үүсгэнэ. Эх бичвэр сонголтоор. Нэр, тоо, аялга болон хугацааг нийтлэхээсээ өмнө шалгана.','voice-design':'Монгол дуудлагыг жишээ бичвэрээр шалгана. Хоолойг хадгалахаасаа өмнө бүх дээжийг сонсоорой.','voice-remix':'Өөрийн хоолойн шинэ өнгө үүсгэнэ. Монгол дуудлага болон эх хоолойтой төстэй байдлыг дээжээр шалгана.'};
 const studioPresets={story:{names:['Sarnai','Uyanga'],terms:/narrat|story|audiobook/i,speed:'0.95',label:'Тайван өгүүлэмж'},ad:{names:['Bolor','Temuulen'],terms:/advert|social|entertain/i,speed:'1.05',label:'Эрчтэй сурталчилгаа'},lesson:{names:['Bataar','Enkhtuya'],terms:/educat|narrat/i,speed:'1',label:'Тод тайлбар'},news:{names:['Munkhbat','Ganbold'],terms:/news|inform|narrat/i,speed:'1',label:'Тогтуун танилцуулга'}};
 function recommendedVoice(preset,voices){
  const native=voices.filter(v=>v.builtin&&v.native_mn!==false);
@@ -1194,6 +1232,6 @@ async function watchTtsResult(id){
 }
 buildToolWorkspaces();
 
-init().then(()=>{loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
+init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',video_voiceover:'Видеонд дуу оруулах',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}

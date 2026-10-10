@@ -10,6 +10,9 @@ Credit estimates are conservative platform policies using existing declared rate
 not claims about ElevenLabs retail prices. These endpoints do not auto-retry.
 """
 import asyncio
+import difflib
+import re
+import unicodedata
 import base64
 import json
 import math
@@ -129,33 +132,112 @@ def provider_error(exc):
     return HTTPException(status, friendly_elevenlabs_error(exc))
 
 
-async def execute_alignment(user_id, job_id, upload, text, duration, credits, *,
-                            provider=None, create_artifact_text=None):
-    """Run a previously validated/reserved alignment job; worker owns lifecycle.
+def subtitle_words_from_scribe(result, duration):
+    """Use word-level Scribe timestamps, never fabricate timings for missing words."""
+    entries = result.get('words', []) if isinstance(result, dict) else []
+    if not isinstance(entries, list) or len(entries) > 20000:
+        raise ValueError('Монгол ярианы үгийн хугацааны өгөгдөл буруу байна.')
+    words = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError('Танигдсан үгийн мэдээлэл буруу байна.')
+        if entry.get('type', 'word') != 'word':
+            continue  # Scribe can also return spacing and non-speech events.
+        text = str(entry.get('text') or '').strip()
+        if not text:
+            continue
+        start, end = entry.get('start'), entry.get('end')
+        if isinstance(start, bool) or isinstance(end, bool) or not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            raise ValueError('Монгол үгийн хугацаа тодорхойгүй тул буруу хадмал гаргахгүй.')
+        if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start or end > duration + 2:
+            raise ValueError('Монгол үгийн хугацаа аудионы урттай таарахгүй байна.')
+        if words and start < words[-1]['start']:
+            raise ValueError('Үгийн хугацааны дараалал буруу байна.')
+        words.append({'text': text, 'start': float(start), 'end': float(end)})
+    if not words:
+        raise ValueError('Монгол хэлний үг, хугацаа олдсонгүй. Аудио болон хэлээ шалгана уу.')
+    return words
 
-    Optional dependencies allow isolated tests. A durable worker can use the
-    six positional arguments; server imports occur only at execution time.
-    Exceptions mark useful_output if any export has already been persisted.
+
+def transcript_similarity(reference, recognized):
+    """Diagnostic only: NEVER pretend Scribe has forcibly aligned the reference."""
+    def normalize(text):
+        text = unicodedata.normalize('NFC', text).casefold()
+        return ' '.join(re.findall(r'[\w]+', text, flags=re.UNICODE))
+    a, b = normalize(reference), normalize(recognized)
+    return round(difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), 3) if a and b else None
+
+
+async def execute_alignment(user_id, job_id, upload, text, duration, credits, *,
+                            language_code='en', provider=None, create_artifact_text=None):
+    """Create timed subtitles. Mongolian uses Scribe v2, NOT unsupported Forced Alignment.
+
+    Preserve old English/non-Mongolian queued jobs and their provider behavior.
+    Store transcription discrepancies for explicit customer review before publication.
     """
     if provider is None or create_artifact_text is None:
         from . import server
         provider = provider or server.tools
         create_artifact_text = create_artifact_text or server.create_artifact_text
     useful_output = False
+    language = (language_code or '').strip().lower()
+    mongolian = language in {'mn', 'mon', 'mn-mn'}
     try:
         await upload.seek(0)
-        response = await provider._request('POST', '/v1/forced-alignment',
-            files={'file': (Path(upload.filename).name, upload.file, upload.content_type or 'application/octet-stream')},
-            data={'text': text}, timeout=240)
-        result = response.json()
-        srt, vtt = subtitle_exports(result.get('words', []))
-        exports = {'txt': ('text/plain', text), 'json': ('application/json', json.dumps(result, ensure_ascii=False)),
-                   'srt': ('application/x-subrip', srt), 'vtt': ('text/vtt', vtt)}
+        if mongolian:
+            result = await provider.speech_to_text(
+                upload, 'mn', keyterms=None, polish=False, diarize=False,
+                num_speakers=1, no_verbatim=False)
+            if not isinstance(result, dict):
+                raise ValueError('Монгол яриаг таньсан хариултын формат буруу байна.')
+            words = subtitle_words_from_scribe(result, duration)
+            recognized = str(result.get('text') or '').strip() or ' '.join(w['text'] for w in words)
+            score = transcript_similarity(text, recognized) if text else None
+            warnings = ['Scribe v2 Монгол хэл дэмждэг ч автоматаар таньсан үг, нэр, тоо болон цагийг нийтлэхээс өмнө хянана уу.']
+            if score is not None and score < .83:
+                warnings.append('Оруулсан эх текст танигдсан ярианаас зөрж байна. Хадмалыг танигдсан үгсээс үүсгэсэн; таны эх тексттэй яг тааруулсан гэж үзэхгүй.')
+            detected = str(result.get('language_code') or '').lower()
+            if detected and detected not in {'mn', 'mon', 'mn-mn'}:
+                warnings.append('Ярианы таньсан хэл Монгол биш байна (' + detected[:12] + '). Бэлэн хадмалыг заавал шалгана уу.')
+            srt, vtt = subtitle_exports(words)
+            output = {k:v for k,v in result.items() if k != '_provider_usage'}
+            output['alignment_method'] = 'scribe_v2_word_timestamps'
+            output['reference_similarity'] = score
+            output['review_required'] = True
+            output['warnings'] = warnings
+            transcript = recognized
+        else:
+            if not text:
+                raise ValueError('Монгол хэлнээс бусад Forced Alignment-д бэлэн эх бичвэр шаардлагатай.')
+            response = await provider._request('POST', '/v1/forced-alignment',
+                files={'file': (Path(upload.filename).name, upload.file, upload.content_type or 'application/octet-stream')},
+                data={'text': text}, timeout=240)
+            result = response.json()
+            srt, vtt = subtitle_exports(result.get('words', []))
+            output = {**result, 'alignment_method':'elevenlabs_forced_alignment',
+                      'review_required':True, 'warnings':['Хадмал болон нэр томьёог нийтлэхээс өмнө шалгана уу.']}
+            transcript = text
+        exports = {
+            'txt': ('text/plain', transcript),
+            'json': ('application/json', json.dumps(output, ensure_ascii=False)),
+            'srt': ('application/x-subrip', srt),
+            'vtt': ('text/vtt', vtt),
+        }
+        if mongolian and text and text != transcript:
+            exports['reference'] = ('text/plain', text)
         artifacts = {}
         for ext, (mime, content) in exports.items():
-            artifacts[ext] = create_artifact_text(user_id, job_id, 'alignment', 'alignment.' + ext, mime, content)
+            name = 'alignment-reference.txt' if ext == 'reference' else 'alignment.' + ext
+            artifacts[ext] = create_artifact_text(user_id, job_id, 'alignment', name, mime, content)
             useful_output = True
-        return {'artifacts': artifacts, 'credits_used': credits, 'duration_seconds': duration}
+        return {
+            'artifacts': artifacts, 'credits_used': credits, 'duration_seconds': duration,
+            'language_code': 'mn' if mongolian else language,
+            'alignment_method': output['alignment_method'],
+            'review_required': True,
+            'reference_similarity': output.get('reference_similarity'),
+            'warnings': output['warnings'],
+        }
     except Exception as exc:
         if useful_output:
             exc.useful_output = True
@@ -314,9 +396,18 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
         return await save(request, 'voice_remix')
 
     @app.post('/api/tools/alignment')
-    async def alignment(request: Request, file: UploadFile = File(...), text: str = Form(...), title: str = Form('Хадмал тааруулах')):
+    async def alignment(request: Request, file: UploadFile = File(...), text: str = Form(''),
+                        title: str = Form('Монгол хадмал'), language_code: str = Form('mn')):
         user = guard(request, 'alignment')
-        text = text_field(text, 'Бэлэн эх текст', 1, 100000)
+        language = (language_code or '').strip().lower()
+        if language not in {'mn', 'mon', 'mn-mn', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'zh', 'ru'}:
+            raise HTTPException(422, 'Хэлний сонголт буруу. Монгол, англи, япон зэрэг дэмжигдэх хэлээ сонгоно уу.')
+        if language in {'mn', 'mon', 'mn-mn'}:
+            text = text.strip()
+            if len(text) > 20000:
+                raise HTTPException(422, 'Монгол эх бичвэр 20,000 тэмдэгтээс хэтрэхгүй.')
+        else:
+            text = text_field(text, 'Бэлэн эх текст', 1, 20000)
         title = text_field(title, 'Гарчиг', 1, 100)
         duration = await validate_media(file)
         credits = estimate_credits('alignment', seconds=duration)
@@ -324,14 +415,14 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
             from . import server
             return await server.enqueue_tool(
                 {'user_id': user}, 'forced_alignment', title,
-                {'method': 'forced_alignment', 'args': [text, duration, credits]},
+                {'method': 'forced_alignment', 'args': [text, duration, credits, language]},
                 'alignment.json', 'application/json', credits, file)
-        job = core.create_tool_job(user, 'alignment', title, {'text': text, 'duration_seconds': duration})
+        job = core.create_tool_job(user, 'alignment', title, {'text': text, 'duration_seconds': duration, 'language_code': language})
         charge_id = None
         useful_output = False
         try:
             charge_id = charge(user, credits, 'alignment', job, {'basis': 'platform_alignment_reserve', 'duration_seconds': duration})
-            output = await execute_alignment(user, job, file, text, duration, credits, provider=provider, create_artifact_text=create_artifact_text)
+            output = await execute_alignment(user, job, file, text, duration, credits, provider=provider, create_artifact_text=create_artifact_text, language_code=language)
             useful_output = True
             core.update_tool_job(job, 'done', result=output)
             return {'job_id': job, **output}
