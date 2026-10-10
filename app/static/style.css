@@ -502,3 +502,5 @@ textarea{border-radius:16px;font-size:.98rem;line-height:1.7}
 .wallet-balance strong{font-size:2.7rem;color:var(--lime)}
 .plan-card-top span{font-size:1rem}.plan-card p{font-size:.85rem;line-height:1.6}.plan-card-top strong{font-size:1rem}
 @media(max-width:600px){.topup-button{font-size:.75rem;padding:9px 11px}.top-actions .credit-chip:not([hidden]){font-size:.75rem;padding:9px 11px}.top-actions{max-width:100%}.wallet-card{padding:20px}.wallet-balance strong{font-size:2.3rem}}
+
+.movie-nav-link{display:flex;justify-content:space-between;align-items:center;margin:6px 8px 10px;padding:13px 12px;text-decoration:none;color:#c4f4d6;background:linear-gradient(110deg,#163d29,#16231b);border:1px solid #3f7a56;border-radius:11px;font-size:12px;font-weight:700}.movie-nav-link:hover{background:#235036}.movie-nav-link span{color:#91d7ac}.movie-promo-note{margin-top:15px;font-size:12px}.movie-promo-note a{display:inline-flex;color:#b3f6cb;text-decoration:none;border-bottom:1px solid #689f7b;padding:4px 0}.movie-promo-note a:hover{color:#fff}

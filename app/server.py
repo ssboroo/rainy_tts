@@ -394,6 +394,10 @@ def srt_from_words(words):
             blocks.append(f"{i}\n{stamp(start)} --> {stamp(end)}\n{text}")
     return "\n\n".join(blocks)
 
+@app.get("/movie")
+def movie_information_page():
+    return FileResponse(STATIC/"movie.html",media_type="text/html")
+
 @app.get("/")
 def root():
     return FileResponse(STATIC/"index.html",media_type="text/html")
