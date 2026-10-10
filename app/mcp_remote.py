@@ -28,6 +28,12 @@ RATE={}
 def active():
     return os.getenv("VOICE_MCP_ENABLED","false").lower() in {"1","true","yes","on"}
 
+def movie_active():
+    # Fail closed until a VERIFIED real completed Higgsfield media host has been
+    # allowlisted and the FFmpeg worker was smoke-tested in production.
+    return (os.getenv("RAINY_MOVIE_ENABLED","false").lower() in {"1","true","yes","on"}
+            and bool(movie_assembly.trusted_hosts()))
+
 def origin():
     value=os.getenv("PUBLIC_ORIGIN","http://localhost:8080").rstrip("/")
     u=urlsplit(value)
@@ -99,17 +105,21 @@ def listed(writable):
         tool("rainy_voice_prepare_script","Монгол бичвэрийн шалгалт","Текст/SRT-г цэгцэлж, унших хурд, сэтгэл хөдлөлийн дэмжлэг шалгана. Кредит зарцуулахгүй.",
              {"text":{"type":"string","maxLength":12000},"glossary":v["glossary"]},["text"]),
         tool("rainy_voice_job_status","Дууны төлөв","Өөрийн TTS ажлын төлөв",{"job_id":{"type":"string"}},["job_id"]),
-        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),        tool("rainy_voice_movie_quote","MP4 эвлүүлгийн үнэ","1–120 бэлэн RAVS видео клип, 4–3600 секунд, эсвэл Voice audio сонгож нийт MP4 экспортын үнийг тооцно. Бодит ажил эхлэхгүй.",
+        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),    ]
+    if movie_active():
+        tools.extend([
+        tool("rainy_voice_movie_quote","MP4 эвлүүлгийн үнэ","1–120 бэлэн RAVS видео клип, 4–3600 секунд, эсвэл Voice audio сонгож нийт MP4 экспортын үнийг тооцно. Бодит ажил эхлэхгүй.",
              {"video_urls":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":120},
               "target_seconds":{"type":"number","minimum":4,"maximum":3600},
               "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
               "voice_job_id":{"type":"string"}},
              ["video_urls","target_seconds","aspect_ratio"]),
         tool("rainy_voice_movie_status","Эцсийн MP4 төлөв","Эвлүүлгийн дугаар, progress ба бэлэн MP4 татах холбоосыг харуулна.",
-             {"job_id":{"type":"string"}},["job_id"]),
-    ]
+             {"job_id":{"type":"string"}},["job_id"])
+        ])
     if writable:
-        tools.append(tool("rainy_voice_create_movie","Нэг MP4 эвлүүлэх","Бэлэн клипүүдийг тусдаа RAVS MCP-ээс авч, optional Voice TTS audio-тай FFmpeg worker-д өгнө. Кредит зарцуулна. Төлөвийг rainy_voice_movie_status-оор шалга.",
+        if movie_active():
+            tools.append(tool("rainy_voice_create_movie","Нэг MP4 эвлүүлэх","Бэлэн клипүүдийг тусдаа RAVS MCP-ээс авч, optional Voice TTS audio-тай FFmpeg worker-д өгнө. Кредит зарцуулна. Төлөвийг rainy_voice_movie_status-оор шалга.",
              {"video_urls":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":120},
               "target_seconds":{"type":"number","minimum":4,"maximum":3600},
               "aspect_ratio":{"type":"string","enum":["16:9","9:16","1:1"]},
@@ -135,6 +145,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
                      "ravs_generation_status болон rainy_voice_job_status-г шалга",
                      "Бэлэн видео болон аудионы дараа Voice rainy_voice_movie_quote + rainy_voice_create_movie -> rainy_voice_movie_status-аар эцсийн MP4 экспорт хийж болно (баталгаажсан CDN host дээр)"]}
     if name in {"rainy_voice_movie_quote","rainy_voice_create_movie"}:
+        if not movie_active():
+            raise ValueError("MP4 эвлүүлэг одоогоор идэвхгүй. CDN зөвшөөрөл ба QA шаардлагатай.")
         if name=="rainy_voice_create_movie" and "voice:generate" not in who["scope"].split():
             raise ValueError("MP4 эвлүүлэх эрх зөвшөөрөгдөөгүй.")
         urls=args.get("video_urls")
@@ -153,6 +165,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         body_hash=digest(json.dumps([urls,target,ratio,voice],sort_keys=True,ensure_ascii=False))
         return movie_assembly.enqueue_movie(uid,urls,target,ratio,voice,key,body_hash,estimate["credits"])
     if name=="rainy_voice_movie_status":
+        if not movie_active():
+            raise ValueError("MP4 эвлүүлэг идэвхгүй.")
         job=str(args.get("job_id",""))
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}",job):
             raise ValueError("MP4 job ID буруу байна.")
