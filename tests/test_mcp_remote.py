@@ -45,7 +45,7 @@ class RemoteMcpTests(unittest.TestCase):
     @staticmethod
     def session(request, required=False):
         if request.cookies.get("session") != "test-session": return None
-        return {"user_id": "voice-test-user", "email": "test@example.com"}
+        return {"user_id": "voice-test-user", "email": "test@example.com", "csrf": "test-csrf-token"}
 
     @staticmethod
     async def multiplier(voice, user): return 1
@@ -114,18 +114,23 @@ class RemoteMcpTests(unittest.TestCase):
             def readiness(self): return (True,"ready")
             @staticmethod
             def configured_voices(): return [{"id":"voice-test","name":"Test"}]
-        def charge(user_id,job_id,voice_id,title,payload,credits,metadata):
+        with patch.object(mcp_remote,"ElevenLabsEngine",DummyEngine):
+            # Definitive low-credit rejection leaves no poisoned idempotency key.
+            insufficient=self.rpc(access,"tools/call",{"name":"rainy_voice_create_tts","arguments":arguments})
+            self.assertTrue(insufficient.json()["result"]["isError"])
             with core.db() as db:
-                db.execute("INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)",
-                           (job_id,user_id,voice_id,title,"{}", "queued",1))
-            return credits
-        with patch.object(mcp_remote,"ElevenLabsEngine",DummyEngine), patch.object(mcp_remote.billing,"enqueue_tts",charge):
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM vmcp_tts_requests").fetchone()[0],0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0],0)
+                db.execute("UPDATE credit_wallets SET balance=500 WHERE user_id=?",("voice-test-user",))
             first=self.rpc(access,"tools/call",{"name":"rainy_voice_create_tts","arguments":arguments})
             self.assertIn('"queued"',first.json()["result"]["content"][0]["text"])
             again=self.rpc(access,"tools/call",{"name":"rainy_voice_create_tts","arguments":arguments})
             self.assertIn('"reused": true',again.json()["result"]["content"][0]["text"])
             with core.db() as db:
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0],1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM vmcp_tts_requests").fetchone()[0],1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM credit_ledger WHERE kind='usage'").fetchone()[0],1)
+                self.assertEqual(db.execute("SELECT balance FROM credit_wallets WHERE user_id=?",("voice-test-user",)).fetchone()[0],500-amount)
         changed={**arguments,"text":"Өөр текст"}
         bad=self.rpc(access,"tools/call",{"name":"rainy_voice_create_tts","arguments":changed})
         self.assertTrue(bad.json()["result"]["isError"])
@@ -135,6 +140,52 @@ class RemoteMcpTests(unittest.TestCase):
         self.assertEqual(self.http.post("/oauth/token",data={"grant_type":"refresh_token",
                         "client_id":cid,"refresh_token":tokens["refresh_token"]}).status_code,400)
         self.assertEqual(self.rpc(access,"tools/list").status_code,401)
+
+
+    def test_voice_script_options_quotes_and_bounds(self):
+        _,tokens=self.authorize()
+        access=tokens["access_token"]
+        rpc=lambda a: self.rpc(access,"tools/call",{"name":"rainy_voice_quote_tts","arguments":a}).json()["result"]
+        script=self.rpc(access,"tools/call",{"name":"rainy_voice_prepare_script","arguments":{
+            "text":"Сайн байна уу","glossary":{"Сайн":"Мэнд"}}})
+        self.assertIn("Мэнд",script.json()["result"]["content"][0]["text"])
+        happy=rpc({"voice_id":"voice-test","text":"Сайн байна уу","emotion":"happy","speed":1.15})
+        self.assertFalse(happy.get("isError"),happy)
+        self.assertIn('"happy"',happy["content"][0]["text"])
+        invalid=rpc({"voice_id":"voice-test","text":"Сайн","emotion":"happy","model_id":"eleven_v4_turbo"})
+        self.assertTrue(invalid["isError"])
+        srt="1\n00:00:00,000 --> 00:00:02,000\nСайн байна уу\n"
+        subtitle=rpc({"voice_id":"voice-test","srt":srt,"emotion":"whisper"})
+        self.assertFalse(subtitle.get("isError"),subtitle)
+        self.assertIn('"segments": 1',subtitle["content"][0]["text"])
+        conflict=rpc({"voice_id":"voice-test","srt":srt,"text":"Сайн"})
+        self.assertTrue(conflict["isError"])
+        too_fast=rpc({"voice_id":"voice-test","text":"Сайн","speed":9})
+        self.assertTrue(too_fast["isError"])
+        jobs=self.rpc(access,"tools/call",{"name":"rainy_voice_recent_jobs","arguments":{}})
+        self.assertIn('"jobs": []',jobs.json()["result"]["content"][0]["text"])
+
+    def test_transport_protocol_and_revocation(self):
+        cid,tokens=self.authorize()
+        bearer={"Authorization":"Bearer "+tokens["access_token"]}
+        good={"jsonrpc":"2.0","id":7,"method":"tools/list","params":{}}
+        self.assertEqual(self.http.post("/mcp",headers={**bearer,"Origin":"https://evil.example"},json=good).status_code,403)
+        self.assertEqual(self.http.post("/mcp",headers={**bearer,"MCP-Protocol-Version":"garbled"},json=good).status_code,400)
+        self.assertEqual(self.http.post("/mcp",headers={**bearer,"Accept":"application/json"},json=good).status_code,406)
+        self.assertEqual(self.http.post("/mcp",headers={**bearer,"Content-Type":"text/plain"},content="{}").status_code,415)
+        self.assertEqual(self.http.post("/mcp",headers={**bearer,"MCP-Protocol-Version":"2025-11-25",
+                         "Accept":"application/json, text/event-stream"},json=good).status_code,200)
+        self.assertIn("rainy_voice_recent_jobs",{t["name"] for t in self.rpc(tokens["access_token"],"tools/list").json()["result"]["tools"]})
+        protected=self.http.get("/mcp/access")
+        self.assertEqual(protected.status_code,200)
+        self.assertIn("Test Client",protected.text)
+        bad=self.http.post("/mcp/access",data={"client_id":cid,"csrf":"incorrect"},follow_redirects=False)
+        self.assertEqual(bad.status_code,403)
+        revoked=self.http.post("/mcp/access",data={"client_id":cid,"csrf":"test-csrf-token"},follow_redirects=False)
+        self.assertEqual(revoked.status_code,303)
+        self.assertEqual(self.rpc(tokens["access_token"],"tools/list").status_code,401)
+        self.assertEqual(self.http.post("/oauth/token",data={"grant_type":"refresh_token",
+                                "client_id":cid,"refresh_token":tokens["refresh_token"]}).status_code,400)
 
 
 if __name__=="__main__":

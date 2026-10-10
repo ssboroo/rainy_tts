@@ -348,8 +348,17 @@ def debit(user_id, credits, tool_type, reference=None, metadata=None):
         )
     return charge_id
 
-def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata):
-    """Reserve credits and the per-user queue slot in one SQLite transaction."""
+def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata,
+                *, request_key=None, request_hash=None):
+    """Queue TTS and debit the wallet atomically.
+
+    MCP requests also record (user, idempotency key, payload hash, job id) in
+    this very transaction: a rejected/insufficient-credit request cannot poison
+    its key, and concurrent retries cannot create duplicate paid jobs.
+    Existing web callers receive the original integer debit result.
+    """
+    if bool(request_key) != bool(request_hash):
+        raise ValueError("MCP request key/hash incomplete.")
     ensure_wallet(user_id)
     _expire_if_needed(user_id)
     paid = billing_enabled() and not admin_test_mode(user_id)
@@ -359,6 +368,24 @@ def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata):
         user=c.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
         if not user or user['email'].endswith('@deleted.invalid'):
             raise ValueError('Аккаунт идэвхгүй байна.')
+        if request_key:
+            prior=c.execute(
+                "SELECT job,payload_hash FROM vmcp_tts_requests WHERE uid=? AND request_key=?",
+                (user_id,request_key)
+            ).fetchone()
+            if prior:
+                if prior['payload_hash'] != request_hash:
+                    raise ValueError("Ижил idempotencyKey өөр хүсэлтэд ашигласан.")
+                previous=c.execute(
+                    "SELECT status FROM jobs WHERE id=? AND user_id=?",
+                    (prior['job'],user_id)
+                ).fetchone()
+                return {
+                    "id": prior['job'],
+                    "status": previous['status'] if previous else "pending_reconciliation",
+                    "credits_used": 0,
+                    "reused": True,
+                }
         active = c.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status IN ('queued','running')",(user_id,)).fetchone()[0]
         if active >= 3:
             raise ValueError('Зэрэг 3-аас олон TTS ажил үүсгэхгүй.')
@@ -367,7 +394,7 @@ def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata):
             row = c.execute('SELECT balance FROM credit_wallets WHERE user_id=?',(user_id,)).fetchone()
             if row['balance'] < credits:
                 raise ValueError(f"Credit хүрэлцэхгүй байна. Шаардлагатай: {credits}, үлдэгдэл: {row['balance']}.")
-            balance = row['balance'] - credits
+            balance = row['balance']-credits
             c.execute('UPDATE credit_wallets SET balance=?,lifetime_out=lifetime_out+?,updated=? WHERE user_id=?',(balance,credits,now,user_id))
             c.execute('INSERT INTO credit_ledger VALUES(?,?,?,?,?,?,?,?,?)',
                       (charge_id,user_id,'usage',-credits,balance,'tts',job_id,json.dumps(metadata),now))
@@ -375,7 +402,13 @@ def enqueue_tts(user_id, job_id, voice_id, title, payload, credits, metadata):
                             'voice_multiplier':metadata['voice_multiplier'],'model_id':metadata['model_id']}
         c.execute('INSERT INTO jobs(id,user_id,voice_id,title,payload,status,created) VALUES(?,?,?,?,?,?,?)',
                   (job_id,user_id,voice_id,title,json.dumps(payload,ensure_ascii=False),'queued',now))
+        if request_key:
+            c.execute('INSERT INTO vmcp_tts_requests(uid,request_key,payload_hash,job,created) VALUES(?,?,?,?,?)',
+                      (user_id,request_key,request_hash,job_id,now))
+    if request_key:
+        return {"id":job_id,"status":"queued","credits_used":credits if paid else 0,"reused":False}
     return credits if paid else 0
+
 
 def refund(user_id, charge_id, reason="provider_failed"):
     # A historical debit must remain refundable even if billing is later disabled.
