@@ -161,7 +161,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
             if not row:
                 raise ValueError("Таны MP4 ажил олдсонгүй.")
             artifacts=core.tool_artifacts(job,uid) if row["status"]=="done" else []
-        response={"job_id":job,"status":row["status"],"error":row["error"],"ready":bool(artifacts)}
+        response={"job_id":job,"status":row["status"],"error":row["error"],"ready":bool(artifacts),
+                  "quality_report":(core.public_tool_job(row).get("result") or {}).get("quality_report") if row["status"]=="done" else None}
         if artifacts:
             response["movie_url"]=origin()+"/api/artifacts/"+artifacts[0]["id"]
             response["download_note"]="Voice бүртгэлээр браузерт нэвтэрч байж татна. Бэлэн файл 2 дахь сайтын хадгалах сан дээр байна."
