@@ -394,6 +394,10 @@ def srt_from_words(words):
             blocks.append(f"{i}\n{stamp(start)} --> {stamp(end)}\n{text}")
     return "\n\n".join(blocks)
 
+@app.get("/integrations")
+def integrations_information_page():
+    return FileResponse(STATIC/"integrations.html",media_type="text/html")
+
 @app.get("/movie")
 def movie_information_page():
     return FileResponse(STATIC/"movie.html",media_type="text/html")
@@ -414,7 +418,7 @@ def voice_mcp_discovery(request: Request):
 
 @app.get("/{name}")
 def static_file(name:str):
-    if name not in {"app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg"}:
+    if name not in {"app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg","movie.css","integrations.css"}:
         raise HTTPException(404,"Хуудас олдсонгүй.")
     media={".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"}[Path(name).suffix]
     return FileResponse(STATIC/name,media_type=media)
