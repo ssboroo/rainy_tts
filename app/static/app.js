@@ -990,18 +990,56 @@ for(const mode of ['voice-design','voice-remix']){
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
  };
 }
-$('alignment-form').onsubmit=async event=>{
- event.preventDefault();if(!ensureUser())return;
- const form=event.currentTarget,button=form.querySelector('[type=submit]');if(button.disabled)return;setBusy(button,true,'Хугацаа тааруулж байна…');
- try{
-  const data=await api('/tools/alignment',{method:'POST',body:new FormData(form),form:true});
-  const root=$('alignment-result');root.hidden=false;root.replaceChildren();
-  const heading=document.createElement('p');heading.textContent='Хадмал бэлэн. Татах форматаа сонгоно уу.';root.append(heading);
-  const entries=Array.isArray(data.artifacts)?data.artifacts.map(x=>[x.filename||x.kind,x]):Object.entries(data.artifacts||{});
-  entries.forEach(([format,artifact])=>{const link=document.createElement('a');link.href=artifactUrl(artifact);link.textContent=format.toUpperCase()+' ↓';link.className='secondary';link.download='';root.append(link);});
-  loadHistory();loadBilling(true);
- }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+// Mongolian Scribe v2 does not require pre-written text; Forced Alignment does.
+$('alignment-language').onchange=()=>{
+  const mongolian=$('alignment-language').value==='mn';
+  $('alignment-text').required=!mongolian;
+  $('alignment-reference-label').textContent=mongolian?'(Монгол хэлэнд сонголтоор)':'(заавал оруулна)';
+  $('alignment-text').placeholder=mongolian?'Монгол хэлний эхийг хоосон үлдээж болно; оруулбал танигдсан бичвэртэй харьцуулна.':'Аудиод яг яригдсан үгсийг оруулна уу.';
+  $('alignment-language-help').textContent=mongolian
+    ?'Монгол хэлний SRT/VTT-ийг Scribe v2-ийн үг бүрийн timestamp-аас гаргана. Forced Alignment биш; нэр, тоо, аялгыг хянана уу.'
+    :'Энэ хэлэнд Forced Alignment-ээр бэлэн бичвэрийг аудиотой тааруулна. Бичвэр шаардлагатай.';
 };
+$('alignment-language').onchange();
+
+$('alignment-form').onsubmit=async event=>{
+  event.preventDefault();if(!ensureUser())return;
+  const form=event.currentTarget,button=form.querySelector('[type=submit]');
+  if(button.disabled)return;
+  setBusy(button,true,'Монгол хадмал боловсруулж байна…');
+  try{
+    const data=await api('/tools/alignment',{method:'POST',body:new FormData(form),form:true});
+    const root=$('alignment-result');root.hidden=false;root.replaceChildren();
+    if(data.status==='queued'){
+      const pending=document.createElement('p');
+      pending.textContent='Аудио серверийн дараалалд орлоо. Бэлэн болмогц SRT, VTT файлууд «Бүтээлийн түүх»-д гарна.';
+      root.append(pending);
+      const history=document.createElement('button');
+      history.type='button';history.className='secondary';history.textContent='Бүтээлийн түүх →';
+      history.onclick=()=>page('history');
+      root.append(history);
+      return;
+    }
+    const heading=document.createElement('p');
+    heading.textContent=data.review_required?'Хадмал үүссэн. Буруу танигдсан үг болон хугацааг нийтлэхээс өмнө шалгана уу.':'Хадмал бэлэн. Татах форматаа сонгоно уу.';
+    root.append(heading);
+    for(const warning of data.warnings||[]){
+      const line=document.createElement('p');line.className='field-help';line.textContent=warning;root.append(line);
+    }
+    if(typeof data.reference_similarity==='number'){
+      const match=document.createElement('p');match.className='field-help';
+      match.textContent='Эх бичвэртэй ойролцоо байдал: '+Math.round(data.reference_similarity*100)+'% · Энэ нь аудио Forced Alignment-ийн баталгаа биш.';
+      root.append(match);
+    }
+    const entries=Array.isArray(data.artifacts)?data.artifacts.map(x=>[x.filename||x.kind,x]):Object.entries(data.artifacts||{});
+    for(const [format,artifact] of entries){
+      const link=document.createElement('a');link.href=artifactUrl(artifact);
+      link.textContent=format.toUpperCase()+' ↓';link.className='secondary';link.download='';root.append(link);
+    }
+    loadHistory();loadBilling(true);
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+
 async function loadSettings(){
  if(!ensureUser())return;
  try{const data=await api('/account');state.user={...state.user,admin:data.admin,admin_test:data.admin_test};renderAccount();$('settings-info').textContent=data.email;}
