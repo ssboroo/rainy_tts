@@ -105,7 +105,8 @@ def listed(writable):
         tool("rainy_voice_prepare_script","Монгол бичвэрийн шалгалт","Текст/SRT-г цэгцэлж, унших хурд, сэтгэл хөдлөлийн дэмжлэг шалгана. Кредит зарцуулахгүй.",
              {"text":{"type":"string","maxLength":12000},"glossary":v["glossary"]},["text"]),
         tool("rainy_voice_job_status","Дууны төлөв","Өөрийн TTS ажлын төлөв",{"job_id":{"type":"string"}},["job_id"]),
-        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),    ]
+        tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),
+    ]
     if movie_active():
         tools.extend([
         tool("rainy_voice_movie_quote","MP4 эвлүүлгийн үнэ","1–120 бэлэн RAVS видео клип, 4–3600 секунд, эсвэл Voice audio сонгож нийт MP4 экспортын үнийг тооцно. Бодит ажил эхлэхгүй.",
