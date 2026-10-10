@@ -21,6 +21,7 @@ SCOPES={"voice:read","voice:generate","offline_access"}
 KEY_RE=re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 PKCE_RE=re.compile(r"^[A-Za-z0-9_-]{43,128}$")
 ORIGINS={"https://chatgpt.com","https://claude.ai"}
+SUPPORTED_PROTOCOLS={"2025-03-26","2025-06-18","2025-11-25"}
 RATE={}
 
 def active():
@@ -83,11 +84,18 @@ def listed(writable):
                 "inputSchema":{"type":"object","properties":props or {},**({"required":required} if required else {})},
                 "annotations":{"readOnlyHint":not write,"idempotentHint":True}}
     v={"voice_id":{"type":"string"},"text":{"type":"string","maxLength":12000},
+       "srt":{"type":"string","maxLength":20000},
+       "speed":{"type":"number","minimum":0.8,"maximum":1.2},
+       "emotion":{"type":"string","enum":list(voice_direction.DIRECTIONS)},
+       "glossary":{"type":"object","additionalProperties":{"type":"string"}},
        "model_id":{"type":"string","enum":["eleven_v4","eleven_v4_turbo"]}}
     tools=[
         tool("rainy_voice_voices","Монгол хоолой","Өөрийн болон үндсэн Монгол хоолойнууд"),
         tool("rainy_voice_wallet","Voice кредит","Зөвхөн Voice сайтад өөрийн кредит"),
-        tool("rainy_voice_quote_tts","TTS үнэ","Бодит дуу үүсгэлгүйгээр кредит тооцох",v,["voice_id","text"]),
+        tool("rainy_voice_quote_tts","TTS үнэ","Монгол TTS, сэтгэл хөдлөл, хурд, SRT болон дуудлагын тольтой урьдчилсан кредит тооцоо",v,["voice_id"]),
+        tool("rainy_voice_recent_jobs","Миний сүүлийн дуунууд","Өөрийн сүүлийн 20 TTS ажлыг харуулна"),
+        tool("rainy_voice_prepare_script","Монгол бичвэрийн шалгалт","Текст/SRT-г цэгцэлж, унших хурд, сэтгэл хөдлөлийн дэмжлэг шалгана. Кредит зарцуулахгүй.",
+             {"text":{"type":"string","maxLength":12000},"glossary":v["glossary"]},["text"]),
         tool("rainy_voice_job_status","Дууны төлөв","Өөрийн TTS ажлын төлөв",{"job_id":{"type":"string"}},["job_id"]),
         tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"])
     ]
@@ -95,7 +103,7 @@ def listed(writable):
         tools.append(tool("rainy_voice_create_tts","Монгол дуу үүсгэх","Кредит зарцуулна. Quote хийж хэрэглэгчээс тусдаа зөвшөөрөл ав. Нэг ажлын retry-д ижил idempotencyKey ашигла.",
                           {**v,"title":{"type":"string","maxLength":100},"maxCredits":{"type":"integer","minimum":1},
                            "idempotencyKey":{"type":"string","minLength":16,"maxLength":128},"confirmGeneration":{"type":"boolean","const":True}},
-                          ["voice_id","text","maxCredits","idempotencyKey","confirmGeneration"],True))
+                          ["voice_id","maxCredits","idempotencyKey","confirmGeneration"],True))
     return tools
 
 async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
@@ -126,48 +134,107 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
             output["downloadUrl"]=f"{origin()}/api/jobs/{job}/mp3"
             output["note"]="Татахад Voice бүртгэлээр нэвтэрсэн байх шаардлагатай"
         return output
-    if name not in {"rainy_voice_quote_tts","rainy_voice_create_tts"}: raise ValueError("Unknown tool")
-    if name=="rainy_voice_create_tts" and "voice:generate" not in who["scope"].split(): raise ValueError("Үүсгэх OAuth эрх байхгүй")
+    if name=="rainy_voice_recent_jobs":
+        with core.db() as c:
+            rows=c.execute("SELECT * FROM jobs WHERE user_id=? ORDER BY created DESC LIMIT 20",(uid,)).fetchall()
+        return {"jobs":[core.public_job(row) for row in rows]}
+    if name=="rainy_voice_prepare_script":
+        glossary=args.get("glossary") or {}
+        if not isinstance(glossary,dict) or len(glossary)>100:
+            raise ValueError("Дуудлагын толь 100 хосоос хэтрэхгүй.")
+        words=core.prepare_text(str(args.get("text","")),glossary)
+        return {"text":words,"characters":len(words),"suggestedModel":"eleven_v4",
+                "supportedEmotions":list(voice_direction.DIRECTIONS),
+                "estimatedReadingSeconds":max(1,round(len(words)/13)),
+                "note":"Хугацаа ойролцоо, бодит TTS үүсгэлт болон кредит тооцоо хийгээгүй."}
+    if name not in {"rainy_voice_quote_tts","rainy_voice_create_tts"}:
+        raise ValueError("Unknown tool")
+    if name=="rainy_voice_create_tts" and "voice:generate" not in who["scope"].split():
+        raise ValueError("Үүсгэх OAuth эрх байхгүй")
     voice=str(args.get("voice_id",""))
-    if voice not in allowed_voice_ids(uid): raise ValueError("Voice ID таны каталоги дахь хоолой биш")
+    if voice not in allowed_voice_ids(uid):
+        raise ValueError("Voice ID таны каталоги дахь хоолой биш")
     model=str(args.get("model_id") or "eleven_v4")
-    if model not in {"eleven_v4","eleven_v4_turbo"}: raise ValueError("Дэмжигдэхгүй TTS модель")
-    text=core.prepare_text(str(args.get("text","")))
-    payload={"text":text,"speed":1,"emotion":"neutral","model_id":model}
-    n=sum(len(segment) for segment in voice_direction.segments(payload))
+    if model not in {"eleven_v4","eleven_v4_turbo"}:
+        raise ValueError("Дэмжигдэхгүй TTS модель")
+    emotion=str(args.get("emotion") or "neutral")
+    if emotion not in voice_direction.DIRECTIONS or (emotion!="neutral" and model!="eleven_v4"):
+        raise ValueError("Сэтгэл хөдлөлд Eleven v4 сонгох шаардлагатай.")
+    raw_speed=args.get("speed",1)
+    if isinstance(raw_speed,bool):
+        raise ValueError("Унших хурд буруу байна.")
+    try: speed=float(raw_speed)
+    except (ValueError,TypeError): raise ValueError("Унших хурд буруу байна.")
+    if not math.isfinite(speed) or not 0.8<=speed<=1.2:
+        raise ValueError("Унших хурд 0.8–1.2 хооронд байна.")
+    glossary=args.get("glossary") or {}
+    if not isinstance(glossary,dict) or len(glossary)>100 or any(
+        not isinstance(k,str) or not isinstance(v,str) for k,v in glossary.items()):
+        raise ValueError("Дуудлагын толь буруу байна.")
+    srt=args.get("srt")
+    text_input=args.get("text")
+    if srt is not None and text_input not in (None,""):
+        raise ValueError("Нэг хүсэлтэд текст эсвэл SRT-ийн аль нэгийг оруул.")
+    payload={"speed":speed,"emotion":emotion,"model_id":model}
+    if srt is not None:
+        if not isinstance(srt,str) or len(srt)>20000:
+            raise ValueError("SRT 20,000 тэмдэгтээс хэтрэхгүй.")
+        cues=core.parse_srt(srt)
+        for cue in cues:
+            cue["text"]=core.prepare_text(cue["text"],glossary)
+            if len(cue["text"])>240:
+                raise ValueError("SRT нэг реплик 240 тэмдэгтээс хэтрэхгүй.")
+        payload["cues"]=cues
+        count=sum(len(c["text"]) for c in cues)
+    else:
+        if not isinstance(text_input,str):
+            raise ValueError("Текст эсвэл SRT шаардлагатай.")
+        payload["text"]=core.prepare_text(text_input,glossary)
+        count=len(payload["text"])
+    if count>12000:
+        raise ValueError("12,000 тэмдэгтээс урт текстийг хэсэгчлэн илгээнэ үү.")
+    segments=voice_direction.segments(payload)
+    n=sum(len(segment) for segment in segments)
     multiplier=await voice_multiplier(voice,uid)
     base=billing.estimate("tts",chars=n,model_id=model)
     credits=max(1,math.ceil(base*multiplier))
+    quote={"credits":credits,"characters":count,"billableCharacters":n,
+           "segments":len(segments),"model_id":model,"voice_multiplier":multiplier,
+           "speed":speed,"emotion":emotion}
     if name=="rainy_voice_quote_tts":
-        return {"credits":credits,"characters":n,"model_id":model,"voice_multiplier":multiplier}
+        return quote
     ceiling=args.get("maxCredits")
     key=args.get("idempotencyKey")
     if args.get("confirmGeneration") is not True or type(ceiling) is not int or ceiling<credits or ceiling>1000000:
         raise ValueError(f"Зөвшөөрсөн кредит хангалтгүй. Шаардлагатай {credits}")
-    if not isinstance(key,str) or not KEY_RE.fullmatch(key): raise ValueError("idempotencyKey 16–128 тэмдэгт байна")
+    if not isinstance(key,str) or not KEY_RE.fullmatch(key):
+        raise ValueError("idempotencyKey 16–128 тэмдэгт байна")
     title=str(args.get("title") or "RAINY MCP Voice")[:100]
-    body_hash=digest(json.dumps([voice,text,model,title],ensure_ascii=False))
-    job=core.uid()
+    body_hash=digest(json.dumps([voice,payload,title],sort_keys=True,ensure_ascii=False,separators=(",",":")))
+    # A prior ID remains replayable when the upstream provider is temporarily unavailable.
     with core.db() as c:
-        c.execute("BEGIN IMMEDIATE")
-        old=c.execute("SELECT * FROM vmcp_tts_requests WHERE uid=? AND request_key=?",(uid,key)).fetchone()
-        if old:
-            if old["payload_hash"]!=body_hash: raise ValueError("Ижил idempotencyKey өөр хүсэлтэд ашигласан")
-            job=old["job"]
-        else:
-            c.execute("INSERT INTO vmcp_tts_requests VALUES(?,?,?,?,?)",(uid,key,body_hash,job,time.time()))
-    if old:
-        with core.db() as c:
-            row=c.execute("SELECT status FROM jobs WHERE id=? AND user_id=?",(job,uid)).fetchone()
-        return {"id":job,"status":row["status"] if row else "pending_reconciliation","reused":True}
+        prior=c.execute("SELECT job,payload_hash FROM vmcp_tts_requests WHERE uid=? AND request_key=?",(uid,key)).fetchone()
+        if prior:
+            if not secrets.compare_digest(prior["payload_hash"],body_hash):
+                raise ValueError("Ижил idempotencyKey өөр хүсэлтэд ашигласан.")
+            job=c.execute("SELECT status FROM jobs WHERE id=? AND user_id=?",(prior["job"],uid)).fetchone()
+            return {"id":prior["job"],"status":job["status"] if job else "pending_reconciliation","reused":True,"credits_used":0}
+    ready,reason=ElevenLabsEngine().readiness()
+    if not ready: raise ValueError(reason)
+    job=core.uid()
     try:
-        ready,reason=ElevenLabsEngine().readiness()
-        if not ready: raise ValueError(reason)
-        paid=billing.enqueue_tts(uid,job,voice,title,payload,credits,{"characters":n,"voice_multiplier":multiplier,"model_id":model,"base_credits":base})
+        answer=billing.enqueue_tts(
+            uid,job,voice,title,payload,credits,
+            {"characters":n,"voice_multiplier":multiplier,"model_id":model,"base_credits":base},
+            request_key=key,request_hash=body_hash,
+        )
+    except ValueError as exc:
+        # A definitive validation/insufficient credit error rolls back the
+        # idempotency reservation and credit debit in the same SQLite txn.
+        raise ValueError(str(exc))
     except Exception:
-        # Preserve the request key if the process crashed after a credit debit.
-        raise ValueError(f"Төлөв тодорхойгүй. Шинэ хүсэлт бүү эхлүүл. Ажлын ID: {job}")
-    return {"id":job,"status":"queued","credits_used":paid,"reused":False}
+        raise ValueError("Хүсэлт тодорхойгүй. Ижил idempotencyKey ашиглан төлөвийг шалгана уу; шинэ key бүү үүсгэ.")
+    return answer
 
 def register_routes(app,session,allowed_voice_ids,voice_multiplier):
     @app.on_event("startup")
@@ -295,6 +362,15 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
         who=principal(request)
         if not who:
             return JSONResponse({"error":"OAuth required"},status_code=401,headers={"WWW-Authenticate":f'Bearer resource_metadata="{origin()}/.well-known/oauth-protected-resource/mcp"'})
+        header_version=request.headers.get("mcp-protocol-version")
+        if header_version and header_version not in SUPPORTED_PROTOCOLS:
+            return error("unsupported_protocol_version",400)
+        content_type=request.headers.get("content-type","").split(";",1)[0].lower().strip()
+        if content_type!="application/json":
+            return error("Content-Type must be application/json",415)
+        accept=request.headers.get("accept","*/*")
+        if accept not in {"*/*",""} and not all(x in accept for x in ("application/json","text/event-stream")):
+            return error("Accept must include application/json and text/event-stream",406)
         if int(request.headers.get("content-length","0") or 0)>128*1024: return error("too_large",413)
         try: payload=await request.json()
         except Exception: return error("invalid_json")
