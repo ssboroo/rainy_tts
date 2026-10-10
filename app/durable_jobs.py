@@ -8,7 +8,7 @@ from starlette.datastructures import Headers
 from . import billing, core
 from .eleven_tools import ElevenAPIError
 
-METHODS = {'music', 'dialogue', 'sound_effect', 'voice_changer', 'voice_isolator', 'speech_to_text', 'forced_alignment', 'video_voiceover'}
+METHODS = {'music', 'dialogue', 'sound_effect', 'voice_changer', 'voice_isolator', 'speech_to_text', 'forced_alignment', 'video_voiceover', 'assemble_video'}
 
 
 def ensure_schema():
@@ -69,6 +69,9 @@ def claim_next():
 def recover_interrupted():
     ensure_schema()
     with core.db() as db:
+        # Local MP4 assembly has no upstream provider bill and may resume from
+        # queued state after a process restart. Its staging directory is disposable.
+        db.execute("UPDATE tool_jobs SET status='queued',updated=? WHERE status='running' AND tool_type='video_assembly' AND id IN (SELECT job_id FROM durable_jobs)",(time.time(),))
         count=db.execute("UPDATE tool_jobs SET status='failed',error=?,updated=? WHERE status='running' AND id IN (SELECT job_id FROM durable_jobs)",
                          ('Сервер дахин ассан. Давхар төлбөрөөс сэргийлж ажлыг дахин илгээгээгүй. Хэрэглээг админ шалгана.', time.time())).rowcount
     return count
@@ -113,6 +116,11 @@ async def execute(job):
             from .audio_extensions import execute_alignment
             result=await execute_alignment(job['user_id'],job['id'],*args[:3],job['credits'])
             core.update_tool_job(job['id'],'done',result=result)
+            return
+        if method=='assemble_video':
+            from . import movie_assembly
+            result=await movie_assembly.assemble_movie(job["user_id"],job["id"],*execution["args"])
+            core.update_tool_job(job["id"],"done",result={**result,"credits_used":job["credits"]})
             return
         if method=='video_voiceover':
             import asyncio
