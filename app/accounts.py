@@ -16,7 +16,7 @@ from email.message import EmailMessage
 import time
 from fastapi import BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
-from . import core, billing
+from . import core, billing, email_delivery
 
 RESET_TTL=1800
 GENERIC_RESET={'ok':True,'message':'Бүртгэлтэй имэйл бол нууц үг сэргээх холбоос илгээнэ.'}
@@ -57,13 +57,16 @@ def startup_accounts():
     bootstrap_admin()
 
 def email_configured():
-    return bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM'))
+    return email_delivery.api_configured() or bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM') and os.getenv('SMTP_PASSWORD'))
 
 def send_reset_email(email,token):
     origin=os.getenv('PUBLIC_ORIGIN','http://localhost:8080').rstrip('/')
     message=EmailMessage();message['From']=os.environ['SMTP_FROM'];message['To']=email
     message['Subject']='RAINY — нууц үг сэргээх'
     message.set_content(f'Нууц үгээ сэргээх холбоос (30 минут хүчинтэй):\n{origin}/?reset_token={token}\nХэрэв та хүсэлт гаргаагүй бол үл тооно уу.')
+    if email_delivery.api_configured():
+        email_delivery.send_message(message)
+        return
     tls=os.getenv('SMTP_TLS','true').strip().lower()
     transport=smtplib.SMTP_SSL if tls=='ssl' else smtplib.SMTP
     with transport(os.environ['SMTP_HOST'],int(os.getenv('SMTP_PORT','465' if tls=='ssl' else '587')),timeout=15) as smtp:
