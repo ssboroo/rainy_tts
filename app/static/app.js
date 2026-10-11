@@ -473,6 +473,8 @@ $('stt-form').onsubmit=async event=>{
     ].filter(Boolean).join(' · ');
     $('stt-result').textContent=(meta?meta+'\n\n':'')+(result.text||'Бичвэр хоосон байна.')+
       (result.edit_error?'\n\nЗөв бичгийн засварын анхааруулга: '+result.edit_error:'');
+    $('stt-original').hidden=!result.raw_text;
+    if(result.raw_text)$('stt-original').textContent='ЭХ ТРАНСКРИПТ (өөрчлөгдөөгүй):\n\n'+result.raw_text;
     notice(result.polished?'Монгол бичвэр засвартайгаар бэлэн боллоо.':'Бичвэр бэлэн боллоо.');
     loadHistory();loadBilling(true);
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
@@ -1242,6 +1244,197 @@ async function watchTtsResult(id){
   catch(e){return;}
  }
 }
+
+/* RAINY independent production features: no hidden paid provider submission. */
+let activeBookPlan=null, nextBookChapter=0, activeBookOwner=null;
+$('director-apply').onclick=async()=>{
+  if(!ensureUser())return;
+  if(state.mode!=='text')return notice('Эхлээд Текст горимд шилжинэ үү.');
+  const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
+  try{
+    const data=await api('/production/director',{method:'POST',body:{text:$('text').value,style:$('director-style').value}});
+    $('text').value=data.directedText;
+    $('tts-model').value='eleven_v4';$('tts-emotion').value='neutral';
+    $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найруулагдлаа. Дуу үүсгэхээс өмнө текстээ шалгаад кредит тооцоолно уу.';
+    updateCounter();updateEstimate();
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+$('book-plan').onclick=async()=>{
+  if(!ensureUser())return;
+  const button=$('book-plan');setBusy(button,true,'Бүлэгчилж байна…');
+  try{
+    activeBookPlan=await api('/production/audiobook/plan',{method:'POST',body:{
+      title:$('book-title').value,text:$('book-text').value,
+      model_id:$('tts-model').value,voice_id:$('voice').value}});
+    nextBookChapter=0;activeBookOwner=state.user.email;
+    $('book-result').hidden=false;
+    $('book-result').textContent=activeBookPlan.chapterCount+' бүлэг · ойролцоогоор '+activeBookPlan.totalEstimatedCredits.toLocaleString()+' кредит · '+activeBookPlan.note;
+    $('book-create').disabled=false;
+    $('book-create').querySelector('span').textContent='Бүлгүүдийг зөвшөөрч үүсгэх';
+  }catch(e){activeBookPlan=null;$('book-create').disabled=true;notice(customerMessage(e.message));}
+  finally{setBusy(button,false);}
+};
+$('book-create').onclick=async()=>{
+  if(!ensureUser()||!activeBookPlan||$('book-create').disabled)return;
+  if(activeBookOwner!==state.user?.email){activeBookPlan=null;$('book-create').disabled=true;return notice('Бүртгэл солигдсон тул аудио номын шинэ тооцоо гаргана уу.');}
+  const {chapters,modelId,voiceId}=activeBookPlan;
+  const remaining=chapters.slice(nextBookChapter,nextBookChapter+3);
+  if(!remaining.length){$('book-create').disabled=true;return;}
+  const button=$('book-create');setBusy(button,true,'Кредитийг баталгаажуулж байна…');
+  try{
+    // Existing TTS endpoint independently re-quotes every chapter server-side.
+    const quotations=[];
+    for(const chapter of remaining){
+      const q=await api('/jobs/quote',{method:'POST',body:{text:chapter.text,voice_id:voiceId,model_id:modelId,emotion:'neutral',speed:1}});
+      if(!Number.isInteger(q.credits)||q.credits<1)throw new Error('Кредитийн баталгаат үнэ олдсонгүй.');
+      quotations.push({...chapter,actualCredits:q.credits});
+    }
+    const quotedTotal=quotations.reduce((sum,ch)=>sum+ch.actualCredits,0);
+    if(!confirm(quotations.length+' бүлгийг '+quotedTotal+' кредитээр тус тусад нь үүсгэх үү? Нэг удаад хамгийн ихдээ 3 ажил дараалалд орно.'))return;
+    let accepted=0;
+    for(const ch of quotations){
+      try{
+        await api('/jobs',{method:'POST',body:{title:ch.title,text:ch.text,voice_id:voiceId,model_id:modelId,emotion:'neutral',speed:1,maxCredits:ch.actualCredits}});
+        accepted++;nextBookChapter++;
+      }catch(e){
+        $('book-result').textContent=accepted+' бүлэг хүлээн авлаа. '+customerMessage(e.message)+' Бусад бүлгүүд илгээгдээгүй.';
+        throw e;
+      }
+    }
+    $('book-result').textContent=nextBookChapter+' / '+chapters.length+' бүлэг дараалалд илгээгдлээ. Төлөв ба дуунуудыг «Бүтээлийн түүх»-д шалгана уу.';
+    if(nextBookChapter>=chapters.length){button.disabled=true;button.querySelector('span').textContent='Бүх бүлэг илгээгдсэн';}
+    else button.querySelector('span').textContent='Үлдсэн бүлгээс дараагийн 3-ыг илгээх';
+    loadHistory();loadBilling(true);
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);if(nextBookChapter>=chapters.length)button.disabled=true;}
+};
+$('patch-refresh').onclick=async()=>{
+  if(!ensureUser())return;
+  const button=$('patch-refresh');setBusy(button,true,'Бэлэн аудио хайж байна…');
+  try{
+    const data=await api('/jobs');
+    const ready=(data.jobs||[]).filter(j=>j.status==='done');
+    for(const id of ['patch-original','patch-correction']){
+      const select=$(id),selected=select.value;select.replaceChildren();
+      for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
+      if(ready.some(x=>x.id===selected))select.value=selected;
+    }
+    $('patch-feedback').textContent=ready.length+' бэлэн аудио байна. Засварлах хугацааг эх бичлэгээ сонсож тодорхойлоорой.';
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+$('patch-apply').onclick=async()=>{
+  if(!ensureUser())return;
+  const source=$('patch-original').value,repair=$('patch-correction').value;
+  if(!source||!repair||source===repair)return notice('Өөр өөр хоёр бэлэн аудио сонгоно уу.');
+  const start=Number($('patch-start').value),end=Number($('patch-end').value);
+  if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)return notice('Секундын хүрээ буруу байна.');
+  if(!confirm('Эх аудионы '+start+'–'+end+' сек хэсгийг засварын өгүүлбэрээр солих уу? Хугацаа өөрчлөгдөж болно.'))return;
+  const button=$('patch-apply');setBusy(button,true,'Өгүүлбэрийг сольж байна…');
+  try{
+    const data=await api('/production/audio-patch',{method:'POST',body:{original_job_id:source,correction_job_id:repair,start_seconds:start,end_seconds:end}});
+    $('patch-feedback').replaceChildren();
+    const a=document.createElement('a');a.href='/api/artifacts/'+encodeURIComponent(data.artifact_id);a.textContent='Зассан MP3 аудиог татах';a.target='_blank';a.rel='noopener';
+    $('patch-feedback').append('Засвар амжилттай · ',a);
+    loadHistory();
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+
+
+/* Admin-only ElevenAgents preview; disabled until an operator configures
+ * an agent and separately approves upstream conversation-minute costs.
+ */
+let agentPreview=null;
+function agentStatus(message){if($('voice-agent-status'))$('voice-agent-status').textContent=message;}
+async function stopAgentPreview(){
+  const running=agentPreview;agentPreview=null;
+  if(running){
+    try{running.socket?.close();}catch{}
+    try{running.node?.disconnect();}catch{}
+    try{running.mic?.disconnect();}catch{}
+    for(const t of running.stream?.getTracks()||[])t.stop();
+    try{await running.context?.close();}catch{}
+  }
+  $('voice-agent-start').disabled=false;$('voice-agent-stop').disabled=true;
+}
+async function agentPreviewAvailability(){
+  if(!state.user?.admin)return;
+  try{
+    const r=await api('/production/agent-status');
+    $('voice-agent-preview').hidden=!r.enabled;
+    if(r.enabled)agentStatus('Админы live agent туршилт. Ярианы минутын төлбөр ElevenLabs дээр тусдаа тооцогдоно.');
+  }catch{$('voice-agent-preview').hidden=true;}
+}
+document.addEventListener('rainy:page',event=>{
+  if(event.detail?.name==='realtime')agentPreviewAvailability();
+  else if(agentPreview)stopAgentPreview();
+});
+$('voice-agent-stop').onclick=stopAgentPreview;
+$('voice-agent-start').onclick=async()=>{
+  if(!ensureUser()||!state.user?.admin)return;
+  $('voice-agent-start').disabled=true;
+  agentStatus('ElevenAgents баталгаатай холболт нээж байна…');
+  try{
+    const token=await api('/production/agent-session',{method:'POST',body:{}});
+    if(!token.signed_url)throw new Error('Live agent холболт нээгдээгүй.');
+    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0};
+    agentPreview=runtime;$('voice-agent-stop').disabled=false;
+    socket.onmessage=async event=>{
+      if(agentPreview!==runtime)return;
+      let packet;try{packet=JSON.parse(event.data);}catch{return;}
+      if(packet.type==='conversation_initiation_metadata'){
+        const meta=packet.conversation_initiation_metadata_event||{};
+        runtime.outputFormat=meta.agent_output_audio_format||'pcm_16000';
+        if(meta.user_input_audio_format && !String(meta.user_input_audio_format).startsWith('pcm_16000')){
+          agentStatus('Энэ агентын оролтын PCM формат 16 kHz биш байна. Холболтыг зогсоолоо.');
+          stopAgentPreview();return;
+        }
+      }
+      if(packet.type==='user_transcript')agentStatus('Та: '+String(packet.user_transcription_event?.user_transcript||'').slice(0,500));
+      if(packet.type==='agent_response')agentStatus('AI: '+String(packet.agent_response_event?.agent_response||'').slice(0,500));
+      const base64=packet.audio_event?.audio_base_64||packet.audio?.audio_base_64;
+      if(!base64||!runtime.context)return;
+      try{
+        const raw=atob(base64),bytes=new Uint8Array(raw.length);
+        for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+        let buffer;
+        if(runtime.outputFormat.startsWith('pcm_')){
+          if(bytes.length%2)return;
+          const rate=Number(runtime.outputFormat.split('_')[1])||16000;
+          buffer=runtime.context.createBuffer(1,bytes.length/2,rate);
+          const channel=buffer.getChannelData(0),view=new DataView(bytes.buffer);
+          for(let i=0;i<channel.length;i++)channel[i]=view.getInt16(i*2,true)/32768;
+        }else buffer=await runtime.context.decodeAudioData(bytes.buffer);
+        if(agentPreview!==runtime)return;
+        const player=runtime.context.createBufferSource();player.buffer=buffer;player.connect(runtime.context.destination);
+        const at=Math.max(runtime.context.currentTime+.03,runtime.playingAt);player.start(at);runtime.playingAt=at+buffer.duration;
+      }catch{agentStatus('AI-ийн аудио тоглуулах формат дэмжигдэхгүй байна.');}
+    };
+    socket.onclose=()=>{if(agentPreview===runtime){agentStatus('AI холболт хаагдлаа.');stopAgentPreview();}};
+    socket.onerror=()=>{agentStatus('AI agent WebSocket холбогдсонгүй.');};
+    await new Promise((resolve,reject)=>{
+      socket.addEventListener('open',resolve,{once:true});
+      socket.addEventListener('error',()=>reject(new Error('Live агент руу холбогдох боломжгүй.')),{once:true});
+    });
+    runtime.context=new(window.AudioContext||window.webkitAudioContext)();await runtime.context.resume();
+    runtime.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    runtime.mic=runtime.context.createMediaStreamSource(runtime.stream);
+    runtime.node=runtime.context.createScriptProcessor(4096,1,1);
+    runtime.node.onaudioprocess=event=>{
+      if(agentPreview!==runtime||socket.readyState!==WebSocket.OPEN)return;
+      const input=event.inputBuffer.getChannelData(0),sourceRate=runtime.context.sampleRate;
+      const count=Math.floor(input.length*16000/sourceRate),data=new Int16Array(count);
+      for(let i=0;i<count;i++){
+        const j=Math.min(input.length-1,Math.floor(i*sourceRate/16000));
+        const v=Math.max(-1,Math.min(1,input[j]));data[i]=v<0?v*32768:v*32767;
+      }
+      const raw=new Uint8Array(data.buffer);let binary='';
+      for(let i=0;i<raw.length;i++)binary+=String.fromCharCode(raw[i]);
+      socket.send(JSON.stringify({user_audio_chunk:btoa(binary)}));
+    };
+    runtime.mic.connect(runtime.node);runtime.node.connect(runtime.context.destination);
+    agentStatus('Микрофон холбогдлоо. Монгол хэлээр ярьж үзнэ үү. Минутын зардал provider дээр бодитоор тооцогдоно.');
+  }catch(e){agentStatus(customerMessage(e.message));await stopAgentPreview();}
+};
+
 buildToolWorkspaces();
 
 init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
