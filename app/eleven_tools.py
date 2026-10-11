@@ -146,7 +146,7 @@ class ElevenTools:
 
     async def speech_to_text(
         self, upload, language_code="mn", keyterms=None, polish=True,
-        diarize=False, num_speakers=1, no_verbatim=True
+        diarize=False, num_speakers=1, no_verbatim=True, edit_instruction=None
     ):
         await upload.seek(0)
         multipart=[
@@ -165,7 +165,17 @@ class ElevenTools:
         for term in keyterms or []:
             multipart.append(("keyterms",(None,term)))
         if polish:
-            if (language_code or "").lower()=="mn":
+            custom_edit=(edit_instruction or "").strip()
+            if custom_edit:
+                if len(custom_edit)>900:
+                    raise ValueError("Транскриптын засварын заавар 900 тэмдэгтээс хэтрэхгүй байна.")
+                # Provider experimental editing incurs a 30% STT surcharge,
+                # already reserved by the existing polish quote and ledger.
+                edit_instruction=(
+                    "Preserve the spoken meaning, all names, amounts, numbers, and original language. "
+                    "Never invent facts, omit content or translate. Additional formatting request: "+custom_edit
+                )
+            elif (language_code or "").lower()=="mn":
                 edit_instruction=(
                     "Keep the transcript in Mongolian. Do not translate. Correct only obvious "
                     "Mongolian spelling, punctuation, capitalization, spacing, and formatting. "
