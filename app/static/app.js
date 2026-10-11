@@ -1337,6 +1337,103 @@ $('patch-apply').onclick=async()=>{
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
 };
 
+
+/* Admin-only ElevenAgents preview; disabled until an operator configures
+ * an agent and separately approves upstream conversation-minute costs.
+ */
+let agentPreview=null;
+function agentStatus(message){if($('voice-agent-status'))$('voice-agent-status').textContent=message;}
+async function stopAgentPreview(){
+  const running=agentPreview;agentPreview=null;
+  if(running){
+    try{running.socket?.close();}catch{}
+    try{running.node?.disconnect();}catch{}
+    try{running.mic?.disconnect();}catch{}
+    for(const t of running.stream?.getTracks()||[])t.stop();
+    try{await running.context?.close();}catch{}
+  }
+  $('voice-agent-start').disabled=false;$('voice-agent-stop').disabled=true;
+}
+async function agentPreviewAvailability(){
+  if(!state.user?.admin)return;
+  try{
+    const r=await api('/production/agent-status');
+    $('voice-agent-preview').hidden=!r.enabled;
+    if(r.enabled)agentStatus('Админы live agent туршилт. Ярианы минутын төлбөр ElevenLabs дээр тусдаа тооцогдоно.');
+  }catch{$('voice-agent-preview').hidden=true;}
+}
+document.addEventListener('rainy:page',event=>{
+  if(event.detail?.name==='realtime')agentPreviewAvailability();
+  else if(agentPreview)stopAgentPreview();
+});
+$('voice-agent-stop').onclick=stopAgentPreview;
+$('voice-agent-start').onclick=async()=>{
+  if(!ensureUser()||!state.user?.admin)return;
+  $('voice-agent-start').disabled=true;
+  agentStatus('ElevenAgents баталгаатай холболт нээж байна…');
+  try{
+    const token=await api('/production/agent-session',{method:'POST',body:{}});
+    if(!token.signed_url)throw new Error('Live agent холболт нээгдээгүй.');
+    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0};
+    agentPreview=runtime;$('voice-agent-stop').disabled=false;
+    socket.onmessage=async event=>{
+      if(agentPreview!==runtime)return;
+      let packet;try{packet=JSON.parse(event.data);}catch{return;}
+      if(packet.type==='conversation_initiation_metadata'){
+        const meta=packet.conversation_initiation_metadata_event||{};
+        runtime.outputFormat=meta.agent_output_audio_format||'pcm_16000';
+        if(meta.user_input_audio_format && !String(meta.user_input_audio_format).startsWith('pcm_16000')){
+          agentStatus('Энэ агентын оролтын PCM формат 16 kHz биш байна. Холболтыг зогсоолоо.');
+          stopAgentPreview();return;
+        }
+      }
+      if(packet.type==='user_transcript')agentStatus('Та: '+String(packet.user_transcription_event?.user_transcript||'').slice(0,500));
+      if(packet.type==='agent_response')agentStatus('AI: '+String(packet.agent_response_event?.agent_response||'').slice(0,500));
+      const base64=packet.audio_event?.audio_base_64||packet.audio?.audio_base_64;
+      if(!base64||!runtime.context)return;
+      try{
+        const raw=atob(base64),bytes=new Uint8Array(raw.length);
+        for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+        let buffer;
+        if(runtime.outputFormat.startsWith('pcm_')){
+          if(bytes.length%2)return;
+          const rate=Number(runtime.outputFormat.split('_')[1])||16000;
+          buffer=runtime.context.createBuffer(1,bytes.length/2,rate);
+          const channel=buffer.getChannelData(0),view=new DataView(bytes.buffer);
+          for(let i=0;i<channel.length;i++)channel[i]=view.getInt16(i*2,true)/32768;
+        }else buffer=await runtime.context.decodeAudioData(bytes.buffer);
+        if(agentPreview!==runtime)return;
+        const player=runtime.context.createBufferSource();player.buffer=buffer;player.connect(runtime.context.destination);
+        const at=Math.max(runtime.context.currentTime+.03,runtime.playingAt);player.start(at);runtime.playingAt=at+buffer.duration;
+      }catch{agentStatus('AI-ийн аудио тоглуулах формат дэмжигдэхгүй байна.');}
+    };
+    socket.onclose=()=>{if(agentPreview===runtime){agentStatus('AI холболт хаагдлаа.');stopAgentPreview();}};
+    socket.onerror=()=>{agentStatus('AI agent WebSocket холбогдсонгүй.');};
+    await new Promise((resolve,reject)=>{
+      socket.addEventListener('open',resolve,{once:true});
+      socket.addEventListener('error',()=>reject(new Error('Live агент руу холбогдох боломжгүй.')),{once:true});
+    });
+    runtime.context=new(window.AudioContext||window.webkitAudioContext)();await runtime.context.resume();
+    runtime.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    runtime.mic=runtime.context.createMediaStreamSource(runtime.stream);
+    runtime.node=runtime.context.createScriptProcessor(4096,1,1);
+    runtime.node.onaudioprocess=event=>{
+      if(agentPreview!==runtime||socket.readyState!==WebSocket.OPEN)return;
+      const input=event.inputBuffer.getChannelData(0),sourceRate=runtime.context.sampleRate;
+      const count=Math.floor(input.length*16000/sourceRate),data=new Int16Array(count);
+      for(let i=0;i<count;i++){
+        const j=Math.min(input.length-1,Math.floor(i*sourceRate/16000));
+        const v=Math.max(-1,Math.min(1,input[j]));data[i]=v<0?v*32768:v*32767;
+      }
+      const raw=new Uint8Array(data.buffer);let binary='';
+      for(let i=0;i<raw.length;i++)binary+=String.fromCharCode(raw[i]);
+      socket.send(JSON.stringify({user_audio_chunk:btoa(binary)}));
+    };
+    runtime.mic.connect(runtime.node);runtime.node.connect(runtime.context.destination);
+    agentStatus('Микрофон холбогдлоо. Монгол хэлээр ярьж үзнэ үү. Минутын зардал provider дээр бодитоор тооцогдоно.');
+  }catch(e){agentStatus(customerMessage(e.message));await stopAgentPreview();}
+};
+
 buildToolWorkspaces();
 
 init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
