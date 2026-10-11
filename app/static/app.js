@@ -117,6 +117,7 @@ function openAuth(registerMode=false){
   $('auth-submit').querySelector('span').textContent=state.register?'Бүртгүүлэх':'Нэвтрэх';
   $('auth-toggle').textContent=state.register?'Бүртгэлтэй бол нэвтрэх':'Шинэ бүртгэл үүсгэх';
   $('auth-error').textContent='';
+  $('resend-verification').hidden=true;
   $('auth-description').textContent=state.register?'Имэйл болон шинэ нууц үгээрээ бүртгэл үүсгэнэ үү.':'Бүртгэлтэй имэйл, нууц үгээрээ нэвтэрнэ үү.';
   $('auth-switch-hint').textContent=state.register?'Бүртгэлтэй юу?':'Бүртгэлгүй юу?';
   $('forgot-password').hidden=state.register;
@@ -134,6 +135,12 @@ $('close-auth').onclick=()=>$('auth-dialog').close();
 $('auth-dialog').onclick=e=>{if(e.target===$('auth-dialog')) $('auth-dialog').close();};
 
 $('auth-toggle').onclick=()=>{if(state.health?.registration_open)openAuth(!state.register);};
+$('resend-verification').onclick=async()=>{
+ try{
+  const result=await api('/account/resend-verification',{method:'POST',body:{email:$('email').value.trim()}});
+  $('auth-error').textContent=result.message||'Хүсэлтийг хүлээн авлаа.';
+ }catch(e){$('auth-error').textContent=customerMessage(e.message);}
+};
 
 $('auth-form').onsubmit=async event=>{
   event.preventDefault();
@@ -144,6 +151,12 @@ $('auth-form').onsubmit=async event=>{
   $('auth-error').textContent='';
   try{
     const result=await api(state.register?'/register':'/login',{method:'POST',body:{email:$('email').value,password:$('password').value}});
+    if(result.verificationRequired){
+      $('auth-error').textContent=result.message||'Имэйлээ баталгаажуулна уу. Inbox болон Spam хавтсаа шалгаарай.';
+      $('resend-verification').hidden=false;
+      $('password').value='';
+      return;
+    }
     state.user=result.user;
     $('password').value='';
     $('auth-dialog').close();
@@ -154,7 +167,10 @@ $('auth-form').onsubmit=async event=>{
     await loadBilling(true);
     if(state.page==='voices')await loadProviderStatus();
     notice('RAINY Studio бэлэн.');
-  }catch(e){$('auth-error').textContent=customerMessage(e.message);}
+  }catch(e){
+    $('auth-error').textContent=customerMessage(e.message);
+    if(/баталгаажуул/i.test(e.message))$('resend-verification').hidden=false;
+  }
   finally{setBusy(button,false);}
 };
 
@@ -1064,6 +1080,15 @@ async function accountMutation(formId,path,body,success){
 }
 $('password-form').onsubmit=e=>{e.preventDefault();if(ensureUser())accountMutation('password-form','/account/password',{current_password:$('current-password').value,new_password:$('new-password').value},'Нууц үг шинэчлэгдлээ. Шинэ нууц үгээрээ нэвтэрнэ үү.');};
 $('delete-form').onsubmit=e=>{e.preventDefault();if(ensureUser())accountMutation('delete-form','/account/delete',{password:$('delete-password').value,confirmation:$('delete-confirmation').value},'Бүртгэл устгагдлаа.');};
+let verifyToken=new URLSearchParams(location.search).get('verify_token')||'';
+if(verifyToken){
+ history.replaceState({},'',location.pathname);
+ (async()=>{
+  try{const result=await api('/account/verify-email',{method:'POST',body:{token:verifyToken}});
+      notice(result.message||'Имэйл баталгаажлаа. Одоо нэвтэрнэ үү.');}
+  catch(e){notice(customerMessage(e.message));}
+ })();
+}
 let resetToken=new URLSearchParams(location.search).get('reset_token')||'';
 if(resetToken)history.replaceState({},'',location.pathname);
 function openReset(){
