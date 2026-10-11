@@ -1842,6 +1842,8 @@ mcp_remote.register_routes(app, session, allowed_voice_ids, voice_cost_multiplie
 
 accounts.register_routes(app,session,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
+from . import production_suite
+production_suite.register_routes(app,session,mutation_guard,throttle,allowed_voice_ids,voice_cost_multiplier)
 realtime_proxy.register_routes(app,session,allowed_origins)
 
 if __name__=="__main__":
