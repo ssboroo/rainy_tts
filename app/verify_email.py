@@ -81,7 +81,7 @@ def send_verification(email, raw):
         smtp.send_message(message)
 
 def register_routes(app, mutation_guard, throttle):
-    app.add_event_handler("startup", ensure_schema)
+    app.router.add_event_handler("startup", ensure_schema)
 
     @app.post("/api/account/verify-email")
     async def verify(request: Request):
