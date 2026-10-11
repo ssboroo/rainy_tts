@@ -186,13 +186,23 @@ function voiceOptions(select,selected){
   if(!select) return;
   const current=selected||select.value;
   select.replaceChildren();
-  state.voices.forEach(voice=>{
+  // TTS age is a filter of the provider's perceived-age labels, NOT an age conversion.
+  const age=select.id==='voice'?($('tts-voice-age')?.value||'all'):'all';
+  const voices=state.voices.filter(voice=>age==='all'||voice.age===age);
+  voices.forEach(voice=>{
     const option=document.createElement('option');
     const multiplier=Number(voice.cost_multiplier||1);
     option.value=voice.id;option.textContent=voiceDisplayName(voice)+(multiplier>1?' · '+multiplier.toFixed(2).replace(/\.00$/,'')+'× кредит':'');
     select.append(option);
   });
+  if(!voices.length&&age!=='all'){
+    const missing=document.createElement('option');missing.value='';
+    missing.textContent='Энэ насны хоолой хараахан алга';select.append(missing);
+  }
   if([...select.options].some(o=>o.value===current)) select.value=current;
+  if(select.id==='voice'&&$('tts-age-hint'))$('tts-age-hint').textContent=age==='all'
+    ?'Нас нь сонсогдох өнгөний ойролцоо ангилал. Бүх хоолой насны шошготой биш.'
+    :voices.length?'Насны ангилалтай '+voices.length+' хоолой байна. Дээжийг сонсож шалгана уу.':'Энэ ангилалд нас нь баталгаажсан хоолой алга. «Бүх нас» сонгох эсвэл «Хоолой зохиох» хэсэгт шинэ хоолой бүтээнэ үү.';
 }
 
 function renderVoiceSelectors(){
@@ -224,15 +234,15 @@ function voiceAvatar(voice){
   return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
 }
 function selectVoice(voice){
-  page('tts');$('voice').value=voice.id;updateEstimate();
+  page('tts');$('tts-voice-age').value='all';renderVoiceSelectors();$('voice').value=voice.id;updateEstimate();
   notice(voiceDisplayName(voice)+' хоолой сонгогдлоо. Бичвэрээ оруулаад “Дуу үүсгэх” дарна уу.');
   $(state.mode==='srt'?'srt-text':'text').focus();
 }
 function renderVoiceLibrary(){
   const root=$('voice-grid');[...root.children].forEach(card=>card.releasePreview?.());root.replaceChildren();
-  const filter=$('voice-filter')?.value||'native';const query=($('voice-search')?.value||'').trim().toLowerCase();
-  const visible=state.voices.filter(v=>(filter==='all'||filter==='native'&&v.builtin&&v.native_mn!==false||filter==='default'&&v.source==='default'||filter==='mine'&&!v.builtin)&&voiceDisplayName(v).toLowerCase().includes(query));
-  if($('voice-count'))$('voice-count').textContent=visible.length+' хоолой · Дээжийг сонсож, өөрийн бичвэрт тохирохыг сонгоно уу.';
+  const filter=$('voice-filter')?.value||'native';const age=$('voice-age-filter')?.value||'all';const query=($('voice-search')?.value||'').trim().toLowerCase();
+  const visible=state.voices.filter(v=>(filter==='all'||filter==='native'&&v.builtin&&v.native_mn!==false||filter==='default'&&v.source==='default'||filter==='mine'&&!v.builtin)&&(age==='all'||v.age===age)&&voiceDisplayName(v).toLowerCase().includes(query));
+  if($('voice-count'))$('voice-count').textContent=visible.length+' хоолой'+(age!=='all'?' · Зөвхөн насны шошготой':'')+' · '+(visible.length?'Дээжийг сонсож сонгоно уу.':'Таарах хоолой алга. Шүүлтүүрээ өөрчлөх эсвэл шинэ хоолой зохион бүтээнэ үү.');
   visible.forEach(voice=>{
     const card=document.createElement('article');card.className='voice-library-card';
     const top=document.createElement('div');top.className='voice-card-head';
@@ -1187,6 +1197,8 @@ function applyStudioPreset(){
 function buildToolWorkspaces(){
  $('studio-preset')?.addEventListener('change',applyStudioPreset);
  $('voice-search')?.addEventListener('input',()=>renderVoiceLibrary());$('voice-filter')?.addEventListener('change',()=>renderVoiceLibrary());
+ $('voice-age-filter')?.addEventListener('change',()=>renderVoiceLibrary());
+ $('tts-voice-age')?.addEventListener('change',()=>{renderVoiceSelectors();updateEstimate();});
  Object.entries(toolGuides).forEach(([name,steps])=>{
   const section=$(name);if(!section)return;
   const workspace=document.createElement('div');workspace.className='tool-workspace';
