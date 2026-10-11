@@ -14,7 +14,7 @@ import time
 from urllib.parse import urlencode, urlsplit
 from fastapi import Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from . import core, billing, voice_direction
+from . import core, billing, voice_direction, script_pacing
 from .engine import ElevenLabsEngine
 from . import movie_assembly
 
@@ -104,6 +104,9 @@ def listed(writable):
         tool("rainy_voice_recent_jobs","Миний сүүлийн дуунууд","Өөрийн сүүлийн 20 TTS ажлыг харуулна"),
         tool("rainy_voice_prepare_script","Монгол бичвэрийн шалгалт","Текст/SRT-г цэгцэлж, унших хурд, сэтгэл хөдлөлийн дэмжлэг шалгана. Кредит зарцуулахгүй.",
              {"text":{"type":"string","maxLength":12000},"glossary":v["glossary"]},["text"]),
+        tool("rainy_voice_pacing_plan","Монгол voice-over хугацааны төлөвлөгөө","Монгол өгүүлэмжийг хэсэгчлэн төлөвлөж, 5–600 сек зорилтот хугацаатай харьцуулна. Зөвхөн ойролцоо, кредит зарцуулахгүй.",
+             {"text":{"type":"string","maxLength":12000},"target_seconds":{"type":"number","minimum":5,"maximum":600},
+              "style":{"type":"string","enum":list(script_pacing.STYLES)}},["text"]),
         tool("rainy_voice_job_status","Дууны төлөв","Өөрийн TTS ажлын төлөв",{"job_id":{"type":"string"}},["job_id"]),
         tool("rainy_voice_video_handoff","Video + Voice төлөвлөгөө","Хоёр тусдаа MCP ашиглах үнэгүй заавар",{"project":{"type":"string"}},["project"]),
     ]
@@ -217,6 +220,8 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         with core.db() as c:
             rows=c.execute("SELECT * FROM jobs WHERE user_id=? ORDER BY created DESC LIMIT 20",(uid,)).fetchall()
         return {"jobs":[core.public_job(row) for row in rows]}
+    if name=="rainy_voice_pacing_plan":
+        return script_pacing.plan_pacing(args.get("text"), args.get("target_seconds"), args.get("style","narration"))
     if name=="rainy_voice_prepare_script":
         glossary=args.get("glossary") or {}
         if not isinstance(glossary,dict) or len(glossary)>100:
