@@ -5,6 +5,7 @@ import os
 import re
 import time
 from . import core
+from .voice_age import normalize_age
 
 
 def read():
@@ -40,6 +41,7 @@ def normalize_voice(voice,source):
             'source':source,'native_mn':native,'language':language,'cost_multiplier':rate,
             'use_case':str(voice.get('use_case') or labels.get('use_case') or '')[:80],
             'gender':str(voice.get('gender') or labels.get('gender') or '')[:30],
+            'age':normalize_age(voice.get('age') or labels.get('age')),
             'tone':str(voice.get('descriptive') or labels.get('descriptive') or '')[:80],
             'requires_paid':source=='shared'}
 

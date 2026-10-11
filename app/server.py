@@ -770,8 +770,12 @@ def voices(request:Request):
         result.append(item)
     if sess:
         with core.db() as db:
-            for row in db.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
-                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"],"cost_multiplier":1.0})
+            for row in db.execute("SELECT v.id,v.name,v.transcript,v.created,a.age FROM voices v LEFT JOIN voice_age_labels a ON a.voice_id=v.id AND a.user_id=v.user_id WHERE v.user_id=? ORDER BY v.created DESC",(sess["user_id"],)):
+                result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"],"cost_multiplier":1.0,"age":row["age"],"age_source":"design_requested" if row["age"] else None})
+    # Voice age describes only the tagged/perceived age, never the speaker's actual age.
+    from .voice_age import normalize_age
+    for item in result:
+        item['age'] = normalize_age(item.get('age'))
     return {"voices":result}
 
 @app.get("/api/studio/catalog")

@@ -276,8 +276,11 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
         user = guard(request, 'voice_remix' if remix else 'voice_design')
         data = await json_body(request)
         prompt = text_field(data.get('prompt'), 'Хоолойн тайлбар', 5 if remix else 20, 1000)
+        # Provider has Voice Design descriptive prompting, not a numeric age slider.
+        from .voice_age import apply_design_age
+        prompt = apply_design_age(prompt, data.get('voice_age'))
         text = text_field(data.get('text'), 'Жишээ текст', 100, 1000)
-        payload = {'prompt': prompt, 'text': text}
+        payload = {'prompt': prompt, 'text': text, 'voice_age': data.get('voice_age') or None}
         path = '/v1/text-to-voice/design'
         if remix:
             voice = text_field(data.get('voice_id'), 'Хоолойн ID', 1, 100)
@@ -375,6 +378,9 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
                 with core.db() as db:
                     # INSERT avoids overwriting another user's provider voice ID.
                     db.execute('INSERT INTO voices(id,user_id,name,transcript,created) VALUES(?,?,?,?,?)', (voice_id, user, name, payload['prompt'], time.time()))
+                    # Save the design-requested age, not an independently verified speaker age.
+                    if payload.get('voice_age'):
+                        db.execute('INSERT INTO voice_age_labels(voice_id,user_id,age) VALUES(?,?,?)', (voice_id, user, payload['voice_age']))
                 result.setdefault('saved_voices', {})[generated] = voice
                 result.pop('save_pending', None)
                 core.update_tool_job(job, result=result)
