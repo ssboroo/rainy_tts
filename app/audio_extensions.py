@@ -276,6 +276,9 @@ def register_routes(app, session, mutation_guard, throttle, provider, allowed_vo
         user = guard(request, 'voice_remix' if remix else 'voice_design')
         data = await json_body(request)
         prompt = text_field(data.get('prompt'), 'Хоолойн тайлбар', 5 if remix else 20, 1000)
+        # Provider has Voice Design descriptive prompting, not a numeric age slider.
+        from .voice_age import apply_design_age
+        prompt = apply_design_age(prompt, data.get('voice_age'))
         text = text_field(data.get('text'), 'Жишээ текст', 100, 1000)
         payload = {'prompt': prompt, 'text': text}
         path = '/v1/text-to-voice/design'
