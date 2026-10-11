@@ -1246,7 +1246,7 @@ async function watchTtsResult(id){
 }
 
 /* RAINY independent production features: no hidden paid provider submission. */
-let activeBookPlan=null, nextBookChapter=0;
+let activeBookPlan=null, nextBookChapter=0, activeBookOwner=null;
 $('director-apply').onclick=async()=>{
   if(!ensureUser())return;
   if(state.mode!=='text')return notice('Эхлээд Текст горимд шилжинэ үү.');
@@ -1266,7 +1266,7 @@ $('book-plan').onclick=async()=>{
     activeBookPlan=await api('/production/audiobook/plan',{method:'POST',body:{
       title:$('book-title').value,text:$('book-text').value,
       model_id:$('tts-model').value,voice_id:$('voice').value}});
-    nextBookChapter=0;
+    nextBookChapter=0;activeBookOwner=state.user.email;
     $('book-result').hidden=false;
     $('book-result').textContent=activeBookPlan.chapterCount+' бүлэг · ойролцоогоор '+activeBookPlan.totalEstimatedCredits.toLocaleString()+' кредит · '+activeBookPlan.note;
     $('book-create').disabled=false;
@@ -1276,6 +1276,7 @@ $('book-plan').onclick=async()=>{
 };
 $('book-create').onclick=async()=>{
   if(!ensureUser()||!activeBookPlan||$('book-create').disabled)return;
+  if(activeBookOwner!==state.user?.email){activeBookPlan=null;$('book-create').disabled=true;return notice('Бүртгэл солигдсон тул аудио номын шинэ тооцоо гаргана уу.');}
   const {chapters,modelId,voiceId}=activeBookPlan;
   const remaining=chapters.slice(nextBookChapter,nextBookChapter+3);
   if(!remaining.length){$('book-create').disabled=true;return;}
@@ -1304,7 +1305,7 @@ $('book-create').onclick=async()=>{
     if(nextBookChapter>=chapters.length){button.disabled=true;button.querySelector('span').textContent='Бүх бүлэг илгээгдсэн';}
     else button.querySelector('span').textContent='Үлдсэн бүлгээс дараагийн 3-ыг илгээх';
     loadHistory();loadBilling(true);
-  }catch(e){notice(customerMessage(e.message));}finally{if(nextBookChapter<chapters.length)setBusy(button,false);}
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);if(nextBookChapter>=chapters.length)button.disabled=true;}
 };
 $('patch-refresh').onclick=async()=>{
   if(!ensureUser())return;
