@@ -98,7 +98,8 @@ def listed(writable):
        "glossary":{"type":"object","additionalProperties":{"type":"string"}},
        "model_id":{"type":"string","enum":["eleven_v4","eleven_v4_turbo"]}}
     tools=[
-        tool("rainy_voice_voices","Монгол хоолой","Өөрийн болон үндсэн Монгол хоолойнууд"),
+        tool("rainy_voice_voices","Монгол хоолой","Өөрийн болон үндсэн Монгол хоолойг сонсогдох насны шошгоор шүүнэ. Насгүй хоолойг таамаглахгүй.",
+             {"age":{"type":"string","enum":["all","teen","young","middle_aged","old"]}}),
         tool("rainy_voice_wallet","Voice кредит","Зөвхөн Voice сайтад өөрийн кредит"),
         tool("rainy_voice_quote_tts","TTS үнэ","Монгол TTS, сэтгэл хөдлөл, хурд, SRT болон дуудлагын тольтой урьдчилсан кредит тооцоо",v,["voice_id"]),
         tool("rainy_voice_recent_jobs","Миний сүүлийн дуунууд","Өөрийн сүүлийн 20 TTS ажлыг харуулна"),
@@ -199,9 +200,16 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         w=billing.wallet(uid)
         return {"balance":w["wallet"]["balance"],"plan":w["subscription"] and w["subscription"]["plan_id"]}
     if name=="rainy_voice_voices":
+        from .voice_age import normalize_age
+        age=args.get("age","all")
+        if age not in {"all","teen","young","middle_aged","old"}:
+            raise ValueError("Хоолойн насны ангилал буруу байна.")
         with core.db() as c:
             own=[dict(row) for row in c.execute("SELECT id,name FROM voices WHERE user_id=?",(uid,))]
-        return {"voices":[{"id":x["id"],"name":x["name"]} for x in ElevenLabsEngine.configured_voices()]+own}
+        voices=[{"id":x["id"],"name":x["name"],"age":normalize_age(x.get("age"))}
+                for x in ElevenLabsEngine.configured_voices()] + [{"id":x["id"],"name":x["name"],"age":None} for x in own]
+        return {"voices":[x for x in voices if age=="all" or x["age"]==age],
+                "ageFilter":age,"note":"Нас нь хоолойн сонсогдох өнгөний ангилал; бэлэн хоолойн насыг өөрчлөхгүй."}
     if name=="rainy_voice_job_status":
         job=str(args.get("job_id",""))
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}",job): raise ValueError("job_id буруу байна")
