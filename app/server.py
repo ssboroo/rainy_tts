@@ -772,6 +772,10 @@ def voices(request:Request):
         with core.db() as db:
             for row in db.execute("SELECT id,name,transcript,created FROM voices WHERE user_id=? ORDER BY created DESC",(sess["user_id"],)):
                 result.append({"id":row["id"],"name":row["name"],"description":row["transcript"],"created":row["created"],"builtin":False,"synced":True,"provider_id":row["id"],"cost_multiplier":1.0})
+    # Voice age describes only the tagged/perceived age, never the speaker's actual age.
+    from .voice_age import normalize_age
+    for item in result:
+        item['age'] = normalize_age(item.get('age'))
     return {"voices":result}
 
 @app.get("/api/studio/catalog")
