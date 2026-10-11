@@ -473,6 +473,8 @@ $('stt-form').onsubmit=async event=>{
     ].filter(Boolean).join(' · ');
     $('stt-result').textContent=(meta?meta+'\n\n':'')+(result.text||'Бичвэр хоосон байна.')+
       (result.edit_error?'\n\nЗөв бичгийн засварын анхааруулга: '+result.edit_error:'');
+    $('stt-original').hidden=!result.raw_text;
+    if(result.raw_text)$('stt-original').textContent='ЭХ ТРАНСКРИПТ (өөрчлөгдөөгүй):\n\n'+result.raw_text;
     notice(result.polished?'Монгол бичвэр засвартайгаар бэлэн боллоо.':'Бичвэр бэлэн боллоо.');
     loadHistory();loadBilling(true);
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
@@ -1242,6 +1244,99 @@ async function watchTtsResult(id){
   catch(e){return;}
  }
 }
+
+/* RAINY independent production features: no hidden paid provider submission. */
+let activeBookPlan=null, nextBookChapter=0;
+$('director-apply').onclick=async()=>{
+  if(!ensureUser())return;
+  if(state.mode!=='text')return notice('Эхлээд Текст горимд шилжинэ үү.');
+  const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
+  try{
+    const data=await api('/production/director',{method:'POST',body:{text:$('text').value,style:$('director-style').value}});
+    $('text').value=data.directedText;
+    $('tts-model').value='eleven_v4';$('tts-emotion').value='neutral';
+    $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найруулагдлаа. Дуу үүсгэхээс өмнө текстээ шалгаад кредит тооцоолно уу.';
+    updateCounter();updateEstimate();
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+$('book-plan').onclick=async()=>{
+  if(!ensureUser())return;
+  const button=$('book-plan');setBusy(button,true,'Бүлэгчилж байна…');
+  try{
+    activeBookPlan=await api('/production/audiobook/plan',{method:'POST',body:{
+      title:$('book-title').value,text:$('book-text').value,
+      model_id:$('tts-model').value,voice_id:$('voice').value}});
+    nextBookChapter=0;
+    $('book-result').hidden=false;
+    $('book-result').textContent=activeBookPlan.chapterCount+' бүлэг · ойролцоогоор '+activeBookPlan.totalEstimatedCredits.toLocaleString()+' кредит · '+activeBookPlan.note;
+    $('book-create').disabled=false;
+    $('book-create').querySelector('span').textContent='Бүлгүүдийг зөвшөөрч үүсгэх';
+  }catch(e){activeBookPlan=null;$('book-create').disabled=true;notice(customerMessage(e.message));}
+  finally{setBusy(button,false);}
+};
+$('book-create').onclick=async()=>{
+  if(!ensureUser()||!activeBookPlan||$('book-create').disabled)return;
+  const {chapters,modelId,voiceId}=activeBookPlan;
+  const remaining=chapters.slice(nextBookChapter,nextBookChapter+3);
+  if(!remaining.length){$('book-create').disabled=true;return;}
+  const button=$('book-create');setBusy(button,true,'Кредитийг баталгаажуулж байна…');
+  try{
+    // Existing TTS endpoint independently re-quotes every chapter server-side.
+    const quotations=[];
+    for(const chapter of remaining){
+      const q=await api('/jobs/quote',{method:'POST',body:{text:chapter.text,voice_id:voiceId,model_id:modelId,emotion:'neutral',speed:1}});
+      if(!Number.isInteger(q.credits)||q.credits<1)throw new Error('Кредитийн баталгаат үнэ олдсонгүй.');
+      quotations.push({...chapter,actualCredits:q.credits});
+    }
+    const quotedTotal=quotations.reduce((sum,ch)=>sum+ch.actualCredits,0);
+    if(!confirm(quotations.length+' бүлгийг '+quotedTotal+' кредитээр тус тусад нь үүсгэх үү? Нэг удаад хамгийн ихдээ 3 ажил дараалалд орно.'))return;
+    let accepted=0;
+    for(const ch of quotations){
+      try{
+        await api('/jobs',{method:'POST',body:{title:ch.title,text:ch.text,voice_id:voiceId,model_id:modelId,emotion:'neutral',speed:1,maxCredits:ch.actualCredits}});
+        accepted++;nextBookChapter++;
+      }catch(e){
+        $('book-result').textContent=accepted+' бүлэг хүлээн авлаа. '+customerMessage(e.message)+' Бусад бүлгүүд илгээгдээгүй.';
+        throw e;
+      }
+    }
+    $('book-result').textContent=nextBookChapter+' / '+chapters.length+' бүлэг дараалалд илгээгдлээ. Төлөв ба дуунуудыг «Бүтээлийн түүх»-д шалгана уу.';
+    if(nextBookChapter>=chapters.length){button.disabled=true;button.querySelector('span').textContent='Бүх бүлэг илгээгдсэн';}
+    else button.querySelector('span').textContent='Үлдсэн бүлгээс дараагийн 3-ыг илгээх';
+    loadHistory();loadBilling(true);
+  }catch(e){notice(customerMessage(e.message));}finally{if(nextBookChapter<chapters.length)setBusy(button,false);}
+};
+$('patch-refresh').onclick=async()=>{
+  if(!ensureUser())return;
+  const button=$('patch-refresh');setBusy(button,true,'Бэлэн аудио хайж байна…');
+  try{
+    const data=await api('/jobs');
+    const ready=(data.jobs||[]).filter(j=>j.status==='done');
+    for(const id of ['patch-original','patch-correction']){
+      const select=$(id),selected=select.value;select.replaceChildren();
+      for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
+      if(ready.some(x=>x.id===selected))select.value=selected;
+    }
+    $('patch-feedback').textContent=ready.length+' бэлэн аудио байна. Засварлах хугацааг эх бичлэгээ сонсож тодорхойлоорой.';
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+$('patch-apply').onclick=async()=>{
+  if(!ensureUser())return;
+  const source=$('patch-original').value,repair=$('patch-correction').value;
+  if(!source||!repair||source===repair)return notice('Өөр өөр хоёр бэлэн аудио сонгоно уу.');
+  const start=Number($('patch-start').value),end=Number($('patch-end').value);
+  if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)return notice('Секундын хүрээ буруу байна.');
+  if(!confirm('Эх аудионы '+start+'–'+end+' сек хэсгийг засварын өгүүлбэрээр солих уу? Хугацаа өөрчлөгдөж болно.'))return;
+  const button=$('patch-apply');setBusy(button,true,'Өгүүлбэрийг сольж байна…');
+  try{
+    const data=await api('/production/audio-patch',{method:'POST',body:{original_job_id:source,correction_job_id:repair,start_seconds:start,end_seconds:end}});
+    $('patch-feedback').replaceChildren();
+    const a=document.createElement('a');a.href='/api/artifacts/'+encodeURIComponent(data.artifact_id);a.textContent='Зассан MP3 аудиог татах';a.target='_blank';a.rel='noopener';
+    $('patch-feedback').append('Засвар амжилттай · ',a);
+    loadHistory();
+  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+};
+
 buildToolWorkspaces();
 
 init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
