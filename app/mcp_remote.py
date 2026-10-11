@@ -205,9 +205,9 @@ async def tool_call(name,args,who,allowed_voice_ids,voice_multiplier):
         if age not in {"all","teen","young","middle_aged","old"}:
             raise ValueError("Хоолойн насны ангилал буруу байна.")
         with core.db() as c:
-            own=[dict(row) for row in c.execute("SELECT id,name FROM voices WHERE user_id=?",(uid,))]
+            own=[dict(row) for row in c.execute("SELECT v.id,v.name,a.age FROM voices v LEFT JOIN voice_age_labels a ON a.voice_id=v.id AND a.user_id=v.user_id WHERE v.user_id=?",(uid,))]
         voices=[{"id":x["id"],"name":x["name"],"age":normalize_age(x.get("age"))}
-                for x in ElevenLabsEngine.configured_voices()] + [{"id":x["id"],"name":x["name"],"age":None} for x in own]
+                for x in ElevenLabsEngine.configured_voices()] + [{"id":x["id"],"name":x["name"],"age":normalize_age(x.get("age"))} for x in own]
         return {"voices":[x for x in voices if age=="all" or x["age"]==age],
                 "ageFilter":age,"note":"Нас нь хоолойн сонсогдох өнгөний ангилал; бэлэн хоолойн насыг өөрчлөхгүй."}
     if name=="rainy_voice_job_status":
