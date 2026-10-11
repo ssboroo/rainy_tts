@@ -23,7 +23,7 @@ import uvicorn
 load_dotenv(dotenv_path='.env.local', override=False)
 load_dotenv(dotenv_path='.env', override=False)
 
-from . import core, billing, wire_payment, durable_jobs, operations, accounts, audio_extensions, realtime_proxy
+from . import core, billing, wire_payment, durable_jobs, operations, accounts, audio_extensions, realtime_proxy, verify_email
 from .engine import ElevenLabsEngine
 from .eleven_tools import ElevenAPIError, ElevenTools
 from .media_formats import dubbing_output
@@ -494,6 +494,9 @@ async def auth(request:Request):
     if not re.fullmatch(r"[^\s@]{1,64}@[^\s@]{1,180}\.[^\s@]{2,30}",email) or not 12<=len(password)<=128:
         raise HTTPException(422,"Зөв имэйл, 12–128 тэмдэгттэй нууц үг оруулна уу.")
     is_register=request.url.path.endswith("/register")
+    needs_email=is_register and verify_email.enabled()
+    if needs_email and not verify_email.configured():
+        raise HTTPException(503,"Баталгаажуулах имэйл үйлчилгээ түр боломжгүй.")
     with core.db() as c:
         if is_register:
             if accounts._admin(email):
@@ -507,9 +510,21 @@ async def auth(request:Request):
         user=c.execute("SELECT * FROM users WHERE email=?",(email,)).fetchone()
         if not user or not core.verify_password(password,user["password"]):
             raise HTTPException(401,"Имэйл эсвэл нууц үг буруу байна.")
-        raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
-        c.execute("DELETE FROM sessions WHERE expires<?",(time.time(),))
-        c.execute("INSERT INTO sessions VALUES(?,?,?,?)",(hashlib.sha256(raw.encode()).hexdigest(),user["id"],csrf,time.time()+86400*7))
+        if needs_email:
+            verify_token=verify_email.new_token(c,user["id"])
+        else:
+            if not is_register and verify_email.enabled() and verify_email.is_unverified(c,user["id"]):
+                raise HTTPException(403,"Имэйлээ баталгаажуулна уу. Захидлыг дахин авах боломжтой.")
+            raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(32)
+            c.execute("DELETE FROM sessions WHERE expires<?",(time.time(),))
+            c.execute("INSERT INTO sessions VALUES(?,?,?,?)",(hashlib.sha256(raw.encode()).hexdigest(),user["id"],csrf,time.time()+86400*7))
+    if needs_email:
+        try:
+            await asyncio.to_thread(verify_email.send_verification,email,verify_token)
+            return JSONResponse({"verificationRequired":True,"message":"Имэйл хаяг руу баталгаажуулах холбоос илгээлээ."},status_code=202)
+        except Exception:
+            logging.warning("Registration verification email delivery failed")
+            return JSONResponse({"verificationRequired":True,"deliveryFailed":True,"message":"Бүртгэл үүслээ. Баталгаажуулах имэйл дахин илгээх хүсэлт гаргана уу."},status_code=202)
     response=JSONResponse({"user":{"email":email,"csrf":csrf,"admin":accounts._admin(email),"admin_test":billing.admin_test_mode(user["id"])}})
     response.set_cookie("session",raw,max_age=604800,httponly=True,samesite="strict",secure=SECURE,path="/")
     return response
@@ -1851,6 +1866,7 @@ from . import mcp_remote
 mcp_remote.register_routes(app, session, allowed_voice_ids, voice_cost_multiplier)
 
 accounts.register_routes(app,session,mutation_guard,throttle)
+verify_email.register_routes(app,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
 from . import production_suite
 production_suite.register_routes(app,session,mutation_guard,throttle,allowed_voice_ids,voice_cost_multiplier)
