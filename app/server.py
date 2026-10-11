@@ -1352,6 +1352,7 @@ async def speech_to_text(
     diarize:bool=Form(False),
     num_speakers:int=Form(1),
     no_verbatim:bool=Form(True),
+    edit_instruction:str=Form(""),
 ):
     sess=session(request); mutation_guard(request,sess); throttle("stt:"+sess["user_id"],20)
     validate_upload(file,MEDIA_EXTS,MAX_AUDIO_MB)
@@ -1361,6 +1362,8 @@ async def speech_to_text(
     if not 1<=int(num_speakers)<=32:
         raise HTTPException(422,"Яригчдын тоо 1–32 байна.")
     terms=parse_stt_keyterms(keyterms)
+    if len(edit_instruction)>900 or (edit_instruction.strip() and not polish):
+        raise HTTPException(422,"Засварын заавар 900 тэмдэгтээс хэтрэхгүй бөгөөд бичвэр засалтыг идэвхжүүлсэн байх ёстой.")
     duration=await upload_duration_seconds(file)
     effective_seconds=max(duration,10.0) if polish else duration
     base_credits=billing.estimate("speech_to_text",seconds=effective_seconds)
@@ -1375,11 +1378,13 @@ async def speech_to_text(
         "diarize":diarize,
         "num_speakers":num_speakers if diarize else 1,
         "no_verbatim":no_verbatim,
+        "custom_edit":bool(edit_instruction.strip()),
         "stt_surcharge":surcharge,
     }
     if env_flag('DURABLE_TOOLS_ENABLED',True):
         return await enqueue_tool(sess,'speech_to_text',file.filename or 'Бичвэр',
-            {'method':'speech_to_text','args':[language_code or None,terms,polish,diarize,num_speakers,no_verbatim],
+            {'method':'speech_to_text','args':[language_code or None,terms,polish,diarize,num_speakers,no_verbatim] +
+              ([edit_instruction.strip()] if edit_instruction.strip() else []),
              'keyterms_count':len(terms)},'transcript.txt','text/plain',credits,file)
     job_id=core.create_tool_job(sess["user_id"],"speech_to_text",file.filename or "Transcript",payload)
     charge_id=charge(
@@ -1388,7 +1393,8 @@ async def speech_to_text(
     )
     try:
         result=await tools.speech_to_text(
-            file,language_code or None,terms,polish,diarize,num_speakers,no_verbatim
+            file,language_code or None,terms,polish,diarize,num_speakers,no_verbatim,
+            *([edit_instruction.strip()] if edit_instruction.strip() else [])
         )
         summary=save_transcript_result(sess["user_id"],job_id,result,credits,len(terms))
         core.update_tool_job(job_id,"done",result=summary)
