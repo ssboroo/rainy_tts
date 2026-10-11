@@ -1100,6 +1100,10 @@ async def prepare_tts_job(request:Request,quote_only=False):
     multiplier=await voice_cost_multiplier(voice_id,sess["user_id"])
     base_credits=billing.estimate("tts",chars=count,model_id=tts_model)
     credits=max(1,math.ceil(base_credits*multiplier))
+    if not quote_only and data.get("maxCredits") is not None:
+        limit=data.get("maxCredits")
+        if type(limit) is not int or limit<credits or limit>1000000:
+            raise HTTPException(422,"Зөвшөөрсөн кредитийн хязгаар хүрэлцэхгүй эсвэл буруу байна.")
     if quote_only:
         return {"credits":credits,"characters":count,"segments":len(voice_direction.segments(payload)),
                 "model_id":tts_model,"voice_multiplier":multiplier,"emotion":payload["emotion"]}
