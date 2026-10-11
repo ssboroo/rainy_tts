@@ -12,7 +12,7 @@ from html import escape
 from urllib.parse import quote
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
-from . import core, accounts
+from . import core, accounts, email_delivery
 
 TTL = 86400
 GENERIC = {"ok": True, "message": "Бүртгэл баталгаажуулах шаардлагатай имэйл бол захидал илгээгдэнэ."}
@@ -21,7 +21,7 @@ def enabled():
     return os.getenv("EMAIL_VERIFICATION_REQUIRED", "false").strip().lower() in ("true", "1", "yes")
 
 def configured():
-    return accounts.email_configured() and os.getenv("SMTP_PASSWORD", "") != ""
+    return accounts.email_configured()
 
 def ensure_schema():
     with core.db() as c:
@@ -72,6 +72,9 @@ def send_verification(email, raw):
         '<p style="font-size:13px;color:#c0d0c5">Холбоос 24 цаг хүчинтэй. Энэ хүсэлтийг гаргаагүй бол үл тооно уу.</p></td></tr>'
         '</table></body></html>', subtype="html"
     )
+    if email_delivery.api_configured():
+        email_delivery.send_message(message)
+        return
     tls = os.getenv("SMTP_TLS", "true").lower()
     transport = smtplib.SMTP_SSL if tls == "ssl" else smtplib.SMTP
     with transport(os.environ["SMTP_HOST"], int(os.getenv("SMTP_PORT", "465" if tls == "ssl" else "587")), timeout=15) as smtp:
