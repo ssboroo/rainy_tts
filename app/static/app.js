@@ -1462,6 +1462,29 @@ $('voice-agent-start').onclick=async()=>{
 
 buildToolWorkspaces();
 
-init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
+// Private RAINY Video -> Voice handoff. The storyboard remains in the URL
+// fragment (never sent to the server in HTTP requests) until imported locally.
+function acceptVideoHandoff(){
+  const fragment=location.hash||'';
+  if(!fragment.startsWith('#rainy='))return;
+  try{
+    const encoded=fragment.slice(7);
+    if(!/^[A-Za-z0-9_-]{1,12000}$/.test(encoded))throw Error('invalid token');
+    const binary=atob(encoded.replaceAll('-','+').replaceAll('_','/'));
+    const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(binary,c=>c.charCodeAt(0))));
+    if(data?.v!==1||data?.source!=='rainy-video'||typeof data.text!=='string'||data.text.length>3000||typeof data.title!=='string')throw Error('invalid handoff');
+    const textarea=$('text');
+    if(!textarea)throw Error('missing editor');
+    textarea.value=data.text;
+    if($('tts-title'))$('tts-title').value=data.title.slice(0,100);
+    page('tts');updateCounter();updateEstimate();
+    notice('RAINY Video-ийн Монгол voice-over бичвэрийг орууллаа. Хоолой, загвар, кредитийг шалгаад зөвшөөрсний дараа дуу үүсгэнэ үү.');
+  }catch{
+    notice('RAINY Video-оос дамжуулсан бичвэрийг уншиж чадсангүй. Эх бичвэрээ хуулж оруулна уу.');
+  }finally{
+    history.replaceState({},'',location.pathname+location.search);
+  }
+}
+init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');acceptVideoHandoff();loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',video_voiceover:'Видеонд дуу оруулах',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
