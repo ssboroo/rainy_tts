@@ -21,6 +21,15 @@ from . import core, billing, email_delivery
 RESET_TTL=1800
 GENERIC_RESET={'ok':True,'message':'Бүртгэлтэй имэйл бол нууц үг сэргээх холбоос илгээнэ.'}
 
+def _revoke_delegated_access(c, uid):
+    # Optional MCP tables may not exist yet; use the caller's credential transaction.
+    tables={row['name'] for row in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vmcp_tokens','vmcp_code','vmcp_consent')")}
+    if 'vmcp_tokens' in tables:
+        c.execute('UPDATE vmcp_tokens SET revoked=1 WHERE uid=?', (uid,))
+    for table in ('vmcp_code','vmcp_consent'):
+        if table in tables:
+            c.execute(f'DELETE FROM {table} WHERE uid=?', (uid,))
+
 def ensure_schema():
     with core.db() as c:
         c.executescript('''
@@ -48,6 +57,7 @@ def bootstrap_admin():
             c.execute('UPDATE users SET password=? WHERE id=?',(password_hash,uid))
             c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
             c.execute('DELETE FROM account_reset_tokens WHERE user_id=?',(uid,))
+            _revoke_delegated_access(c,uid)
         else:
             c.execute('INSERT INTO users VALUES(?,?,?,?)',(core.uid(),email,password_hash,time.time()))
         c.execute('INSERT OR REPLACE INTO admin_bootstrap_applied VALUES(?,?,?)',(email,fingerprint,time.time()))
@@ -124,6 +134,7 @@ def register_routes(app,session,mutation_guard,throttle):
             c.execute('BEGIN IMMEDIATE');_verified(c,sess['user_id'],data.get('current_password'))
             c.execute('UPDATE users SET password=? WHERE id=?',(core.hash_password(password),sess['user_id']))
             c.execute('DELETE FROM sessions WHERE user_id=?',(sess['user_id'],));c.execute('DELETE FROM account_reset_tokens WHERE user_id=?',(sess['user_id'],))
+            _revoke_delegated_access(c,sess['user_id'])
         return _signed_out()
 
     @app.post('/api/account/reset/request')
@@ -153,6 +164,7 @@ def register_routes(app,session,mutation_guard,throttle):
             if not row:raise HTTPException(400,'Сэргээх холбоос хүчингүй эсвэл хугацаа дууссан.')
             c.execute('UPDATE users SET password=? WHERE id=?',(core.hash_password(password),row['user_id']))
             c.execute('DELETE FROM account_reset_tokens WHERE user_id=?',(row['user_id'],));c.execute('DELETE FROM sessions WHERE user_id=?',(row['user_id'],))
+            _revoke_delegated_access(c,row['user_id'])
         return _signed_out()
 
     @app.post('/api/account/delete')
@@ -189,6 +201,7 @@ def register_routes(app,session,mutation_guard,throttle):
             for table in ('sessions','account_reset_tokens','artifacts','tool_jobs','jobs','voices','pvc_voices','reception_events','reception_integrations','support_requests'):
                 c.execute(f'DELETE FROM {table} WHERE user_id=?',(uid,))
             c.execute("UPDATE users SET email=?,password=? WHERE id=?",(core.uid()+'@deleted.invalid',core.hash_password(secrets.token_urlsafe(48)),uid))
+            _revoke_delegated_access(c,uid)
             c.execute("UPDATE subscriptions SET status='cancelled',auto_renew=0 WHERE user_id=?",(uid,))
             c.execute("UPDATE provider_usage SET metadata='{}' WHERE user_id=?",(uid,))
             c.execute("UPDATE credit_ledger SET metadata='{}' WHERE user_id=?",(uid,))

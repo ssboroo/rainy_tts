@@ -10,7 +10,7 @@ from .voice_age import normalize_age
 
 def read():
     try:
-        value=json.loads((core.DATA/'provider-catalog.json').read_text())
+        value=json.loads((core.DATA/'provider-catalog.json').read_text(encoding='utf-8'))
         return value if isinstance(value,dict) else {}
     except (OSError,ValueError):return {}
 
@@ -19,7 +19,7 @@ def write(value):
     core.DATA.mkdir(parents=True,exist_ok=True)
     temporary=core.DATA/(core.uid()+'.catalog.tmp')
     try:
-        temporary.write_text(json.dumps(value,ensure_ascii=False))
+        temporary.write_text(json.dumps(value,ensure_ascii=False),encoding='utf-8')
         temporary.replace(core.DATA/'provider-catalog.json')
     finally:temporary.unlink(missing_ok=True)
 

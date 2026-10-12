@@ -1,5 +1,6 @@
 """Offline maintenance and configuration readiness; never proves live provider access."""
 import argparse
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,7 @@ def inspect_readiness():
         checks['storage']=True
     except OSError: checks['storage']=False
     try:
-        with sqlite3.connect(f'file:{core.DATA / "studio.db"}?mode=ro',uri=True) as db:
+        with closing(sqlite3.connect(f'file:{core.DATA / "studio.db"}?mode=ro',uri=True)) as db:
             checks['database']=db.execute('PRAGMA quick_check').fetchone()[0]=='ok'
             tables={row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             checks['database']=checks['database'] and {'users','jobs','credit_ledger'}.issubset(tables)
@@ -66,7 +67,7 @@ def inspect_readiness():
 
 def verify_backup(source):
     source=Path(source).resolve()
-    with sqlite3.connect(f'file:{source}?mode=ro',uri=True) as db:
+    with closing(sqlite3.connect(f'file:{source}?mode=ro',uri=True)) as db:
         integrity=db.execute('PRAGMA integrity_check').fetchone()[0]
         foreign_keys=db.execute('PRAGMA foreign_key_check').fetchall()
         tables=[row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
@@ -82,8 +83,9 @@ def backup_database(destination: Path) -> Path:
     # Exclusive creation prevents overwriting any existing backup.
     with destination.open('xb'): pass
     try:
-        with sqlite3.connect(f'file:{source}?mode=ro',uri=True) as live, sqlite3.connect(destination) as backup:
-            live.backup(backup)
+        with closing(sqlite3.connect(f'file:{source}?mode=ro',uri=True)) as live, closing(sqlite3.connect(destination)) as backup:
+            with backup:
+                live.backup(backup)
         result=verify_backup(destination)
         if not result['ok']: raise RuntimeError('Backup verification failed.')
     except Exception:

@@ -1,4 +1,5 @@
 import os
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -28,7 +29,7 @@ class OperationsTests(unittest.TestCase):
         target=Path(self.tmp.name)/'backup.db'
         self.assertEqual(operations.backup_database(target),target.resolve())
         self.assertTrue(operations.verify_backup(target)['ok'])
-        with sqlite3.connect(target) as db:
+        with closing(sqlite3.connect(target)) as db:
             self.assertEqual(db.execute('SELECT email FROM users').fetchone()[0],'test@example.com')
         with self.assertRaises(FileExistsError): operations.backup_database(target)
         with self.assertRaises(ValueError): operations.backup_database(core.DATA/'studio.db')
@@ -37,6 +38,47 @@ class OperationsTests(unittest.TestCase):
         empty=Path(self.tmp.name)/"empty.db"
         sqlite3.connect(empty).close()
         self.assertFalse(operations.verify_backup(empty)["ok"])
+
+    def test_maintenance_releases_database_connections(self):
+        from app import operations
+        connect=sqlite3.connect
+        connections=[]
+        def track_connection(*args,**kwargs):
+            connection=connect(*args,**kwargs)
+            connections.append(connection)
+            return connection
+        target=Path(self.tmp.name)/'backup.db'
+        try:
+            with patch.object(operations.sqlite3,'connect',side_effect=track_connection):
+                operations.inspect_readiness()
+                operations.backup_database(target)
+                operations.verify_backup(target)
+            for connection in connections:
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    connection.in_transaction
+        finally:
+            for connection in connections: connection.close()
+
+    def test_invalid_backup_releases_connection_before_removal(self):
+        from app import operations
+        connect=sqlite3.connect
+        connections=[]
+        def track_connection(*args,**kwargs):
+            connection=connect(*args,**kwargs)
+            connections.append(connection)
+            return connection
+        invalid=Path(self.tmp.name)/'invalid.db'
+        invalid.write_bytes(b'interrupted backup')
+        try:
+            with patch.object(operations.sqlite3,'connect',side_effect=track_connection):
+                with self.assertRaises(sqlite3.DatabaseError):
+                    operations.verify_backup(invalid)
+            for connection in connections:
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    connection.in_transaction
+            invalid.unlink()
+        finally:
+            for connection in connections: connection.close()
 
     def test_cleanup_requires_policy_and_preserves_references(self):
         from app import operations

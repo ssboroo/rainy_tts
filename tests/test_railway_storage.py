@@ -1,4 +1,6 @@
 from pathlib import Path
+import importlib.util
+import os
 import tempfile
 import types
 import unittest
@@ -6,6 +8,11 @@ from unittest.mock import patch
 from app import railway
 
 
+@unittest.skipUnless(
+    importlib.util.find_spec('pwd') is not None and
+    all(hasattr(os,name) for name in ('geteuid','chown','setgroups','setgid','setuid')),
+    'Storage privilege bootstrap requires POSIX user and ownership APIs',
+)
 class StorageBootstrapTests(unittest.TestCase):
     def test_root_volume_is_repaired_before_privileges_are_dropped(self):
         calls=[]

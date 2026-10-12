@@ -416,11 +416,15 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
         if not check_resource(form.get("resource")): return error("invalid_target")
         now=time.time()
         grant=form.get("grant_type")
-        if grant=="authorization_code":
-            code=str(form.get("code",""));verifier=str(form.get("code_verifier",""))
-            if not 20<len(code)<200 or not PKCE_RE.fullmatch(verifier): return error("invalid_grant")
-            with core.db() as c:
-                c.execute("BEGIN IMMEDIATE")
+        if grant not in {"authorization_code","refresh_token"}: return error("unsupported_grant_type")
+        access,refresh=secrets.token_urlsafe(40),secrets.token_urlsafe(40)
+        # Consume and issue under one write lock so credential revocation cannot
+        # run between them, and failed issuance preserves the original grant.
+        with core.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if grant=="authorization_code":
+                code=str(form.get("code",""));verifier=str(form.get("code_verifier",""))
+                if not 20<len(code)<200 or not PKCE_RE.fullmatch(verifier): return error("invalid_grant")
                 row=c.execute("SELECT * FROM vmcp_code WHERE hash=?",(digest(code),)).fetchone()
                 if not row or row["expiry"]<now or row["client"]!=cid or row["redirect"]!=form.get("redirect_uri"):
                     return error("invalid_grant")
@@ -428,17 +432,12 @@ def register_routes(app,session,allowed_voice_ids,voice_multiplier):
                 if not secrets.compare_digest(proof,row["challenge"]): return error("invalid_grant")
                 c.execute("DELETE FROM vmcp_code WHERE hash=?",(digest(code),))
                 uid,scope=row["uid"],row["scope"]
-        elif grant=="refresh_token":
-            ref=str(form.get("refresh_token",""))
-            with core.db() as c:
-                c.execute("BEGIN IMMEDIATE")
+            else:
+                ref=str(form.get("refresh_token",""))
                 row=c.execute("SELECT * FROM vmcp_tokens WHERE refresh=? AND revoked=0",(digest(ref),)).fetchone()
                 if not row or row["refresh_expiry"]<now or row["client"]!=cid: return error("invalid_grant")
                 c.execute("UPDATE vmcp_tokens SET revoked=1 WHERE refresh=?",(digest(ref),))
                 uid,scope=row["uid"],row["scope"]
-        else: return error("unsupported_grant_type")
-        access,refresh=secrets.token_urlsafe(40),secrets.token_urlsafe(40)
-        with core.db() as c:
             c.execute("INSERT INTO vmcp_tokens VALUES(?,?,?,?,?,?,?,0)",(digest(access),digest(refresh),cid,uid,scope,now+3600,now+30*86400))
         return no_cache({"access_token":access,"token_type":"Bearer","expires_in":3600,"refresh_token":refresh,"scope":scope})
     @app.post("/mcp")
