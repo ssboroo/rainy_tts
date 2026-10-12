@@ -16,7 +16,7 @@ class VoiceNavigationTests(unittest.TestCase):
         menu=html[beginning:end]
         self.assertIn('href="/movie"',menu)
         self.assertIn('href="/integrations"',menu)
-        self.assertIn("AI КИНО &amp; MCP",menu)
+        self.assertIn("КИНО БА ХОЛБОЛТ",menu)
         self.assertIn('id="voice-tools-nav"',menu)
         self.assertIn('id="audio-tools-nav"',menu)
         self.assertIn('<summary>',menu)
@@ -86,3 +86,4 @@ class VoiceNavigationTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+

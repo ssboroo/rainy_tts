@@ -89,3 +89,14 @@ button,input,textarea,select,summary{font-family:inherit}h1,h2,h3,p,label,small,
 
 /* Account-gated controls remain hidden even inside grid navigations. */
 .studio-tool-nav [hidden]{display:none!important}
+
+/* Let each navigation row contain its full title and description. */
+.full-sidebar .studio-tool-nav{grid-auto-rows:max-content;align-content:start}
+.full-sidebar .nav-destination{height:auto;min-height:72px;align-self:start;align-items:center;gap:9px;grid-template-columns:26px minmax(0,1fr) 14px}
+.full-sidebar .nav-destination>span:nth-child(2){font-size:.78rem;line-height:1.5;overflow-wrap:break-word}
+.full-sidebar .nav-destination>span:nth-child(2) small{font-size:.68rem;line-height:1.5;margin-top:4px}
+.full-sidebar .nav-disclosure{min-height:max-content;align-self:start}
+.full-sidebar .nav-disclosure summary{flex-wrap:wrap;gap:6px;line-height:1.5}
+.full-sidebar .nav-disclosure summary small{white-space:normal}
+.full-sidebar .nav{height:auto;min-height:44px}
+
