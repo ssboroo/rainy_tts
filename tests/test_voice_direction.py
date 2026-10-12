@@ -1,5 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -76,7 +77,7 @@ class WorkflowTests(unittest.TestCase):
         import sqlite3
         path=operations.daily_database_backup()
         self.assertEqual(operations.daily_database_backup(),path)
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db:
             self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0],'ok')
             self.assertEqual(db.execute('SELECT balance FROM credit_wallets WHERE user_id=?',(self.user,)).fetchone()[0],1000)
 

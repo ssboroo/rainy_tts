@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -10,6 +11,18 @@ class CatalogTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.old=core.DATA;core.DATA=Path(self.tmp.name)
     def tearDown(self):core.DATA=self.old;self.tmp.cleanup()
+    def test_mongolian_catalog_roundtrips_with_non_utf8_default_encoding(self):
+        from app import provider_catalog as catalog
+        original_open=Path.open
+        def non_utf8_open(path,mode='r',buffering=-1,encoding=None,errors=None,newline=None):
+            if 'b' not in mode and encoding in (None,'locale'): encoding='cp1252'
+            return original_open(path,mode,buffering,encoding,errors,newline)
+        value={'voices':[{'id':'native','name':'Монгол хоолой'}]}
+        with patch.object(Path,'open',new=non_utf8_open):
+            catalog.write(value)
+            self.assertEqual(catalog.read(),value)
+        self.assertEqual(json.loads((core.DATA/'provider-catalog.json').read_bytes().decode('utf-8')),value)
+
     def test_only_public_mongolian_and_default_voices_are_published(self):
         from app import provider_catalog as catalog
         fake=AsyncMock()

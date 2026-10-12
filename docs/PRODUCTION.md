@@ -50,6 +50,18 @@ Customer-facing payment text uses QPay as requested. The existing backend remain
 Admin testing: `ADMIN_TEST_MODE=true` lets authenticated `ADMIN_EMAILS` accounts exercise creative tools without RAINY credit reservations or local subscription/clone-slot requirements. It grants no customer credit and does not simulate payment success. Provider costs, provider plan limits, ownership verification and request/concurrency limits remain in force. Keep this disabled if operators should use normal billing.
 # Admin account recovery
 
+Password change, password reset, bootstrap credential replacement and account
+deletion invalidate previous MCP access/refresh tokens and pending OAuth
+codes/consents within the same SQLite transaction as the account change. OAuth
+issuance and refresh rotation also use one transaction, so a credential reset
+cannot interleave between consuming a grant and creating replacement tokens.
+After recovery, reconnect authorized integrations with a new consent flow.
+
+Catalog snapshots explicitly use UTF-8 so Mongolian names survive Windows and
+Linux storage. Maintenance connections close explicitly after readiness,
+verification and backup operations. CI runs the full suite and POSIX storage
+bootstrap on Ubuntu with FFmpeg, then validates the production Docker image.
+
 When reset email is unavailable, an operator can provision or recover an allowlisted admin using `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD_HASH` (the output of `core.hash_password`). Store the hash only in deployment secrets, never in source. Startup atomically creates the account or resets its password without changing its user ID, wallet or history, and invalidates existing sessions and reset tokens. Each hash applies once per database; subsequent password changes survive restarts. Remove both bootstrap variables after verifying access. A database lost on ephemeral storage is a separate persistence problem; this mechanism does not restore customer data.
 
 ## Live provider cost reconciliation
