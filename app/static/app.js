@@ -1277,17 +1277,47 @@ async function watchTtsResult(id){
 
 /* RAINY independent production features: no hidden paid provider submission. */
 let activeBookPlan=null, nextBookChapter=0, activeBookOwner=null;
+function clearDirectorPreview(){
+ $('director-result').value='';
+ $('director-to-tts').disabled=true;
+ $('director-feedback').textContent='';
+}
+$('director-text').addEventListener('input',clearDirectorPreview);
+$('director-style').addEventListener('change',clearDirectorPreview);
+$('director-from-tts').onclick=()=>{
+ const input=$('text').value.trim();
+ if(!input)return notice('Текстээс дуу редакторт бичвэр алга. Шууд бичвэр оруулж болно.');
+ if($('director-text').value.trim()&&$('director-text').value!==input&&!confirm('Voice Director-ийн одоогийн бичвэрийг солих уу?'))return;
+ $('director-text').value=input;clearDirectorPreview();
+ notice('TTS редактороос бичвэр орууллаа.');
+};
 $('director-apply').onclick=async()=>{
-  if(!ensureUser())return;
-  if(state.mode!=='text')return notice('Эхлээд Текст горимд шилжинэ үү.');
-  const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
-  try{
-    const data=await api('/production/director',{method:'POST',body:{text:$('text').value,style:$('director-style').value}});
-    $('text').value=data.directedText;
-    $('tts-model').value='eleven_v4';$('tts-emotion').value='neutral';
-    $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найруулагдлаа. Дуу үүсгэхээс өмнө текстээ шалгаад кредит тооцоолно уу.';
-    updateCounter();updateEstimate();
-  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+ if(!ensureUser())return;
+ const input=$('director-text').value.trim();
+ if(!input)return notice('Найруулах бичвэр оруулна уу.');
+ const style=$('director-style').value;
+ const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
+ clearDirectorPreview();
+ try{
+  const data=await api('/production/director',{method:'POST',body:{text:input,style}});
+  if($('director-text').value.trim()!==input||$('director-style').value!==style)return notice('Бичвэр эсвэл хэв маяг өөрчлөгдсөн. Дахин найруулна уу.');
+  $('director-result').value=data.directedText;
+  $('director-to-tts').disabled=!data.directedText;
+  $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найрууллаа. TTS-д илгээхээс өмнө үр дүнг шалгана уу.';
+ }catch(e){notice(customerMessage(e.message));}
+ finally{setBusy(button,false);}
+};
+$('director-to-tts').onclick=()=>{
+ const text=$('director-result').value.trim();
+ if(!text)return notice('Эхлээд уншлагын найруулга бэлтгэнэ үү.');
+ if($('text').value.trim()&&$('text').value!==text&&!confirm('TTS редакторын одоогийн бичвэрийг солих уу?'))return;
+ setTtsMode('text');
+ $('text').value=text;
+ $('tts-model').value='eleven_v4';
+ $('tts-emotion').value='neutral';
+ updateCounter();updateEstimate();
+ page('tts');
+ notice('Найруулсан бичвэрийг TTS редакторт орууллаа. Дуу үүсгэхээс өмнө кредит шалгана уу.');
 };
 $('book-plan').onclick=async()=>{
   if(!ensureUser())return;
@@ -1295,7 +1325,7 @@ $('book-plan').onclick=async()=>{
   try{
     activeBookPlan=await api('/production/audiobook/plan',{method:'POST',body:{
       title:$('book-title').value,text:$('book-text').value,
-      model_id:$('tts-model').value,voice_id:$('voice').value}});
+      model_id:$('book-model').value,voice_id:$('book-voice').value}});
     nextBookChapter=0;activeBookOwner=state.user.email;
     $('book-result').hidden=false;
     $('book-result').textContent=activeBookPlan.chapterCount+' бүлэг · ойролцоогоор '+activeBookPlan.totalEstimatedCredits.toLocaleString()+' кредит · '+activeBookPlan.note;
