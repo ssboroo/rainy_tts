@@ -132,13 +132,13 @@
             <label class="field-label" for="book-title">Номын нэр</label><input id="book-title" class="field-input" maxlength="100" value="Миний аудио ном">
             <label class="field-label" for="book-text">Номын бичвэр (80,000 тэмдэгт хүртэл)</label>
             <textarea id="book-text" class="big-textarea small" maxlength="80000" placeholder="Бүлэг бүрийн текст, догол мөрөө оруулна уу..."></textarea>
-            <button id="book-plan" class="secondary" type="button">Бүлэг ба кредит тооцох</button>
-            <div id="book-result" class="result-box" role="status" aria-live="polite" hidden></div>
-            <button id="book-create" class="generate" type="button" disabled><span>Бүлгүүдийг зөвшөөрч үүсгэх</span><span>↗</span></button>
           <div class="field-grid">
             <div class="field"><label class="field-label" for="book-voice">Ном унших хоолой</label><select id="book-voice" class="field-input"></select></div>
             <div class="field"><label class="field-label" for="book-model">Уншлагын загвар</label><select id="book-model" class="field-input"><option value="eleven_v4">Eleven v4 · Чанартай</option><option value="eleven_v4_turbo">Eleven v4 Turbo · Хурдан</option></select></div>
           </div>
+            <button id="book-plan" class="secondary" type="button">Бүлэг ба кредит тооцох</button>
+            <div id="book-result" class="result-box" role="status" aria-live="polite" hidden></div>
+            <button id="book-create" class="generate" type="button" disabled><span>Бүлгүүдийг зөвшөөрч үүсгэх</span><span>↗</span></button>
           <p class="field-help">Бүлэг бүрийн үнийг үүсгэхийн өмнө дахин шалгана. Бүлгүүдийн файлыг бүтээлийн түүхээс авна; нэг MP3 болгон автоматаар нэгтгэхгүй.</p>
         </div>
       </section>
@@ -147,13 +147,14 @@
         <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">✂️</span><p class="kicker">АУДИО ЗАСВАР</p><h1>Sentence Repair · <em>Өгүүлбэр солих.</em></h1><p>Урт аудиогоо дахин үүсгэхгүйгээр алдаатай хэсгийг шинээр бичсэн богино дуугаар сольж эвлүүлнэ.</p></div>
         <div class="production-editor">
           
+          <button id="patch-create-correction" class="secondary" type="button">Шинэ засварын өгүүлбэр TTS-ээр бэлтгэх ↗</button>
             <button id="patch-refresh" class="secondary" type="button">Бэлэн дуунуудыг шинэчлэх</button>
             <label class="field-label" for="patch-original">Эх аудио</label><select id="patch-original" class="field-input"></select>
             <label class="field-label" for="patch-correction">Засварлаж дахин үүсгэсэн өгүүлбэр</label><select id="patch-correction" class="field-input"></select>
             <div class="field-grid"><div class="field"><label for="patch-start">Эхлэх секунд</label><input id="patch-start" class="field-input" type="number" min="0" step="0.1" value="0"></div><div class="field"><label for="patch-end">Дуусах секунд</label><input id="patch-end" class="field-input" type="number" min="0.1" step="0.1" value="2"></div></div>
             <button id="patch-apply" class="secondary" type="button">Зассан аудио эвлүүлэх</button>
             <p id="patch-feedback" class="field-help" role="status"></p>
-          <button id="patch-create-correction" class="secondary" type="button">Шинэ засварын өгүүлбэр TTS-ээр бэлтгэх ↗</button>
+
           <p class="field-help">Эх болон засварын аудио нь таны өөрийн, амжилттай дууссан TTS ажил байх ёстой. Солих секундийг сонсож тогтооно; аудионы хугацаа өөрчлөгдөж болно.</p>
         </div>
       </section>
