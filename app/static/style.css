@@ -516,3 +516,31 @@ textarea{border-radius:16px;font-size:.98rem;line-height:1.7}
 .production-feature .result-box{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:14px}
 #stt-original{white-space:pre-wrap;margin-top:12px;opacity:.85}
 @media(max-width:600px){.production-feature{margin:12px 0;padding:15px}.production-feature .field-grid{grid-template-columns:1fr}}
+
+
+/* Dedicated Voice production workspaces — the three tools live in the main
+   navigation, not inside the TTS composer. Shared controls match studio theme. */
+.production-page .production-editor{
+ max-width:860px;margin:8px 0 50px;padding:clamp(20px,3vw,34px);
+ border:1px solid var(--line);border-radius:24px;
+ background:var(--panel);box-shadow:var(--shadow);
+ display:flex;flex-direction:column;gap:15px;min-width:0;
+}
+.production-page .production-editor .field-label{
+ display:block;margin:0 0 5px;color:var(--text);font-size:.76rem;font-weight:650;
+}
+.production-page .production-editor .field-grid{gap:16px;margin:0;}
+.production-page .production-editor>.secondary,
+.production-page .production-editor>.generate{align-self:flex-start;max-width:100%;min-height:44px;}
+.production-page .production-editor .big-textarea{width:100%;min-height:200px;resize:vertical;font-size:1rem;line-height:1.7;}
+.production-page #director-result{min-height:190px;background:color-mix(in srgb,var(--bg) 76%,var(--panel-solid));}
+.production-page .production-editor .field-help{margin:0;color:var(--muted);line-height:1.65;}
+.production-page .production-editor .result-box{white-space:pre-wrap;overflow-wrap:anywhere;}
+.production-page .tool-workspace-inputs>.production-editor{margin:0;width:100%;}
+.production-page .production-editor button:disabled{opacity:.5;cursor:not-allowed;}
+@media(max-width:700px){
+ .production-page .production-editor{padding:18px;border-radius:18px;}
+ .production-page .production-editor>.secondary,
+ .production-page .production-editor>.generate{width:100%;justify-content:center;}
+ .production-page .production-editor .big-textarea{min-height:200px;}
+}

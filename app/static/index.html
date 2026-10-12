@@ -14,9 +14,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css?v=rainy-signal-3">
+  <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
-  <script src="/app.js?v=rainy-expressive-7" defer></script>
+  <script src="/app.js?v=rainy-expressive-8" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -35,8 +35,12 @@
         <button class="nav" data-page="dialogue"><span class="nav-icon" aria-hidden="true">🎧</span><span>Подкаст / Харилцан яриа</span></button>
         <button class="nav" data-page="music"><span class="nav-icon" aria-hidden="true">🎵</span><span>Хөгжим</span></button>
         <button class="nav" data-page="dubbing"><span class="nav-icon" aria-hidden="true">🎬</span><span>Видео орчуулах</span></button>
+        <div class="nav-section-title nav-section-feature">УНШЛАГА БА АУДИО ЗАСВАР</div>
+        <button class="nav" data-page="director"><span class="nav-icon" aria-hidden="true">🎬</span><span>AI Voice Director</span></button>
+        <button class="nav" data-page="audiobook"><span class="nav-icon" aria-hidden="true">📚</span><span>Audiobook Producer</span></button>
+        <button class="nav" data-page="repair"><span class="nav-icon" aria-hidden="true">✂️</span><span>Sentence Repair</span></button>
         <div class="nav-section-title nav-section-feature">AI КИНО &amp; MCP</div>
-        <a class="nav-destination nav-destination-feature" href="/movie"><span class="nav-icon" aria-hidden="true">🎞️</span><span>Нэг санаанаас бүтэн кино<small>AI Director · Movie Sound</small></span><span class="nav-chevron" aria-hidden="true">↗</span></a>
+        <a class="nav-destination nav-destination-feature" href="/movie"><span class="nav-icon" aria-hidden="true">🎞️</span><span>Нэг санаанаас бүтэн кино<small>Видео зохиол · MP4 эвлүүлэг</small></span><span class="nav-chevron" aria-hidden="true">↗</span></a>
         <a class="nav-destination" href="/integrations"><span class="nav-icon" aria-hidden="true">⌘</span><span>ChatGPT / Claude MCP<small>AI туслахтай холбох</small></span><span class="nav-chevron" aria-hidden="true">↗</span></a>
         <details class="nav-disclosure" id="voice-tools-nav">
           <summary>ХООЛОЙН ХЭРЭГСЛҮҮД <small>5 хэрэгсэл</small></summary>
@@ -99,35 +103,60 @@
           </aside>
         </div>
 
-          <details class="production-feature">
-            <summary>🎬 AI Voice Director · Уншлагын найруулга</summary>
-            <p class="field-help">Бичвэрийн сэтгэл хөдлөл, өргөлт, хэмнэлийг бэлтгэнэ. Энэ алхам credit зарцуулахгүй.</p>
+
+      </section>
+
+
+      <section id="director" class="page tool-page production-page" hidden>
+        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">🎬</span><p class="kicker">ДУУНЫ БҮТЭЭЛИЙН ХЭРЭГСЭЛ</p><h1>Voice Director · <em>Уншлагын найруулга.</em></h1><p>Бичвэрийн сэтгэл хөдлөл, өргөлт, хэмнэлийг найруулж, Eleven v4 уншлагад бэлтгэнэ. Энэ алхам кредит зарцуулахгүй.</p></div>
+        <div class="production-editor">
+          <label class="field-label" for="director-text">Найруулах бичвэр</label>
+          <textarea id="director-text" class="big-textarea small" maxlength="12000" placeholder="Найруулах бичвэрээ энд оруулна уу..."></textarea>
+          <button id="director-from-tts" class="secondary" type="button">Текстээс дуу редакторын бичвэрийг авах</button>
+          
             <label class="field-label" for="director-style">Найруулгын төрөл</label>
             <select id="director-style" class="field-input"><option value="advertising">Сурталчилгаа</option><option value="cinematic">Киноны трейлер</option><option value="storytelling">Өгүүлэмж</option><option value="calm">Тайван</option><option value="news">Мэдээ</option></select>
-            <button id="director-apply" class="secondary" type="button">Найруулгыг текстэд оруулах</button>
+            <button id="director-apply" class="secondary" type="button">Уншлагын найруулга бэлтгэх</button>
             <p id="director-feedback" class="field-help" role="status"></p>
-          </details>
-          <details class="production-feature">
-            <summary>📚 AI Audiobook Producer · Бүлэгчилсэн дуу</summary>
-            <p class="field-help">Ном эсвэл урт өгүүлэмжээ оруул. Үнэгүй бүлэгчилж, нийт кредитийг харсны дараа зөвшөөрвөл бүлэг тус бүр TTS-ээр үүснэ. Хэсэгчилсэн аудионууд бүтээлийн түүхэд хадгалагдана.</p>
+          <label class="field-label" for="director-result">Бэлэн болсон найруулга</label>
+          <textarea id="director-result" class="big-textarea small" readonly placeholder="Найруулсан бичвэр энд гарна..."></textarea>
+          <button id="director-to-tts" class="generate" type="button" disabled><span>Бичвэрийг TTS редакторт оруулах</span><span>↗</span></button>
+          <p class="field-help">Энэ хэрэгсэл аудио үүсгэхгүй. TTS редактор дээр хоолой болон кредитээ шалгасны дараа дуу үүсгэнэ.</p>
+        </div>
+      </section>
+
+      <section id="audiobook" class="page tool-page production-page" hidden>
+        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">📚</span><p class="kicker">УРТ ХЭМЖЭЭНИЙ АУДИО</p><h1>Audiobook Producer · <em>Бүлэгчилсэн дуу.</em></h1><p>Ном, өгүүлэмжээ бүлэгчилж кредитийг урьдчилан тооцоод, зөвшөөрсөн бүлгүүдээ дарааллаар дуу болгон хувиргана.</p></div>
+        <div class="production-editor">
+          
             <label class="field-label" for="book-title">Номын нэр</label><input id="book-title" class="field-input" maxlength="100" value="Миний аудио ном">
             <label class="field-label" for="book-text">Номын бичвэр (80,000 тэмдэгт хүртэл)</label>
             <textarea id="book-text" class="big-textarea small" maxlength="80000" placeholder="Бүлэг бүрийн текст, догол мөрөө оруулна уу..."></textarea>
+          <div class="field-grid">
+            <div class="field"><label class="field-label" for="book-voice">Ном унших хоолой</label><select id="book-voice" class="field-input"></select></div>
+            <div class="field"><label class="field-label" for="book-model">Уншлагын загвар</label><select id="book-model" class="field-input"><option value="eleven_v4">Eleven v4 · Чанартай</option><option value="eleven_v4_turbo">Eleven v4 Turbo · Хурдан</option></select></div>
+          </div>
             <button id="book-plan" class="secondary" type="button">Бүлэг ба кредит тооцох</button>
             <div id="book-result" class="result-box" role="status" aria-live="polite" hidden></div>
             <button id="book-create" class="generate" type="button" disabled><span>Бүлгүүдийг зөвшөөрч үүсгэх</span><span>↗</span></button>
-          </details>
-          <details class="production-feature">
-            <summary>✂️ Sentence Repair · Алдаатай өгүүлбэр солих</summary>
-            <p class="field-help">Засах өгүүлбэрээ «Текстээс дуу»-гаар тусдаа үүсгэсний дараа энд эх бичлэг болон засварын бичлэгийг сонгоно. Сонгосон секундийг шинэ аудиогоор солино; дахин бүх бичлэг үүсгэхгүй. Зөвхөн өөрийн бэлэн бүтээлүүд.</p>
+          <p class="field-help">Бүлэг бүрийн үнийг үүсгэхийн өмнө дахин шалгана. Бүлгүүдийн файлыг бүтээлийн түүхээс авна; нэг MP3 болгон автоматаар нэгтгэхгүй.</p>
+        </div>
+      </section>
+
+      <section id="repair" class="page tool-page production-page" hidden>
+        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">✂️</span><p class="kicker">АУДИО ЗАСВАР</p><h1>Sentence Repair · <em>Өгүүлбэр солих.</em></h1><p>Урт аудиогоо дахин үүсгэхгүйгээр алдаатай хэсгийг шинээр бичсэн богино дуугаар сольж эвлүүлнэ.</p></div>
+        <div class="production-editor">
+          
+          <button id="patch-create-correction" class="secondary" type="button">Шинэ засварын өгүүлбэр TTS-ээр бэлтгэх ↗</button>
             <button id="patch-refresh" class="secondary" type="button">Бэлэн дуунуудыг шинэчлэх</button>
             <label class="field-label" for="patch-original">Эх аудио</label><select id="patch-original" class="field-input"></select>
             <label class="field-label" for="patch-correction">Засварлаж дахин үүсгэсэн өгүүлбэр</label><select id="patch-correction" class="field-input"></select>
             <div class="field-grid"><div class="field"><label for="patch-start">Эхлэх секунд</label><input id="patch-start" class="field-input" type="number" min="0" step="0.1" value="0"></div><div class="field"><label for="patch-end">Дуусах секунд</label><input id="patch-end" class="field-input" type="number" min="0.1" step="0.1" value="2"></div></div>
             <button id="patch-apply" class="secondary" type="button">Зассан аудио эвлүүлэх</button>
             <p id="patch-feedback" class="field-help" role="status"></p>
-          </details>
 
+          <p class="field-help">Эх болон засварын аудио нь таны өөрийн, амжилттай дууссан TTS ажил байх ёстой. Солих секундийг сонсож тогтооно; аудионы хугацаа өөрчлөгдөж болно.</p>
+        </div>
       </section>
 
       <section id="clone" class="page tool-page" hidden>

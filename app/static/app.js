@@ -63,7 +63,7 @@ function setBusy(button,busy,label){
 }
 
 const pageMeta={
- tts:['01','Дуу бүтээх / Текстээс дуу'],clone:['02','Хоолой / Хоолой хувилах'],pvc:['03','Хоолой / Мэргэжлийн хувилбар'],dialogue:['04','Дуу бүтээх / Подкаст'],music:['05','Дуу бүтээх / Хөгжим'],sfx:['06','Дуу бүтээх / Эффект'],stt:['07','Аудио / Ярианаас бичвэр'],realtime:['08','Аудио / Шууд бичвэр'],isolator:['09','Аудио / Яриа цэвэрлэх'],changer:['10','Аудио / Хоолой солих'],dubbing:['11','Видео / Орчуулга'],reception:['12','Бизнес / Reception.ai'],voices:['13','Хоолой / Хоолойн сан'],billing:['14','Миний студи / Сарын багц'],analytics:['15','Миний студи / Хэрэглээ'],history:['16','Миний студи / Бүтээлийн түүх']
+ tts:['01','Дуу бүтээх / Текстээс дуу'],director:['17','Найруулга / AI Voice Director'],audiobook:['18','Ном / Audiobook Producer'],repair:['19','Аудио засвар / Sentence Repair'],clone:['02','Хоолой / Хоолой хувилах'],pvc:['03','Хоолой / Мэргэжлийн хувилбар'],dialogue:['04','Дуу бүтээх / Подкаст'],music:['05','Дуу бүтээх / Хөгжим'],sfx:['06','Дуу бүтээх / Эффект'],stt:['07','Аудио / Ярианаас бичвэр'],realtime:['08','Аудио / Шууд бичвэр'],isolator:['09','Аудио / Яриа цэвэрлэх'],changer:['10','Аудио / Хоолой солих'],dubbing:['11','Видео / Орчуулга'],reception:['12','Бизнес / Reception.ai'],voices:['13','Хоолой / Хоолойн сан'],billing:['14','Миний студи / Сарын багц'],analytics:['15','Миний студи / Хэрэглээ'],history:['16','Миний студи / Бүтээлийн түүх']
 };
 
 function page(name){
@@ -81,6 +81,7 @@ function page(name){
   $('breadcrumb').textContent=meta[1];
   document.querySelector('.route-index').textContent=meta[0];
   if(name==='voices')refreshVoices(true);
+  if(name==='repair'&&state.user)refreshReadyPatchJobs();
   if(name==='reception'){loadReception();loadReceptionEvents();}
   if(name==='settings')loadSettings();
   if(name==='admin')loadAdmin();
@@ -223,6 +224,7 @@ function voiceOptions(select,selected){
 
 function renderVoiceSelectors(){
   voiceOptions($('voice'));
+  voiceOptions($('book-voice'));
   voiceOptions($('changer-voice'));
   voiceOptions($('remix-voice'));
   if($('remix-voice'))[...$('remix-voice').options].forEach(o=>{if(state.voices.find(v=>v.id===o.value)?.builtin)o.remove();});
@@ -1192,6 +1194,9 @@ $('admin').append($('studio-readiness'),document.querySelector('.provider-status
 
 const toolResultRoutes={'/jobs':'tts','/tools/dialogue':'dialogue','/tools/music':'music','/tools/sound-effects':'sfx','/tools/stt':'stt','/tools/realtime-save':'realtime','/tools/voice-isolator':'isolator','/tools/voice-changer':'changer','/tools/dubbing':'dubbing','/tools/voice-design':'voice-design','/tools/voice-remix':'voice-remix','/tools/alignment':'alignment'};
 const toolGuides={
+ director:['Бичвэрээ оруулна эсвэл TTS редактороос авна.','Найруулгын төрөл сонгож үр дүнг шалгана.','Бэлтгэсэн текстээ TTS редактор руу илгээнэ.'],
+ audiobook:['Номын бичвэр, хоолой, загвар сонгоно.','Бүлэг болон урьдчилсан кредит тооцно.','Гурваас илүүгүй бүлгийг тус бүр зөвшөөрч, үр дүнг түүхээс татна.'],
+ repair:['Өөрийн хоёр өөр бэлэн TTS дуу сонгоно.','Алдаатай хэсгийн эхлэх болон дуусах секундыг тогтооно.','Засварласан MP3 файлыг татна.'],
  tts:['Бичвэр эсвэл SRT хадмалаа оруулна.','Хоолой, унших хурдыг сонгоод “Дуу үүсгэх” дарна.','Бэлэн дуугаа сонсож, MP3 эсвэл WAV файлаар татна.'],
  clone:['Өөрийн эсвэл зөвшөөрөлтэй хүний цэвэр ярианы дээж оруулна.','Хоолойн нэр өгч, зөвшөөрлийг баталгаажуулна.','Үүссэн хоолойг хоолойн сангаас сонгон ашиглана.'],
  pvc:['Өөрийн хоолойн чанартай дээжийг байршуулна.','Зааврын дагуу хоолойн эзэмшигчийг баталгаажуулна.','Сургалт дууссаны дараа хоолойн сангаас ашиглана.'],
@@ -1207,9 +1212,9 @@ const toolGuides={
  'voice-remix':['Өөрийн хадгалсан хоолойг сонгоно.','Яаж өөрчлөхөө тайлбарлаж дээж үүсгэнэ.','Таалагдсан хувилбарыг шинэ нэрээр хадгална.'],
  alignment:['Монгол хэлээ сонгоод аудио файлаа оруулна. Эх бичвэр сонголтоор.','Scribe v2 үг бүрийн хугацааг боловсруулж, ажил дараалалд орно.','Бүтээлийн түүхээс SRT/VTT-ээ татаж аваад нийтлэхээс өмнө хянана.']
 };
-const toolKinds={tts:'tts',dialogue:'dialogue',music:'music',sfx:'sound_effects',stt:'speech_to_text',realtime:'realtime_stt',isolator:'voice_isolator',changer:'voice_changer',dubbing:'dubbing','voice-design':'voice_design','voice-remix':'voice_remix',alignment:['alignment','forced_alignment']};
+const toolKinds={repair:'audio_patch',tts:'tts',dialogue:'dialogue',music:'music',sfx:'sound_effects',stt:'speech_to_text',realtime:'realtime_stt',isolator:'voice_isolator',changer:'voice_changer',dubbing:'dubbing','voice-design':'voice_design','voice-remix':'voice_remix',alignment:['alignment','forced_alignment']};
 const toolResultRequests=new Map();
-const studioAdvice={tts:'Чанартай сонголт нь өгүүлэмж, ном, сурталчилгаанд тохирно. Хурдан сонголтыг богино бичвэр болон шуурхай ажилд хэрэглэнэ.',dialogue:'Яригч бүрд өөр Монгол хоолой сонгоно. Нэг хэсэгт нэг яригчийн өгүүлбэр оруулбал хэмнэлээ удирдахад хялбар.',stt:'Монгол яриаг таних тохиргоо ашиглана. Цэвэр бичлэг, ойр микрофон танилтын чанарыг сайжруулна.',realtime:'Монгол яриаг шууд бичвэр болгоно. Чимээгүй орчинд тод ярьж, дууссаны дараа нэр болон тоог шалгана.',dubbing:'Монгол руу орчуулахад яригчийн өнгө ба цагийг хадгалах загвар ашиглана. Нэр томьёо, орчуулгын утгыг эцэст нь шалгана.',changer:'Монгол дуудлагын дэмжлэг хязгаарлагдмал. Эхлээд богино дээжээр шалгаарай; Монгол бичвэрээс дуу үүсгэх нь илүү тохиромжтой.',music:'Хөгжмийн төрөл, хэмнэл, хөгжмийн зэмсэг, уур амьсгалыг тодорхой бичнэ. Монгол үгтэй дууны дуудлагыг сонсож шалгана.',sfx:'Дууны эх үүсвэр, орчин, зай болон хөдөлгөөнийг тайлбарлаарай.',clone:'Монгол хэлээр тод, шуугиангүй ярьсан олон өгүүлбэртэй дээж ашиглаарай.',pvc:'Өөрийн Монгол хоолойн тогтвортой өнгө, өндөр чанартай урт бичлэг ашиглана.',isolator:'Яриаг тодруулах хэрэгсэл. Хэт шуугиантай эх бичлэгийн алдагдсан үгийг нөхөн үүсгэхгүй.',alignment:'Монгол ярианы аудионоос Scribe v2-оор SRT/VTT үүсгэнэ. Эх бичвэр сонголтоор. Нэр, тоо, аялга болон хугацааг нийтлэхээсээ өмнө шалгана.','voice-design':'Монгол дуудлагыг жишээ бичвэрээр шалгана. Хоолойг хадгалахаасаа өмнө бүх дээжийг сонсоорой.','voice-remix':'Өөрийн хоолойн шинэ өнгө үүсгэнэ. Монгол дуудлага болон эх хоолойтой төстэй байдлыг дээжээр шалгана.'};
+const studioAdvice={director:'Найруулга нь дуу үүсгэхгүй; бэлтгэсэн текстийг шалгаж байж TTS рүү илгээнэ.',audiobook:'Номын тусдаа voice/model сонголтыг ашигла. Бүлэг бүрийг үүсгэхийн өмнө үнэ дахин баталгаажна.',repair:'Засварын богино TTS бичлэгийг эхлээд бэлтгэнэ. Эх дууны секундыг сонсож тогтооно.',tts:'Чанартай сонголт нь өгүүлэмж, ном, сурталчилгаанд тохирно. Хурдан сонголтыг богино бичвэр болон шуурхай ажилд хэрэглэнэ.',dialogue:'Яригч бүрд өөр Монгол хоолой сонгоно. Нэг хэсэгт нэг яригчийн өгүүлбэр оруулбал хэмнэлээ удирдахад хялбар.',stt:'Монгол яриаг таних тохиргоо ашиглана. Цэвэр бичлэг, ойр микрофон танилтын чанарыг сайжруулна.',realtime:'Монгол яриаг шууд бичвэр болгоно. Чимээгүй орчинд тод ярьж, дууссаны дараа нэр болон тоог шалгана.',dubbing:'Монгол руу орчуулахад яригчийн өнгө ба цагийг хадгалах загвар ашиглана. Нэр томьёо, орчуулгын утгыг эцэст нь шалгана.',changer:'Монгол дуудлагын дэмжлэг хязгаарлагдмал. Эхлээд богино дээжээр шалгаарай; Монгол бичвэрээс дуу үүсгэх нь илүү тохиромжтой.',music:'Хөгжмийн төрөл, хэмнэл, хөгжмийн зэмсэг, уур амьсгалыг тодорхой бичнэ. Монгол үгтэй дууны дуудлагыг сонсож шалгана.',sfx:'Дууны эх үүсвэр, орчин, зай болон хөдөлгөөнийг тайлбарлаарай.',clone:'Монгол хэлээр тод, шуугиангүй ярьсан олон өгүүлбэртэй дээж ашиглаарай.',pvc:'Өөрийн Монгол хоолойн тогтвортой өнгө, өндөр чанартай урт бичлэг ашиглана.',isolator:'Яриаг тодруулах хэрэгсэл. Хэт шуугиантай эх бичлэгийн алдагдсан үгийг нөхөн үүсгэхгүй.',alignment:'Монгол ярианы аудионоос Scribe v2-оор SRT/VTT үүсгэнэ. Эх бичвэр сонголтоор. Нэр, тоо, аялга болон хугацааг нийтлэхээсээ өмнө шалгана.','voice-design':'Монгол дуудлагыг жишээ бичвэрээр шалгана. Хоолойг хадгалахаасаа өмнө бүх дээжийг сонсоорой.','voice-remix':'Өөрийн хоолойн шинэ өнгө үүсгэнэ. Монгол дуудлага болон эх хоолойтой төстэй байдлыг дээжээр шалгана.'};
 const studioPresets={story:{names:['Sarnai','Uyanga'],terms:/narrat|story|audiobook/i,speed:'0.95',label:'Тайван өгүүлэмж'},ad:{names:['Bolor','Temuulen'],terms:/advert|social|entertain/i,speed:'1.05',label:'Эрчтэй сурталчилгаа'},lesson:{names:['Bataar','Enkhtuya'],terms:/educat|narrat/i,speed:'1',label:'Тод тайлбар'},news:{names:['Munkhbat','Ganbold'],terms:/news|inform|narrat/i,speed:'1',label:'Тогтуун танилцуулга'}};
 function recommendedVoice(preset,voices){
  const native=voices.filter(v=>v.builtin&&v.native_mn!==false);
@@ -1272,17 +1277,47 @@ async function watchTtsResult(id){
 
 /* RAINY independent production features: no hidden paid provider submission. */
 let activeBookPlan=null, nextBookChapter=0, activeBookOwner=null;
+function clearDirectorPreview(){
+ $('director-result').value='';
+ $('director-to-tts').disabled=true;
+ $('director-feedback').textContent='';
+}
+$('director-text').addEventListener('input',clearDirectorPreview);
+$('director-style').addEventListener('change',clearDirectorPreview);
+$('director-from-tts').onclick=()=>{
+ const input=$('text').value.trim();
+ if(!input)return notice('Текстээс дуу редакторт бичвэр алга. Шууд бичвэр оруулж болно.');
+ if($('director-text').value.trim()&&$('director-text').value!==input&&!confirm('Voice Director-ийн одоогийн бичвэрийг солих уу?'))return;
+ $('director-text').value=input;clearDirectorPreview();
+ notice('TTS редактороос бичвэр орууллаа.');
+};
 $('director-apply').onclick=async()=>{
-  if(!ensureUser())return;
-  if(state.mode!=='text')return notice('Эхлээд Текст горимд шилжинэ үү.');
-  const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
-  try{
-    const data=await api('/production/director',{method:'POST',body:{text:$('text').value,style:$('director-style').value}});
-    $('text').value=data.directedText;
-    $('tts-model').value='eleven_v4';$('tts-emotion').value='neutral';
-    $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найруулагдлаа. Дуу үүсгэхээс өмнө текстээ шалгаад кредит тооцоолно уу.';
-    updateCounter();updateEstimate();
-  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+ if(!ensureUser())return;
+ const input=$('director-text').value.trim();
+ if(!input)return notice('Найруулах бичвэр оруулна уу.');
+ const style=$('director-style').value;
+ const button=$('director-apply');setBusy(button,true,'Найруулга бэлдэж байна…');
+ clearDirectorPreview();
+ try{
+  const data=await api('/production/director',{method:'POST',body:{text:input,style}});
+  if($('director-text').value.trim()!==input||$('director-style').value!==style)return notice('Бичвэр эсвэл хэв маяг өөрчлөгдсөн. Дахин найруулна уу.');
+  $('director-result').value=data.directedText;
+  $('director-to-tts').disabled=!data.directedText;
+  $('director-feedback').textContent=data.label+' · '+data.sentences+' өгүүлбэр найрууллаа. TTS-д илгээхээс өмнө үр дүнг шалгана уу.';
+ }catch(e){notice(customerMessage(e.message));}
+ finally{setBusy(button,false);}
+};
+$('director-to-tts').onclick=()=>{
+ const text=$('director-result').value.trim();
+ if(!text)return notice('Эхлээд уншлагын найруулга бэлтгэнэ үү.');
+ if($('text').value.trim()&&$('text').value!==text&&!confirm('TTS редакторын одоогийн бичвэрийг солих уу?'))return;
+ setTtsMode('text');
+ $('text').value=text;
+ $('tts-model').value='eleven_v4';
+ $('tts-emotion').value='neutral';
+ updateCounter();updateEstimate();
+ page('tts');
+ notice('Найруулсан бичвэрийг TTS редакторт орууллаа. Дуу үүсгэхээс өмнө кредит шалгана уу.');
 };
 $('book-plan').onclick=async()=>{
   if(!ensureUser())return;
@@ -1290,7 +1325,7 @@ $('book-plan').onclick=async()=>{
   try{
     activeBookPlan=await api('/production/audiobook/plan',{method:'POST',body:{
       title:$('book-title').value,text:$('book-text').value,
-      model_id:$('tts-model').value,voice_id:$('voice').value}});
+      model_id:$('book-model').value,voice_id:$('book-voice').value}});
     nextBookChapter=0;activeBookOwner=state.user.email;
     $('book-result').hidden=false;
     $('book-result').textContent=activeBookPlan.chapterCount+' бүлэг · ойролцоогоор '+activeBookPlan.totalEstimatedCredits.toLocaleString()+' кредит · '+activeBookPlan.note;
@@ -1332,19 +1367,39 @@ $('book-create').onclick=async()=>{
     loadHistory();loadBilling(true);
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);if(nextBookChapter>=chapters.length)button.disabled=true;}
 };
+function invalidateAudiobookPlan(){
+ activeBookPlan=null;nextBookChapter=0;activeBookOwner=null;
+ $('book-create').disabled=true;
+ $('book-result').hidden=true;
+}
+for(const id of ['book-title','book-text','book-model','book-voice']){
+ $(id).addEventListener('input',invalidateAudiobookPlan);
+ $(id).addEventListener('change',invalidateAudiobookPlan);
+}
+$('patch-create-correction').onclick=()=>{
+ page('tts');
+ notice('Засварын өгүүлбэрээ TTS-ээр үүсгээд Sentence Repair-д буцаж ирэн аудиогоо сонгоно уу.');
+};
+async function refreshReadyPatchJobs(){
+ if(!state.user)return;
+ const owner=state.user.email;
+ try{
+  const data=await api('/jobs');
+  if(state.user?.email!==owner)return;
+  const ready=(data.jobs||[]).filter(j=>j.status==='done');
+  for(const id of ['patch-original','patch-correction']){
+   const select=$(id),selected=select.value;select.replaceChildren();
+   const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Бэлэн TTS аудио сонгох';select.append(placeholder);
+   for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
+   if(ready.some(x=>x.id===selected))select.value=selected;
+  }
+  $('patch-feedback').textContent=ready.length+' бэлэн TTS аудио байна. Эх болон засварын өөр дууг сонгоно уу.';
+ }catch(e){notice(customerMessage(e.message));}
+}
 $('patch-refresh').onclick=async()=>{
-  if(!ensureUser())return;
-  const button=$('patch-refresh');setBusy(button,true,'Бэлэн аудио хайж байна…');
-  try{
-    const data=await api('/jobs');
-    const ready=(data.jobs||[]).filter(j=>j.status==='done');
-    for(const id of ['patch-original','patch-correction']){
-      const select=$(id),selected=select.value;select.replaceChildren();
-      for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
-      if(ready.some(x=>x.id===selected))select.value=selected;
-    }
-    $('patch-feedback').textContent=ready.length+' бэлэн аудио байна. Засварлах хугацааг эх бичлэгээ сонсож тодорхойлоорой.';
-  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+ if(!ensureUser())return;
+ const button=$('patch-refresh');setBusy(button,true,'Бэлэн дуунуудыг шинэчилж байна…');
+ try{await refreshReadyPatchJobs();}finally{setBusy(button,false);}
 };
 $('patch-apply').onclick=async()=>{
   if(!ensureUser())return;
