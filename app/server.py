@@ -1672,9 +1672,17 @@ def delete_tool_job(job_id:str,request:Request):
 
 @app.get("/api/artifacts/{artifact_id}")
 def artifact(artifact_id:str,request:Request):
-    sess=session(request)
+    # The unified Studio proxies merchant-owned MP4s with a server-only OAuth
+    # token. Preserve the exact owner check used by browser sessions.
+    if request.headers.get("authorization", "").startswith("Bearer "):
+        if not mcp_remote.active(): raise HTTPException(401,"Voice OAuth disabled")
+        principal=mcp_remote.principal(request)
+        if not principal: raise HTTPException(401,"Voice OAuth эрх хүчингүй.")
+        owner=principal["uid"]
+    else:
+        owner=session(request)["user_id"]
     with core.db() as c:
-        row=c.execute("SELECT * FROM artifacts WHERE id=? AND user_id=?",(artifact_id,sess["user_id"])).fetchone()
+        row=c.execute("SELECT * FROM artifacts WHERE id=? AND user_id=?",(artifact_id,owner)).fetchone()
     if not row: raise HTTPException(404,"Файл олдсонгүй.")
     path=Path(row["path"])
     if not path.is_file(): raise HTTPException(404,"Файл олдсонгүй.")
