@@ -1367,19 +1367,39 @@ $('book-create').onclick=async()=>{
     loadHistory();loadBilling(true);
   }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);if(nextBookChapter>=chapters.length)button.disabled=true;}
 };
+function invalidateAudiobookPlan(){
+ activeBookPlan=null;nextBookChapter=0;activeBookOwner=null;
+ $('book-create').disabled=true;
+ $('book-result').hidden=true;
+}
+for(const id of ['book-title','book-text','book-model','book-voice']){
+ $(id).addEventListener('input',invalidateAudiobookPlan);
+ $(id).addEventListener('change',invalidateAudiobookPlan);
+}
+$('patch-create-correction').onclick=()=>{
+ page('tts');
+ notice('Засварын өгүүлбэрээ TTS-ээр үүсгээд Sentence Repair-д буцаж ирэн аудиогоо сонгоно уу.');
+};
+async function refreshReadyPatchJobs(){
+ if(!state.user)return;
+ const owner=state.user.email;
+ try{
+  const data=await api('/jobs');
+  if(state.user?.email!==owner)return;
+  const ready=(data.jobs||[]).filter(j=>j.status==='done');
+  for(const id of ['patch-original','patch-correction']){
+   const select=$(id),selected=select.value;select.replaceChildren();
+   const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Бэлэн TTS аудио сонгох';select.append(placeholder);
+   for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
+   if(ready.some(x=>x.id===selected))select.value=selected;
+  }
+  $('patch-feedback').textContent=ready.length+' бэлэн TTS аудио байна. Эх болон засварын өөр дууг сонгоно уу.';
+ }catch(e){notice(customerMessage(e.message));}
+}
 $('patch-refresh').onclick=async()=>{
-  if(!ensureUser())return;
-  const button=$('patch-refresh');setBusy(button,true,'Бэлэн аудио хайж байна…');
-  try{
-    const data=await api('/jobs');
-    const ready=(data.jobs||[]).filter(j=>j.status==='done');
-    for(const id of ['patch-original','patch-correction']){
-      const select=$(id),selected=select.value;select.replaceChildren();
-      for(const job of ready){const opt=document.createElement('option');opt.value=job.id;opt.textContent=job.title+' · '+new Date(job.created*1000).toLocaleDateString('mn-MN');select.append(opt);}
-      if(ready.some(x=>x.id===selected))select.value=selected;
-    }
-    $('patch-feedback').textContent=ready.length+' бэлэн аудио байна. Засварлах хугацааг эх бичлэгээ сонсож тодорхойлоорой.';
-  }catch(e){notice(customerMessage(e.message));}finally{setBusy(button,false);}
+ if(!ensureUser())return;
+ const button=$('patch-refresh');setBusy(button,true,'Бэлэн дуунуудыг шинэчилж байна…');
+ try{await refreshReadyPatchJobs();}finally{setBusy(button,false);}
 };
 $('patch-apply').onclick=async()=>{
   if(!ensureUser())return;
