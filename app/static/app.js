@@ -1485,6 +1485,6 @@ function acceptVideoHandoff(){
     history.replaceState({},'',location.pathname+location.search);
   }
 }
-init().then(()=>{const voiceTool=new URLSearchParams(location.search).get('tool');if(['alignment','stt','dubbing'].includes(voiceTool))page(voiceTool);acceptVideoHandoff();loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
+init().then(()=>{if(new URLSearchParams(location.search).get('tool')==='alignment')page('alignment');else if(['stt','dubbing'].includes(new URLSearchParams(location.search).get('tool')))page(new URLSearchParams(location.search).get('tool'));acceptVideoHandoff();loadToolResults(state.page);updateEstimate();if(resetToken||location.pathname==='/reset')openReset();if(state.user)loadSettings();});
 
 function toolLabel(value){return ({tts:'Текстээс дуу',dialogue:'Подкаст',music:'Хөгжим',sound_effects:'Дууны эффект',stt:'Ярианаас бичвэр',speech_to_text:'Ярианаас бичвэр',realtime_stt:'Шууд бичвэр',voice_isolator:'Яриа цэвэрлэх',voice_changer:'Хоолой солих',dubbing:'Видео орчуулга',video_voiceover:'Видеонд дуу оруулах',voice_design:'Хоолой зохиох',voice_remix:'Хоолой шинэчлэх',alignment:'Хадмал тааруулах',forced_alignment:'Хадмал тааруулах',credit:'Кредит',grant:'Кредит нэмэх',charge:'Кредит зарцуулах',refund:'Кредит буцаах',tool:'Бүтээл'})[value]||value?.replaceAll('_',' ')||'Бүтээл';}
