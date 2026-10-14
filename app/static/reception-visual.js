@@ -20,8 +20,9 @@ const receptionStudio=(()=>{
   const buttons=[...root.querySelectorAll('[data-reception-tab]')];
   function setTab(name){
     if(!sections[name])return;
-    if(tab==='voice'&&name!=='voice'&&typeof agentPreview!=='undefined'&&agentPreview)
-      stopAgentPreview(); // Never allow paid voice calls to continue unseen in another tab.
+    if(tab==='voice'&&name!=='voice'&&
+      (['connecting','listening','speaking'].includes(streamStatus)||(typeof agentPreview!=='undefined'&&agentPreview)))
+      stopAgentPreview(); // Cancels in-flight paid voice session too.
     tab=name;
     for(const el of all)el.hidden=!sections[name].includes(el);
     for(const btn of buttons){
