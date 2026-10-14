@@ -114,6 +114,12 @@ class ReceptionKnowledgeTests(unittest.TestCase):
         result=self.post_file(b"x"*(6*1024*1024),"too-big.txt")
         self.assertEqual(result.status_code,413)
         self.assertEqual(self.post_file(b"abc","script.html").status_code,422)
+    def test_reception_scripts_are_actually_served_not_404(self):
+        for asset in ("reception.js","reception-knowledge.js"):
+            result=self.client.get("/"+asset)
+            self.assertEqual(result.status_code,200,asset+" "+result.text[:200])
+            self.assertIn("javascript",result.headers.get("content-type",""))
+
     def test_google_sheet_url_allowlist_and_connector(self):
         bad=["http://localhost/private","https://docs.google.com.evil.org/spreadsheets/d/1234/edit",
              "https://docs.google.com/spreadsheets/d/abc123/../../secret",
