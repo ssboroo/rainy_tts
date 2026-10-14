@@ -1,0 +1,92 @@
+/* RAINY Receptionist Launch Console — isolated from other Voice Studio pages */
+#reception{--rl-ink:#15243b;--rl-muted:#67768b;--rl-line:#e2e8ee;--rl-mint:#10b6a3;--rl-paper:#f7f9fc}
+#reception [id^="rl-"]{scroll-margin-top:96px}
+#reception .rl-header{position:relative;isolation:isolate;overflow:hidden;border-radius:27px;color:#fff;padding:clamp(25px,4.7vw,48px);background:radial-gradient(ellipse at 92% 11%,#23698588 0,transparent 46%),radial-gradient(ellipse at 20% 110%,#158a7880 0,transparent 45%),linear-gradient(123deg,#0f2536 1%,#162e49 60%,#182d43);border:1px solid #4b64716e;box-shadow:0 24px 60px #020f1c38}
+#reception .rl-header-orb{pointer-events:none;position:absolute;width:300px;height:300px;border-radius:50%;border:1px solid #8ed6ce30;box-shadow:0 0 0 53px #80daca06,0 0 0 116px #8edaca06;right:-45px;top:-120px;z-index:-1}
+#reception .rl-header-top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+#reception .rl-header-label{font-size:10px;font-weight:800;letter-spacing:.18em;color:#99e2d4}
+#reception .rl-header-marker{font-size:10px;color:#e2faf7;letter-spacing:.08em;border:1px solid #a6ffed48;padding:8px 12px;border-radius:100px;background:#ffffff0a}
+#reception .rl-header h1{font-size:clamp(30px,4.7vw,53px)!important;line-height:1.09;letter-spacing:-.045em;max-width:660px;color:white;margin:36px 0 18px;font-weight:850}
+#reception .rl-header h1 em{font-weight:850;font-style:normal;background:linear-gradient(95deg,#9cf0de,#d6efff);background-clip:text;-webkit-background-clip:text;color:transparent}
+#reception .rl-header>p{max-width:635px;color:#d1e0ea!important;font-size:14px;line-height:1.75;margin:0}
+#reception .rl-hero-controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+#reception .rl-main-action,#reception .rl-outline-action{text-decoration:none;font-weight:750;font-size:13px;padding:13px 18px;border-radius:12px;display:inline-flex;align-items:center;min-height:45px;transition:transform .2s}
+#reception .rl-main-action{background:#b5f3e0;color:#163b38}
+#reception .rl-outline-action{background:#ffffff17;color:#f5ffff;border:1px solid #d0f8f43d}
+#reception .rl-main-action:hover,#reception .rl-outline-action:hover{transform:translateY(-2px)}
+#reception .rl-header-metrics{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid #ffffff26;padding-top:22px;margin-top:34px;color:#d3e8e8;font-size:11px;font-weight:600}
+#reception .rl-tabs{position:sticky;top:8px;z-index:6;display:flex;align-items:center;gap:5px;overflow-x:auto;scrollbar-width:thin;background:#f8fafce6;backdrop-filter:blur(15px);padding:7px;border:1px solid var(--rl-line);border-radius:14px;margin:18px 0 22px;box-shadow:0 10px 35px #091d2b12}
+#reception .rl-tabs a{white-space:nowrap;color:#52667b;text-decoration:none;font-size:11px;font-weight:750;padding:11px 13px;border-radius:9px}
+#reception .rl-tabs a:hover,#reception .rl-tabs a:focus-visible{background:#e4f8f2;color:#174c47}
+#reception .rl-dashboard,#reception .rl-feature,#reception .rl-pricing{color:var(--rl-ink);background:#fff;border:1px solid var(--rl-line);border-radius:22px;padding:clamp(18px,3vw,29px);margin:18px 0}
+#reception .rl-section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;flex-wrap:wrap;margin:0 0 20px}
+#reception .rl-section-heading h2{color:#15243b!important;font-size:clamp(20px,2.3vw,26px)!important;letter-spacing:-.025em;margin:7px 0!important;line-height:1.2}
+#reception .rl-section-heading p{font-size:12px;color:var(--rl-muted);line-height:1.7;margin:0}
+#reception .rl-kicker{color:#278d86;letter-spacing:.15em;font-size:10px;font-weight:900}
+#reception button.rl-refresh{background:#f0f7f6;border:1px solid #d6e9e7;color:#24756b!important;padding:10px 14px;border-radius:9px;font-size:12px;font-weight:750}
+#reception .rl-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#reception .rl-stat{padding:18px;border-radius:14px;background:#f4f7fa;border:1px solid #ebf0f5;min-width:0;display:flex;flex-direction:column;gap:7px}
+#reception .rl-stat span{color:#526579;font-size:12px}
+#reception .rl-stat strong{font-size:clamp(19px,2vw,27px);font-weight:850;color:#182f44;line-height:1.15}
+#reception .rl-stat small{color:#8794a4;font-size:10px}
+#reception .rl-progress{background:#dbe5ed;height:7px;border-radius:20px;overflow:hidden;margin:20px 0}
+#reception #rl-progress-fill{background:linear-gradient(90deg,#11a58f,#4dd6bf);height:100%;width:0;transition:width .4s;border-radius:20px}
+#reception .rl-checklist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#reception .rl-step{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e7ecf1;border-radius:12px;background:white;min-width:0}
+#reception .rl-step-state{font-size:12px;font-weight:800;width:26px;height:26px;border-radius:50%;background:#edf2f7;color:#65788b;display:grid;place-items:center;flex-shrink:0}
+#reception .rl-step.is-ready .rl-step-state{background:#d8f8eb;color:#096b54}
+#reception .rl-step b{font-size:12px;color:#21394d;display:block}
+#reception .rl-step small{font-size:10px;color:#7e8a9a;display:block;margin-top:3px;line-height:1.4;overflow-wrap:anywhere}
+#reception .rl-connection-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+#reception .rl-connect-card{border:1px solid #e1e8ee;background:linear-gradient(145deg,#fcfdff,#f6f9fb);padding:20px;border-radius:17px;min-width:0}
+#reception .rl-connect-icon{font-size:22px;line-height:1;color:#188c7f;background:#dff8f2;width:38px;height:38px;display:grid;place-items:center;border-radius:12px;margin-bottom:14px}
+#reception .rl-connect-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+#reception .rl-connect-top h3{margin:0;font-size:15px!important;color:#183149;font-weight:850}
+#reception .rl-connect-top a,#reception .rl-source a{font-size:11px;color:#167d73!important;text-decoration:none;font-weight:800}
+#reception .rl-connect-card>p{color:#718092;font-size:12px;line-height:1.65}
+#reception .rl-connect-card .rl-connect-note{font-size:11px;border-radius:10px;background:#e7f2f5;color:#3f6676;padding:10px;line-height:1.55;margin-top:10px;overflow-wrap:anywhere}
+#reception .rl-connect-card .rl-footnote{font-size:10px;margin:12px 0 0}
+#reception .rl-agent-form{display:grid;gap:8px;margin-top:15px}
+#reception .rl-agent-form label{color:#334f60;font-size:11px;font-weight:800}
+#reception .rl-agent-form input,#reception .rl-price-fields input,#reception .rl-price-fields select{width:100%;min-width:0;background:#fff;border:1px solid #cfdae4;color:#1b3647;padding:11px 12px;font-size:13px;border-radius:10px;min-height:43px;outline-offset:2px}
+#reception .rl-agent-form button,#reception .rl-calculate{border:0;border-radius:10px;background:#1b4550;color:white;font-weight:850;font-size:12px;cursor:pointer;padding:12px;min-height:44px}
+#reception .rl-agent-form button:disabled{opacity:.5}
+#reception .rl-feedback{color:#346977;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+#reception .rl-pricing{background:linear-gradient(162deg,#fff 0,#f4f9f8 100%)}
+#reception .rl-pricing-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:18px}
+#reception .rl-price-fields{background:#fff;border:1px solid #e4eaf0;padding:20px;border-radius:17px;display:grid;gap:14px}
+#reception .rl-price-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+#reception .rl-price-pair label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#637184}
+#reception .rl-price-report{background:#16343f;color:#f0ffff;padding:24px;border-radius:18px;display:flex;flex-direction:column;min-width:0}
+#reception .rl-report-cap{font-size:10px;font-weight:850;letter-spacing:.14em;color:#a4ddd4}
+#reception .rl-main-cost{font-size:clamp(25px,3.4vw,38px);font-weight:900;letter-spacing:-.045em;margin-top:10px;overflow-wrap:anywhere;color:white}
+#reception .rl-cost-caption{font-size:11px;color:#bfd6d8;margin-top:6px}
+#reception .rl-cost-split{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:22px 0 16px}
+#reception .rl-cost-split>div{background:#ffffff13;border:1px solid #ffffff21;border-radius:13px;padding:13px;min-width:0}
+#reception .rl-cost-split span{font-size:10px;color:#a6d4cd;display:block;margin-bottom:8px}
+#reception .rl-cost-split strong{color:white;font-size:19px;font-weight:850;overflow-wrap:anywhere}
+#reception .rl-cost-lines{border-top:1px solid #ffffff26;padding-top:13px;display:grid;gap:9px}
+#reception .rl-cost-line{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#bdd4db}
+#reception .rl-cost-line strong{color:white;font-weight:800;white-space:nowrap}
+#reception .rl-disclaimer{font-size:10px;color:#a0b8c0;line-height:1.6;border-top:1px solid #ffffff26;padding-top:13px;margin-top:16px}
+#reception .rl-source{font-size:10px;color:#77899c;line-height:1.5;margin-top:13px}
+#reception .rl-panel{border-radius:18px!important;margin-top:16px}
+#reception .rl-panel>h3{letter-spacing:-.015em}
+#reception .rl-panel form{max-width:100%}
+#reception .rl-agent-form input:focus,#reception .rl-price-fields input:focus,#reception .rl-price-fields select:focus{outline:2px solid #4cbeb1}
+@media(max-width:780px){
+ #reception .rl-connection-grid,#reception .rl-pricing-grid{grid-template-columns:1fr}
+ #reception .rl-header{border-radius:21px}
+ #reception .rl-tabs{top:4px}
+}
+@media(max-width:540px){
+ #reception .rl-stats{grid-template-columns:1fr 1fr}
+ #reception .rl-stats .rl-stat:last-child{grid-column:span 2}
+ #reception .rl-checklist,#reception .rl-price-pair{grid-template-columns:1fr}
+ #reception .rl-header h1{margin-top:26px}
+ #reception .rl-header-metrics{gap:9px}
+ #reception .rl-hero-controls a{width:100%;justify-content:center}
+ #reception .rl-connect-card{padding:16px}
+ #reception .rl-price-report{padding:18px}
+}
+@media(prefers-reduced-motion:reduce){#reception .rl-main-action,#reception .rl-outline-action,#reception #rl-progress-fill{transition:none}}
