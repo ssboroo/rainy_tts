@@ -1549,8 +1549,17 @@ $('voice-agent-start').onclick=async()=>{
         playAgentLipFrames(runtime,at,buffer);
         agentVisual('speaking');
         clearTimeout(runtime.speakingTimer);
-        const remaining=Math.min(12000,Math.max(250,(runtime.playingAt-runtime.context.currentTime)*1000+90));
-        runtime.speakingTimer=setTimeout(()=>{if(agentPreview===runtime){agentOutputLevel(0);agentVisual('listening');}},remaining);
+        function finishWhenAudioStops(){
+          if(agentPreview!==runtime)return;
+          const remaining=(runtime.playingAt-runtime.context.currentTime)*1000;
+          if(remaining>110){
+            runtime.speakingTimer=setTimeout(finishWhenAudioStops,Math.min(10000,Math.max(120,remaining+80)));
+          }else{
+            agentOutputLevel(0);agentVisual('listening');
+          }
+        }
+        runtime.speakingTimer=setTimeout(finishWhenAudioStops,
+          Math.min(10000,Math.max(160,(runtime.playingAt-runtime.context.currentTime)*1000+80)));
       }catch{agentStatus('AI-ийн аудио тоглуулах формат дэмжигдэхгүй байна.');}
     };
     socket.onclose=()=>{if(agentPreview===runtime){agentStatus('AI холболт хаагдлаа.');stopAgentPreview();}};
