@@ -25,6 +25,28 @@ class Clone422DiagnosticsTests(unittest.TestCase):
         msg=explain_clone_rejection(422,{"detail":{"status":"unexpected","message":"Secret=private-recording-123"}})
         self.assertIn("шалтгаан",msg)
         self.assertNotIn("private-recording",msg)
+
+    def test_real_multipart_field_is_unchanged_and_upstream_array_detail_is_read(self):
+        import asyncio
+        from io import BytesIO
+        from unittest.mock import patch
+        from app.eleven_tools import ElevenAPIError, ElevenTools
+        received=[]
+        def fake_upstream(request):
+            received.append((request.method,request.url.path,request.content))
+            return httpx.Response(422,json={"detail":[{"loc":["body","files"],"type":"missing","msg":"Field required"}]})
+        client=httpx.AsyncClient(transport=httpx.MockTransport(fake_upstream))
+        upload=UploadFile(filename="sample.wav",file=BytesIO(b"RIFF"+b"0"*1000),size=1004)
+        with patch('app.eleven_tools.httpx.AsyncClient',return_value=client):
+            with self.assertRaises(ElevenAPIError) as caught:
+                asyncio.run(ElevenTools(api_key="test-key").clone_voice("test",[upload]))
+        self.assertEqual(caught.exception.status,422)
+        self.assertIn("аудио",str(caught.exception).lower())
+        self.assertEqual(received[0][0],"POST")
+        self.assertEqual(received[0][1],"/v1/voices/add")
+        self.assertIn(b'name="files[]"',received[0][2])
+        self.assertIn(b'name="name"',received[0][2])
+
     def test_empty_samples_rejected_locally_before_billable_provider_request(self):
         from io import BytesIO
         file=UploadFile(filename="empty.wav",file=BytesIO(b""),size=0)
