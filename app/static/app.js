@@ -1444,7 +1444,7 @@ async function agentPreviewAvailability(){
   }catch{$('voice-agent-preview').hidden=true;}
 }
 document.addEventListener('rainy:page',event=>{
-  if(event.detail?.name==='realtime')agentPreviewAvailability();
+  if(event.detail?.name==='realtime'||event.detail?.name==='reception')agentPreviewAvailability();
   else if(agentPreview)stopAgentPreview();
 });
 $('voice-agent-stop').onclick=stopAgentPreview;
