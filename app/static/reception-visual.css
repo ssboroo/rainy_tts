@@ -322,3 +322,17 @@
   #reception .rv-robot-heart,
   #reception .rv-robot-mouth{animation:none!important}
 }
+
+
+/* True audio-clock lip-sync. No word/phoneme timings are falsely invented. */
+#reception .rv-visual{--rv-mouth-level:0}
+#reception .rv-robot-mouth{transform-box:fill-box;transform-origin:center;transition:transform .055s linear;transform:translateY(calc(var(--rv-mouth-level,0) * 2px)) scaleY(calc(.74 + var(--rv-mouth-level,0) * 1.4))}
+#reception .rv-visual[data-state="speaking"] .rv-robot-mouth{animation:none!important;filter:drop-shadow(0 0 5px rgba(183,255,74,.6))}
+#reception .rv-visual[data-state="speaking"] .rv-sound-bars i{animation:none!important;height:calc(6px + var(--rv-mouth-level,0) * 29px);transition:height .06s linear}
+#reception .rv-visual[data-state="speaking"] .rv-sound-bars i:nth-child(3n){height:calc(7px + var(--rv-mouth-level,0) * 18px)}
+#reception .rv-visual[data-state="speaking"] .rv-sound-bars i:nth-child(4n){height:calc(7px + var(--rv-mouth-level,0) * 36px)}
+#reception .rv-visual[data-state="speaking"] .rv-avatar-bars i{animation:none!important;height:calc(6px + var(--rv-mouth-level,0) * 23px);transition:height .06s linear}
+#reception .rv-visual[data-state="speaking"] .rv-avatar-bars i:nth-child(even){height:calc(6px + var(--rv-mouth-level,0) * 14px)}
+@media(prefers-reduced-motion:reduce){
+  #reception .rv-robot-mouth,#reception .rv-sound-bars i,#reception .rv-avatar-bars i{transition:none!important}
+}

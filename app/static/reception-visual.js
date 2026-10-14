@@ -75,6 +75,7 @@ const receptionStudio=(()=>{
     if(!['idle','ready','connecting','listening','speaking','error'].includes(next))return;
     streamStatus=next;
     stage.dataset.state=next;
+    if(next!=='speaking')stage.style.setProperty('--rv-mouth-level','0');
     const labels={
       idle:['Холболт тохируулаагүй','Агент холбосны дараа ярилцах боломжтой.'],
       ready:['Ярихад бэлэн','Микрофон ашиглахын тулд товчийг дарна уу.'],
@@ -129,7 +130,13 @@ const receptionStudio=(()=>{
   });
   document.addEventListener('rainy:agent-level',event=>{
     const v=Number(event.detail?.level);
-    if(Number.isFinite(v))stage.style.setProperty('--rv-level',Math.max(0,Math.min(1,v)).toFixed(2));
+    if(Number.isFinite(v)&&stage.dataset.state!=='speaking')
+      stage.style.setProperty('--rv-level',Math.max(0,Math.min(1,v)).toFixed(2));
+  });
+  document.addEventListener('rainy:agent-output-level',event=>{
+    const raw=Number(event.detail?.level),level=Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):0;
+    stage.style.setProperty('--rv-mouth-level',level.toFixed(3));
+    if(stage.dataset.state==='speaking')stage.style.setProperty('--rv-level',level.toFixed(3));
   });
   document.addEventListener('rainy:agent-transcript',event=>{
     const role=event.detail?.role;

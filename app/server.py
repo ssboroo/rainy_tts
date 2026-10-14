@@ -431,7 +431,7 @@ def voice_mcp_discovery(request: Request):
 def static_file(name:str):
     if name=="appointment":
         return FileResponse(STATIC/"appointment.html",media_type="text/html")
-    if name not in {"reception-visual.js","reception-visual.css","reception-launch.js","reception-launch.css","appointment.js","appointment.css","reception.js","reception-knowledge.js","app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg","movie.css","integrations.css"}:
+    if name not in {"voice-visual.js","voice-visual.css","reception-visual.js","reception-visual.css","reception-launch.js","reception-launch.css","appointment.js","appointment.css","reception.js","reception-knowledge.js","app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg","movie.css","integrations.css"}:
         raise HTTPException(404,"Хуудас олдсонгүй.")
     media={".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"}[Path(name).suffix]
     return FileResponse(STATIC/name,media_type=media)

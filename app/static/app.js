@@ -273,8 +273,10 @@ function renderVoiceLibrary(){
     const actions=document.createElement('div');actions.className='voice-actions';
     const use=document.createElement('button');use.type='button';use.className='secondary voice-use';use.textContent='Энэ хоолойг ашиглах';use.onclick=()=>selectVoice(voice);
     const listen=document.createElement('button');listen.type='button';listen.className='secondary voice-listen';listen.textContent='Дээж сонсох';
-    const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.hidden=true;
+    const audio=document.createElement('audio');audio.controls=false;audio.preload='none';audio.hidden=true;
     const feedback=document.createElement('p');feedback.className='field-help';feedback.setAttribute('role','status');feedback.hidden=true;
+    const player=createVoicePreviewPlayer({audio,listen,feedback,voiceName:voiceDisplayName(voice)});
+    listen.hidden=true;
     let previewUrl;
     listen.onclick=async()=>{
       if(listen.disabled)return;listen.disabled=true;listen.textContent='Дээж ачаалж байна…';feedback.hidden=true;
@@ -285,14 +287,15 @@ function renderVoiceLibrary(){
           const blob=await response.blob();if(!blob.size)throw new Error('Дээж хоосон байна. Дараа дахин оролдоно уу.');
           if(!card.isConnected)return;
           previewUrl=URL.createObjectURL(blob);audio.src=previewUrl;
+          player.prepareWaveform(blob).catch(()=>{});
         }
-        audio.hidden=false;await audio.play();
+        await audio.play();
       }catch(e){feedback.textContent=customerMessage(e.message);feedback.hidden=false;}
       finally{listen.disabled=false;listen.textContent='Дээж сонсох';}
     };
-    audio.onerror=()=>{feedback.textContent='Дээжийг тоглуулах боломжгүй байна. Дараа дахин оролдоно уу.';feedback.hidden=false;audio.hidden=true;};
-    actions.append(use,listen);card.append(actions,audio,feedback);
-    card.releasePreview=()=>{audio.pause();if(previewUrl)URL.revokeObjectURL(previewUrl);};
+    audio.onerror=()=>{feedback.textContent='Дээжийг тоглуулах боломжгүй байна. Дараа дахин оролдоно уу.';feedback.hidden=false;};
+    actions.append(use,listen);card.append(actions,player.root,audio,feedback);
+    card.releasePreview=()=>{player.dispose();if(previewUrl)URL.revokeObjectURL(previewUrl);};
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Хоолой устгах';
       remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(customerMessage(e.message));}};
@@ -1426,12 +1429,51 @@ let agentPreview=null;
 let agentPreviewEpoch=0; // Cancel pending signed URL / microphone operations on navigation.
 function agentVisual(state){document.dispatchEvent(new CustomEvent('rainy:agent-state',{detail:{state}}));}
 function agentText(role,text){document.dispatchEvent(new CustomEvent('rainy:agent-transcript',{detail:{role,text}}));}
+function agentOutputLevel(level){
+  document.dispatchEvent(new CustomEvent('rainy:agent-output-level',{detail:{level}}));
+}
+function playAgentLipFrames(runtime,start,buffer){
+  // PCM playback time is ground truth; energy segments are matched to
+  // AudioContext.currentTime, NOT the time the WebSocket chunk arrived.
+  const channel=buffer.getChannelData(0);
+  const seconds=Math.max(.001,buffer.duration),count=Math.max(1,Math.ceil(seconds/.035));
+  const slice=Math.max(1,Math.floor(channel.length/count));
+  const levels=[];
+  for(let i=0;i<count;i++){
+    const first=i*slice,last=Math.min(channel.length,first+slice);
+    let sum=0,n=0;
+    for(let j=first;j<last;j+=Math.max(1,Math.floor(slice/180))){sum+=channel[j]*channel[j];n++;}
+    levels.push(Math.min(1,Math.sqrt(sum/Math.max(1,n))*5));
+  }
+  runtime.outputEnvelopes.push({start,end:start+buffer.duration,levels});
+  if(runtime.outputEnvelopes.length>130)runtime.outputEnvelopes.shift();
+  if(runtime.outputRaf)return;
+  function animation(){
+    if(agentPreview!==runtime||!runtime.context){runtime.outputRaf=0;return;}
+    const current=runtime.context.currentTime;
+    while(runtime.outputEnvelopes.length&&runtime.outputEnvelopes[0].end<current-.04)
+      runtime.outputEnvelopes.shift();
+    let amplitude=0;
+    for(const e of runtime.outputEnvelopes){
+      if(current<e.start||current>=e.end)continue;
+      const idx=Math.min(e.levels.length-1,Math.floor((current-e.start)/(e.end-e.start)*e.levels.length));
+      amplitude=e.levels[idx];break;
+    }
+    agentOutputLevel(amplitude);
+    if(runtime.outputEnvelopes.length||current<runtime.playingAt+.15)
+      runtime.outputRaf=requestAnimationFrame(animation);
+    else{runtime.outputRaf=0;agentOutputLevel(0);}
+  }
+  runtime.outputRaf=requestAnimationFrame(animation);
+}
 function agentStatus(message){if($('voice-agent-status'))$('voice-agent-status').textContent=message;}
 async function stopAgentPreview(reason='ready'){
   ++agentPreviewEpoch;
   const running=agentPreview;agentPreview=null;
   if(running){
     clearTimeout(running.speakingTimer);
+    cancelAnimationFrame(running.outputRaf||0);
+    agentOutputLevel(0);
     try{running.socket?.close();}catch{}
     try{running.node?.disconnect();}catch{}
     try{running.mic?.disconnect();}catch{}
@@ -1467,7 +1509,7 @@ $('voice-agent-start').onclick=async()=>{
     const token=await api('/production/agent-session',{method:'POST',body:{}});
     if(epoch!==agentPreviewEpoch)return; // User left the tab before the signed URL arrived.
     if(!token.signed_url)throw new Error('Live agent холболт нээгдээгүй.');
-    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0,speakingTimer:null,lastLevelAt:0};
+    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0,speakingTimer:null,lastLevelAt:0,outputEnvelopes:[],outputRaf:0};
     agentPreview=runtime;$('voice-agent-stop').disabled=false;
     socket.onmessage=async event=>{
       if(agentPreview!==runtime)return;
@@ -1504,10 +1546,20 @@ $('voice-agent-start').onclick=async()=>{
         if(agentPreview!==runtime)return;
         const player=runtime.context.createBufferSource();player.buffer=buffer;player.connect(runtime.context.destination);
         const at=Math.max(runtime.context.currentTime+.03,runtime.playingAt);player.start(at);runtime.playingAt=at+buffer.duration;
+        playAgentLipFrames(runtime,at,buffer);
         agentVisual('speaking');
         clearTimeout(runtime.speakingTimer);
-        const remaining=Math.min(12000,Math.max(250,(runtime.playingAt-runtime.context.currentTime)*1000+90));
-        runtime.speakingTimer=setTimeout(()=>{if(agentPreview===runtime)agentVisual('listening');},remaining);
+        function finishWhenAudioStops(){
+          if(agentPreview!==runtime)return;
+          const remaining=(runtime.playingAt-runtime.context.currentTime)*1000;
+          if(remaining>110){
+            runtime.speakingTimer=setTimeout(finishWhenAudioStops,Math.min(10000,Math.max(120,remaining+80)));
+          }else{
+            agentOutputLevel(0);agentVisual('listening');
+          }
+        }
+        runtime.speakingTimer=setTimeout(finishWhenAudioStops,
+          Math.min(10000,Math.max(160,(runtime.playingAt-runtime.context.currentTime)*1000+80)));
       }catch{agentStatus('AI-ийн аудио тоглуулах формат дэмжигдэхгүй байна.');}
     };
     socket.onclose=()=>{if(agentPreview===runtime){agentStatus('AI холболт хаагдлаа.');stopAgentPreview();}};
