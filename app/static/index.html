@@ -16,9 +16,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
+  <link rel="stylesheet" href="/reception-launch.css?v=1">
   <script src="/app.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception-knowledge.js?v=rainy-knowledge-1" defer></script>
+  <script src="/reception-launch.js?v=1" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -264,8 +266,76 @@
       </section>
 
       <section id="reception" class="page tool-page" hidden>
-        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">☎️</span><p class="kicker"><span></span>RAINY AI RECEPTIONIST · МОНГОЛ</p><h1>Монгол AI <em>ресепшн.</em></h1><p>Бодит цаг захиалгын календарь, веб дээр дуут агентын холболт, байгууллагын үйлчилгээний сан. Утасны SIP холболт одоогоор идэвхгүй.</p></div>
-        <div class="tool-form">
+      <div class="rl-header">
+        <div class="rl-header-orb" aria-hidden="true"></div>
+        <div class="rl-header-top"><span class="rl-header-label">RAINY / BUSINESS AUTOMATION</span><span class="rl-header-marker">● RECEPTION PLATFORM</span></div>
+        <h1>Таны байгууллагын <em>AI ресепшн.</em></h1>
+        <p>Нэг удаа тохируулна. Мэдлэгийн сан, үйлчлүүлэгчийн цаг захиалга, AI дуут агент, утасны холболтын бэлэн байдал, ашигт ажиллагааг нэг дор удирдана.</p>
+        <div class="rl-hero-controls"><a href="#rl-console" class="rl-main-action">Холболтоо шалгах →</a><a class="rl-outline-action" href="#rl-pricing">Сарын өртөг тооцох ↗</a></div>
+        <div class="rl-header-metrics"><span>🔒 Байгууллага тус бүрийн өгөгдөл</span><span>📅 Бодит, давхардалгүй захиалга</span><span>🇲🇳 Монгол хэлээр</span></div>
+      </div>
+      <nav class="rl-tabs" aria-label="Receptionist-ийн тохиргоо">
+        <a href="#rl-console">Тойм</a><a href="#rl-connect">Холболт</a><a href="#rl-pricing">Зардал</a><a href="#rl-business">Байгууллага</a><a href="#rl-knowledge">Мэдлэг</a><a href="#rl-services">Үйлчилгээ</a><a href="#rl-public">Онлайн захиалга</a><a href="#rl-voice">Дуут AI</a>
+      </nav>
+      <section class="rl-dashboard" id="rl-console" aria-labelledby="rl-overview-title">
+        <div class="rl-section-heading"><div><span class="rl-kicker">01 / LAUNCH OVERVIEW</span><h2 id="rl-overview-title">Ажиллуулахад бэлэн байдал</h2><p>Жинхэнэ холболт, API эрх, файлын сан, календарийг тус бүрээр шалгана.</p></div><button class="rl-refresh" type="button" id="rl-refresh">↻ Шинэчлэх</button></div>
+        <div class="rl-stats"><div class="rl-stat"><span>Тохируулсан алхам</span><strong id="rl-progress-count">— / 7</strong><small>Нийт холболт, тохиргоо</small></div>
+        <div class="rl-stat"><span>Онлайн захиалга</span><strong id="rl-booking-summary">Шалгаж байна</strong><small>Тусдаа төлбөртэй AI минутгүй</small></div>
+        <div class="rl-stat"><span>Ярианы AI</span><strong id="rl-voice-summary">Шалгаж байна</strong><small>Provider + Agent ID шаардлагатай</small></div></div>
+        <div class="rl-progress"><div id="rl-progress-fill"></div></div>
+        <div id="rl-checklist" class="rl-checklist" aria-live="polite"></div>
+      </section>
+      <section class="rl-feature" id="rl-connect">
+        <div class="rl-section-heading"><div><span class="rl-kicker">02 / INTEGRATIONS</span><h2>Гадаад холболтын төв</h2><p>API-тай холбогдсон эсэхийг шалгана. Нууц түлхүүрийг сайт дээр хэзээ ч харуулахгүй.</p></div></div>
+        <div class="rl-connection-grid">
+          <article class="rl-connect-card"><div class="rl-connect-icon">◉</div><div class="rl-connect-top"><h3>ElevenLabs · AI агент</h3><a href="https://elevenlabs.io/app/conversational-ai" rel="noopener noreferrer" target="_blank">Agent dashboard ↗</a></div>
+            <p>API key нь Railway-д хадгалагдана. Agent ID-аа оруулж, тухайн API эрх агент руу үнэхээр хандаж чадаж байгааг шалгана.</p>
+            <form id="rl-agent-form" class="rl-agent-form"><label for="rl-agent-id">ElevenAgents Agent ID</label><input id="rl-agent-id" name="agent_id" placeholder="agent_..." autocomplete="off" spellcheck="false" maxlength="100" required><button type="submit">Холболт баталгаажуулах →</button></form>
+            <p id="rl-agent-feedback" class="rl-feedback" role="status"></p>
+            <div class="rl-connect-note" id="rl-agent-details">Agent-ийн мэдээлэл бэлэн биш.</div>
+          </article>
+          <article class="rl-connect-card"><div class="rl-connect-icon">▤</div><div class="rl-connect-top"><h3>Google Sheets · Мэдлэг</h3><a href="#rl-knowledge">Sheet холбох →</a></div>
+            <p>Нээлттэй CSV эсвэл зөвшөөрөлтэй Google service account ашиглаж, зургаан цаг тутам мэдээллийг шинэчилнэ.</p>
+            <div class="rl-connect-note" id="rl-google-details">Google Sheets тохиргоог шалгаж байна.</div>
+            <p class="rl-footnote">Хувийн файл: Railway-д GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON; Sheet-ийг service account имэйлд Viewer эрхээр share хийнэ.</p>
+          </article>
+          <article class="rl-connect-card"><div class="rl-connect-icon">☎</div><div class="rl-connect-top"><h3>Дуудлагын SIP / Twilio</h3><a href="https://elevenlabs.io/docs/reception-ai/phone-numbers/bring-your-own-number" rel="noopener noreferrer" target="_blank">Холбох заавар ↗</a></div>
+            <p>Монгол оператороос SIP trunk эсвэл дуудлага шилжүүлэлт авах, ElevenLabs дээр дугаараа холбох шаардлагатай. Дугаар үүсгэхгүйгээр “ажиллаж байна” гэж харуулахгүй.</p>
+            <div class="rl-connect-note" id="rl-phone-details">Утасны шугамыг шалгаж байна.</div>
+            <p class="rl-footnote">Ярианы минут, операторын inbound/outbound зардал тусдаа.</p>
+          </article>
+          <article class="rl-connect-card"><div class="rl-connect-icon">↗</div><div class="rl-connect-top"><h3>Байгууллагын CRM / API</h3><a href="#rl-webhooks">Webhook хэрэгслүүд →</a></div>
+            <p>Үйлчилгээ, сул цаг, захиалга болон мэдлэгийн сангийн API эндээс холбогдоно. Гаднын CRM-д хоёр талын синк хийх бол тухайн байгууллагын API эрх, data mapping шаардлагатай.</p>
+            <div class="rl-connect-note">Одоогоор RAINY webhook tools · Нэмж холбох систем тус бүрээр баталгаажуулна</div>
+          </article>
+        </div>
+      </section>
+      <section id="rl-pricing" class="rl-pricing">
+        <div class="rl-section-heading"><div><span class="rl-kicker">03 / UNIT ECONOMICS</span><h2>Үнэ, өртөг, ашиг</h2><p>Эрх, дуудлага, хэлний модель, оператор, серверийн зардлыг хамтад нь тооцно. Нэхэмжлэх биш, өөрчилж тооцох урьдчилсан төсөв.</p></div></div>
+        <div class="rl-pricing-grid">
+          <form class="rl-price-fields" id="rl-price-form">
+            <div class="rl-price-pair"><label>ElevenAgents багц<select name="plan" id="rl-plan">
+               <option value="free">Free · $0 / 15 мин</option><option value="starter" selected>Starter · $6 / 75 мин</option><option value="creator">Creator · $22 / 275 мин</option><option value="pro">Pro · $99 / 1,238 мин</option><option value="scale">Scale · $299 / 3,738 мин</option><option value="business">Business · $990 / 12,375 мин</option></select></label>
+               <label>Сар бүр ирэх дуудлага<input type="number" name="calls" value="100" min="0" max="100000" step="1" required></label></div>
+            <div class="rl-price-pair"><label>Нэг дуудлагын дундаж минут<input type="number" name="avg_minutes" value="3" min="0.5" max="120" step="0.5" required></label>
+               <label>LLM зардал / минут · $<input type="number" name="llm_usd_per_min" value="0.01" min="0" step="0.001" required></label></div>
+            <div class="rl-price-pair"><label>Утасны оператор / минут · $<input type="number" name="telephony_usd_per_min" value="0.02" min="0" step="0.001" required></label>
+              <label>Сервер / сар · $<input type="number" name="hosting_usd_per_month" value="5" min="0" step="0.5" required></label></div>
+            <div class="rl-price-pair"><label>USD → ₮ жишиг ханш<input type="number" name="fx_mnt_per_usd" value="3500" min="1" step="1" required></label>
+              <label>Байгууллагад зарах үнэ / сар · ₮<input type="number" name="revenue_mnt_per_month" value="249000" min="0" step="1000" required></label></div>
+            <button type="submit" class="rl-calculate">Шинэ тооцоо гаргах ↗</button>
+          </form>
+          <div class="rl-price-report">
+            <p class="rl-report-cap">САРЫН УРЬДЧИЛСАН ТООЦОО</p>
+            <strong class="rl-main-cost" id="rl-monthly-cost">— ₮</strong><span class="rl-cost-caption">Бүх тооцоолсон зардал / сар</span>
+            <div class="rl-cost-split"><div><span>Үлдэх дүн</span><strong id="rl-profit">— ₮</strong></div><div><span>Ашгийн хувь</span><strong id="rl-margin">—%</strong></div></div>
+            <div class="rl-cost-lines" id="rl-cost-breakdown"></div>
+            <p class="rl-disclaimer" id="rl-cost-message">Энэ нь жишиг зардлын тооцоо. ElevenAgents-ийн багцад багтсан минут, хэрэглэсэн нэмэлт минут, LLM ба операторын өөрийн үнэ нөлөөлнө.</p>
+          </div>
+        </div>
+        <p class="rl-source">Албан эх сурвалж: <a href="https://elevenlabs.io/pricing/agents" target="_blank" rel="noopener noreferrer">ElevenAgents үнэ ↗</a> · <a href="https://www.twilio.com/en-us/sip-trunking/pricing/mn" target="_blank" rel="noopener noreferrer">Twilio Mongolia ↗</a> · <a href="https://developers.google.com/workspace/sheets/api/limits" target="_blank" rel="noopener noreferrer">Google Sheets лимит ↗</a></p>
+      </section>
+        <div class="tool-form rl-panel" id="rl-public">
           <h3>Нийтийн онлайн цаг захиалга · Автомат</h3>
           <p class="field-help">AI дуут агент идэвхгүй үед ч үйлчлүүлэгч өөрөө бодит сул цагийг шалгаад цаг захиална. Нэг удаа холбоосоо идэвхжүүлж хэрэглэгчид илгээнэ. Захиалга таны админ календарьд шууд бүртгэгдэнэ.</p>
           <button id="reception-public-enable" class="secondary" type="button">Захиалгын холбоос идэвхжүүлэх</button>
@@ -273,7 +343,7 @@
           <p id="reception-public-status" class="field-help" role="status"></p>
           <div id="reception-public-url" class="reception-tools"></div>
         </div>
-        <div class="tool-form">
+        <div class="tool-form rl-panel" id="rl-business">
           <h3>Байгууллагын мэдээлэл</h3>
           <p class="field-help">Нэг удаа тохируулна. AI агент get_business хэрэгслээр зөвхөн таны байгууллагын нэр, хаяг, холбоо барих мэдээллийг авна.</p>
           <form id="reception-business-form">
@@ -292,7 +362,7 @@
           </form>
           <p id="reception-business-status" class="field-help" role="status"></p>
         </div>
-        <div class="tool-form">
+        <div class="tool-form rl-panel" id="rl-knowledge">
           <h3>Мэдлэгийн сан · PDF, Word, Excel, CSV, TXT</h3>
           <p class="field-help">Компьютероос баримтаа оруулна. AI зөвхөн баримтаас олдсон мэдээллийг эх сурвалжтай ашиглана. Зурагтай буюу scan PDF-д OCR хийгдэхгүй. Хувийн мэдээлэл, нууц үг агуулаагүй баримт ашиглаарай.</p>
           <form id="reception-knowledge-file-form">
@@ -326,13 +396,13 @@
           </form>
           <p id="reception-time-result" class="field-help" role="status"></p>
         </div>
-        <div class="tool-form">
+        <div class="tool-form rl-panel" id="rl-voice">
           <h3>Монгол хэлний шууд дуут туршилт</h3>
           <p class="field-help">ElevenLabs Conversational AI Agent ID болон туршилтын эрх тохируулагдсан үед микрофоноор бодитоор ярилцах боломжтой. Ярианы минутын төлбөр тусдаа; зөвшөөрөлгүйгээр дуудлага эхлэхгүй.</p>
           <div id="reception-agent-target"></div>
           <p id="reception-agent-availability" class="field-help" role="status">AI агентын холболтыг шалгаж байна.</p>
         </div>
-        <div class="tool-form">
+        <div class="tool-form rl-panel" id="rl-services">
           <h3>Үйлчилгээний сан · Байгууллагын тохиргоо</h3>
           <p class="field-help">Улаанбаатарын цаг (UTC+8) · Байгууллагын тохиргоонд оруулсан цаг, амралтын өдрүүдээр ажиллана. Эхний хувилбарт нэг бизнесийн нийт нэг календарь ашиглана.</p>
           <form id="reception-service-form">
@@ -358,7 +428,7 @@
           <p id="reception-booking-status" class="field-help" role="status"></p>
         </div>
         <div class="ledger-wrap"><h3>Цаг захиалгын календарь</h3><button id="reception-bookings-refresh" class="secondary" type="button">Захиалга шинэчлэх ↻</button><div id="reception-bookings-list" class="ledger-list" aria-live="polite"></div></div>
-        <div class="tool-form">
+        <div class="tool-form rl-panel" id="rl-webhooks">
           <h3>ElevenAgents / Reception.ai · API холболт</h3>
           <p class="field-help">Agent системийн tool/webhook тохиргоонд доорх хаягуудыг хэрэглэнэ. <b>list_services → check_availability → book_appointment</b> дарааллаар ажиллах ба зөвхөн амжилттай хариу авсны дараа цаг захиалсан гэж баталгаажуулна. Хаяг нь нууц токентой тул бусдад тараахгүй.</p>
           <button id="reception-load" class="generate" type="button"><span>Агентын tool URL авах</span><span>↗</span></button>
