@@ -21,6 +21,23 @@ class ProductionSuiteTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             direct_script("уу "*7000, "advertising")
 
+    def test_mongolian_voice_directions_follow_explicit_emotion(self):
+        script="Шивнэн хэлэв. Ууртайгаар хашхирав! Гунигтайгаар дурсав."
+        result=direct_script(script,"advertising")
+        lines=result["directedText"].splitlines()
+        self.assertTrue(lines[0].startswith("[whispers] "),lines)
+        self.assertTrue(lines[1].startswith("[angry] "),lines)
+        self.assertTrue(lines[2].startswith("[sad] "),lines)
+        self.assertEqual(result["original"],script)
+        self.assertEqual(result["creditsCharged"],0)
+
+    def test_mongolian_voice_director_preserves_existing_stage_tags(self):
+        script="[whispers] Сайн уу. [happy] Баярлалаа!"
+        result=direct_script(script,"cinematic")
+        self.assertEqual(result["directedText"].count("[whispers]"),1)
+        self.assertEqual(result["directedText"].count("[happy]"),1)
+        self.assertNotIn("[curious] [whispers]",result["directedText"])
+
     def test_book_plan_is_bounded_and_unbilled(self):
         text=("Сайн байна уу. Урт өгүүлэмжийн эхлэл. "*180)
         plan=plan_book(text,"Миний ном","eleven_v4")
