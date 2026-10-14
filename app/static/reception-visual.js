@@ -86,6 +86,15 @@ const receptionStudio=(()=>{
     const label=(next==='idle'&&ready)?labels.ready:labels[next];
     $('rv-state-label').textContent=label[0];
     $('rv-state-sub').textContent=label[1];
+    const meta={
+      idle:'Дуут агент холбогдоогүй · Яриа эхлээгүй',
+      ready:'ElevenLabs Agent тохируулсан · Яриаг эхлүүлж бодитоор шалгана',
+      connecting:'Холболт нээгдэж байна · Минутын төлбөртэй туршилт',
+      listening:'Микрофон идэвхтэй · ElevenLabs яриа үргэлжилж байна',
+      speaking:'AI аудио дамжуулж байна · ElevenLabs яриа идэвхтэй',
+      error:'Холболтын алдаа · Дахин шалгах шаардлагатай'
+    };
+    $('rv-session-meta').textContent=(next==='idle'&&ready)?meta.ready:meta[next];
     active=['connecting','listening','speaking'].includes(next);
     $('rv-start-btn').hidden=active;
     $('rv-stop-btn').hidden=!active;
