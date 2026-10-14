@@ -34,6 +34,8 @@ def ensure_schema():
           user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           name TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '',
           contact_phone TEXT NOT NULL DEFAULT '', intro TEXT NOT NULL DEFAULT '',
+          open_hour INTEGER NOT NULL DEFAULT 9, close_hour INTEGER NOT NULL DEFAULT 18,
+          closed_weekdays TEXT NOT NULL DEFAULT '[6]',
           updated REAL NOT NULL
         );
         CREATE TABLE IF NOT EXISTS reception_sources(
@@ -51,8 +53,12 @@ def ensure_schema():
 def read_business(user_id):
     ensure_schema()
     with core.db() as db:
-        row=db.execute("SELECT name,address,contact_phone,intro FROM reception_business WHERE user_id=?",(user_id,)).fetchone()
-    return dict(row) if row else {"name":"","address":"","contact_phone":"","intro":""}
+        row=db.execute("SELECT name,address,contact_phone,intro,open_hour,close_hour,closed_weekdays FROM reception_business WHERE user_id=?",(user_id,)).fetchone()
+    if not row:
+        return {"name":"","address":"","contact_phone":"","intro":"","open_hour":9,"close_hour":18,"closed_weekdays":[6]}
+    result=dict(row)
+    result["closed_weekdays"]=json.loads(result["closed_weekdays"])
+    return result
 
 def save_business(user_id,payload):
     if not isinstance(payload,dict):raise HTTPException(422,"Байгууллагын мэдээлэл буруу байна.")
@@ -63,13 +69,23 @@ def save_business(user_id,payload):
             raise HTTPException(422,"Байгууллагын мэдээлэл хэт урт эсвэл буруу байна.")
         values[key]=val.strip()
     if not values["name"]:raise HTTPException(422,"Байгууллагын нэр шаардлагатай.")
+    opening=payload.get("open_hour",9)
+    closing=payload.get("close_hour",18)
+    closed=payload.get("closed_weekdays",[6])
+    if (type(opening)!=int or type(closing)!=int or not (0<=opening<=22 and opening+1<=closing<=23)
+        or not isinstance(closed,list) or len(closed)>7 or any(type(x)!=int or x not in range(7) for x in closed)
+        or len(set(closed))!=len(closed)):
+        raise HTTPException(422,"Ажиллах цаг 0–23, амралтын гарагууд 0–6 (Даваа=0) байна.")
+    values.update({"open_hour":opening,"close_hour":closing,"closed_weekdays":closed})
     with core.db() as db:
-        db.execute("""INSERT INTO reception_business(user_id,name,address,contact_phone,intro,updated)
-                      VALUES(?,?,?,?,?,?)
+        db.execute("""INSERT INTO reception_business(user_id,name,address,contact_phone,intro,open_hour,close_hour,closed_weekdays,updated)
+                      VALUES(?,?,?,?,?,?,?,?,?)
                       ON CONFLICT(user_id) DO UPDATE SET
                       name=excluded.name,address=excluded.address,contact_phone=excluded.contact_phone,
-                      intro=excluded.intro,updated=excluded.updated""",
-                    (user_id,values["name"],values["address"],values["contact_phone"],values["intro"],time.time()))
+                      intro=excluded.intro,open_hour=excluded.open_hour,close_hour=excluded.close_hour,
+                      closed_weekdays=excluded.closed_weekdays,updated=excluded.updated""",
+                   (user_id,values["name"],values["address"],values["contact_phone"],values["intro"],
+                    opening,closing,json.dumps(closed),time.time()))
     return values
 
 def extract_document(filename,data):
