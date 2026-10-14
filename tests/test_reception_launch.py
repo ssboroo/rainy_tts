@@ -68,9 +68,20 @@ class LaunchTests(unittest.TestCase):
      "revenue_mnt_per_month":0}
   self.assertEqual(self.client.post("/api/reception/launch/estimate",json=p,headers=self.headers).status_code,422)
   p["plan"]="creator"
-  for patch_value in [{"calls":-1},{"calls":99999999},{"fx_mnt_per_usd":0},{"avg_minutes":0},{"llm_usd_per_min":-1},{"telephony_usd_per_min":float('inf')}]:
+  for patch_value in [{"calls":-1},{"calls":99999999},{"fx_mnt_per_usd":0},{"avg_minutes":0},{"llm_usd_per_min":-1}]:
    r=self.client.post("/api/reception/launch/estimate",json={**p,**patch_value},headers=self.headers)
    self.assertIn(r.status_code,(400,422),r.text)
+ def test_nonfinite_direct_pricing_is_rejected_before_cost_math(self):
+  from fastapi import HTTPException
+  from app.reception_launch import estimate
+  template={"plan":"starter","calls":2,"avg_minutes":3,
+            "llm_usd_per_min":0,"telephony_usd_per_min":0,
+            "hosting_usd_per_month":0,"fx_mnt_per_usd":3500,
+            "revenue_mnt_per_month":100000}
+  for impossible in (float("inf"),float("nan"),-float("inf")):
+   with self.assertRaises(HTTPException) as ex:
+    estimate({**template,"telephony_usd_per_min":impossible})
+   self.assertEqual(ex.exception.status_code,422)
  def test_agent_verify_permission_and_provider_errors_do_not_save(self):
   from app import reception_launch
   with patch.object(reception_launch,"check_provider_agent",new_callable=AsyncMock) as mock:
