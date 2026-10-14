@@ -22,6 +22,18 @@ class ReceptionThemeTests(unittest.TestCase):
   self.assertIn('class="rv-hud-corner',html)
   self.assertIn('reception-visual.css?v=2',html)
   self.assertIn('reception-visual.js?v=2',html)
+ def test_ai_avatar_is_a_cute_animated_robot_not_human(self):
+  html=(STATIC/"index.html").read_text(encoding="utf-8")
+  css=(STATIC/"reception-visual.css").read_text(encoding="utf-8")
+  avatar=html.split('id="rv-avatar"',1)[1].split('</svg>',1)[0]
+  self.assertIn('AI робот',avatar)
+  self.assertIn('class="rv-robot-eye"',avatar)
+  self.assertIn('class="rv-robot-mouth"',avatar)
+  self.assertIn('class="rv-robot-antenna"',avatar)
+  self.assertIn('rv-robot-head',avatar)
+  self.assertNotIn('AI ресепшний хийсвэр хүний дүрс',avatar)
+  self.assertIn('#reception .rv-visual[data-state="speaking"] .rv-robot-mouth',css)
+  self.assertIn('@media(prefers-reduced-motion:reduce)',css)
  def test_status_refresh_never_fakes_online_call(self):
   js=(STATIC/"reception-visual.js").read_text(encoding="utf-8")
   self.assertIn("rv-session-meta",js)
