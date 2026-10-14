@@ -292,6 +292,12 @@
             <p>API key нь Railway-д хадгалагдана. Agent ID-аа оруулж, тухайн API эрх агент руу үнэхээр хандаж чадаж байгааг шалгана.</p>
             <form id="rl-agent-form" class="rl-agent-form"><label for="rl-agent-id">ElevenAgents Agent ID</label><input id="rl-agent-id" name="agent_id" placeholder="agent_..." autocomplete="off" spellcheck="false" maxlength="100" required><button type="submit">Холболт баталгаажуулах →</button></form>
             <p id="rl-agent-feedback" class="rl-feedback" role="status"></p>
+            <div class="rl-agent-steps">
+              <strong>Монгол AI агентаа тохируулах · 3 алхам</strong>
+              <p>1. Agent dashboard-д Монгол STT, LLM болон TTS-аа сонгоно. 2. Доорх зааврыг agent-ийн System Prompt хэсэгт оруулна. 3. Энэ хуудасны <a href="#rl-webhooks">Webhook / API</a> хэсгийн list_services, search_knowledge, check_availability, book_appointment хэрэгслүүдийг provider-д холбоно.</p>
+              <button id="rl-copy-prompt" class="rl-sub-action" type="button">Монгол System Prompt хуулах ↗</button>
+              <small id="rl-prompt-feedback" role="status"></small>
+            </div>
             <div class="rl-connect-note" id="rl-agent-details">Agent-ийн мэдээлэл бэлэн биш.</div>
           </article>
           <article class="rl-connect-card"><div class="rl-connect-icon">▤</div><div class="rl-connect-top"><h3>Google Sheets · Мэдлэг</h3><a href="#rl-knowledge">Sheet холбох →</a></div>
