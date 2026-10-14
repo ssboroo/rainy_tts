@@ -1,0 +1,21 @@
+:root{color-scheme:light;font-family:Inter,"Noto Sans",system-ui,sans-serif;background:#f6f7fb;color:#152435}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}
+.wrap{max-width:780px;margin:auto;padding:24px 18px 50px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:34px}
+.brand{font-weight:900;letter-spacing:.07em;text-decoration:none;color:#152435}
+.brand span{font-weight:600;font-size:11px;color:#547185}
+.pill{border:1px solid #e1e6eb;background:#fff;border-radius:40px;padding:8px 12px;font-size:12px;font-weight:600;color:#496078}
+.hero{padding:28px 0 30px}.eyebrow{font-weight:800;letter-spacing:.12em;color:#3f7bb9;font-size:12px}
+h1{font-size:clamp(29px,5vw,43px);line-height:1.16;margin:8px 0 16px}
+h2{font-size:21px;margin:0 0 22px}.hero p{line-height:1.7;color:#667789}
+.facts{display:flex;flex-wrap:wrap;gap:10px}.facts span:not(:empty){background:#fff;border:1px solid #e3e8ec;padding:9px 12px;border-radius:14px;color:#526778;font-size:13px}
+.card{background:white;border-radius:25px;border:1px solid #e3e8ed;padding:30px;box-shadow:0 24px 60px rgba(10,37,58,.04)}
+form{display:grid;gap:11px}label{font-size:13px;font-weight:750;margin-top:8px}
+input:not([type=checkbox]),select{width:100%;font:inherit;border:1px solid #d6dee7;border-radius:13px;padding:14px;background:#fff;color:#10283c;min-height:49px}
+input:focus,select:focus{outline:2px solid #419cf7;outline-offset:2px}
+button{border:0;border-radius:13px;background:#182b46;color:white;font-size:16px;font-weight:800;padding:17px;margin-top:13px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}.agree{font-weight:500;display:flex;align-items:flex-start;gap:10px;line-height:1.6;color:#4b6072}
+.agree input{margin-top:5px}.help{min-height:24px;color:#5c7389;font-size:13px;margin:0}
+#booking-status{line-height:1.6;color:#146544;font-weight:700;min-height:25px}
+footer{text-align:center;font-size:12px;color:#8292a2;margin-top:25px;line-height:1.6}
+@media(max-width:500px){header{flex-wrap:wrap} .card{padding:19px;border-radius:18px}}
