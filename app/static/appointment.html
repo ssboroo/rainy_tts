@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="mn">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f7f8fb"><meta name="referrer" content="no-referrer">
+<title>Цаг захиалах · RAINY AI Receptionist</title>
+<link rel="stylesheet" href="/appointment.css"><script src="/appointment.js" defer></script></head>
+<body>
+<main class="wrap">
+  <header><a href="/" class="brand">RAINY <span>RECEPTIONIST</span></a><span class="pill">Цаг захиалга · Монгол</span></header>
+  <section class="hero"><p class="eyebrow">ОНЛАЙН ЦАГ ЗАХИАЛГА</p>
+    <h1 id="business-name">Үйлчилгээний цаг захиалах</h1>
+    <p id="business-intro">Байгууллагын мэдээллийг уншиж байна…</p>
+    <div class="facts"><span id="business-address"></span><span id="business-hours"></span><span id="business-phone"></span></div>
+  </section>
+  <section class="card" id="booking-content" hidden><h2>Өөрт тохирох цагийг сонгоно уу</h2>
+    <form id="public-booking-form">
+      <label for="service">Үйлчилгээ</label><select id="service" required></select>
+      <label for="date">Өдөр · Улаанбаатарын цагаар</label><input type="date" id="date" required>
+      <label for="time">Сул цаг</label><select id="time" required></select>
+      <p class="help" id="availability" role="status"></p>
+      <label for="caller-name">Таны нэр</label><input id="caller-name" maxlength="120" autocomplete="name" required placeholder="Нэр">
+      <label for="caller-phone">Утасны дугаар</label><input id="caller-phone" maxlength="20" inputmode="tel" autocomplete="tel" required placeholder="99112233">
+      <label class="agree"><input type="checkbox" id="consent" required> Цаг захиалгын зорилгоор миний нэр, утас, сонгосон цагийг байгууллагад дамжуулахыг зөвшөөрч байна.</label>
+      <button type="submit" id="book">Цаг захиалах</button>
+    </form>
+    <p id="booking-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="card error" id="page-error" hidden><h2>Холбоос идэвхгүй байна</h2><p>Байгууллагаас шинэ захиалгын холбоос авна уу.</p></section>
+  <footer>Захиалга бүртгэлд амжилттай орсон үед л баталгаажна. Төлбөрийг энэ хуудсаар авахгүй. © RAINY</footer>
+</main></body></html>
