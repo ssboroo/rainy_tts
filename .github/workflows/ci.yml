@@ -29,6 +29,7 @@ jobs:
           node --check app/static/reception.js
           node --check app/static/reception-knowledge.js
           node --check app/static/appointment.js
+          node --check app/static/reception-launch.js
           node --test tests/*.cjs
       - name: Verify production image
         run: docker build -t rainy-voice:ci .
