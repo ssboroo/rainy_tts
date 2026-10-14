@@ -56,6 +56,7 @@ async def startup():
     core.init()
     reception_knowledge.ensure_schema()
     reception_public.ensure_schema()
+    reception_launch.ensure_schema()
     durable_jobs.ensure_schema()
     app.state.catalog_task=asyncio.create_task(provider_catalog.refresh(tools))
     app.state.provider_cost_task=asyncio.create_task(refresh_provider_cost_loop())
@@ -430,7 +431,7 @@ def voice_mcp_discovery(request: Request):
 def static_file(name:str):
     if name=="appointment":
         return FileResponse(STATIC/"appointment.html",media_type="text/html")
-    if name not in {"appointment.js","appointment.css","reception.js","reception-knowledge.js","app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg","movie.css","integrations.css"}:
+    if name not in {"reception-launch.js","reception-launch.css","appointment.js","appointment.css","reception.js","reception-knowledge.js","app.js","style.css","brand.js","brand.css","favicon.svg","brand-mark.svg","brand-mark-mono.svg","brand-wordmark.svg","brand-social.svg","movie.css","integrations.css"}:
         raise HTTPException(404,"Хуудас олдсонгүй.")
     media={".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"}[Path(name).suffix]
     return FileResponse(STATIC/name,media_type=media)
@@ -1926,11 +1927,12 @@ verify_email.register_routes(app,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
 from . import production_suite
 production_suite.register_routes(app,session,mutation_guard,throttle,allowed_voice_ids,voice_cost_multiplier)
-from . import voice_agent_preview, reception_booking, reception_knowledge, reception_public
+from . import voice_agent_preview, reception_booking, reception_knowledge, reception_public, reception_launch
 voice_agent_preview.register_routes(app,admin_user,mutation_guard,throttle)
 reception_booking.register_routes(app,admin_user,mutation_guard,json_body,throttle)
 reception_knowledge.register_routes(app,admin_user,mutation_guard,json_body,throttle)
 reception_public.register_routes(app,admin_user,mutation_guard,json_body,throttle,STATIC,lambda:ORIGIN)
+reception_launch.register_routes(app,admin_user,mutation_guard,json_body,throttle,lambda:ORIGIN)
 realtime_proxy.register_routes(app,session,allowed_origins)
 
 if __name__=="__main__":
