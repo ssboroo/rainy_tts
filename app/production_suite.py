@@ -20,6 +20,18 @@ DIRECTOR_STYLES = {
     "calm": {"label": "Тайван тайлбар", "tags": ("[thoughtful]", "", "")},
     "news": {"label": "Мэдээ, мэдээлэл", "tags": ("", "", "")},
 }
+# Mongolian stage-direction cues reuse the existing v4 TTS model. No extra API request.
+# Respect existing [emotion] tags, never delete or rewrite the customer's words.
+MN_EMOTION_CUES = (
+    (re.compile(r"шивн(э|эн|эж)|аяархан хэл",re.I), "[whispers]"),
+    (re.compile(r"ууртай|уурла|уцаартай|хилэнтэй",re.I), "[angry]"),
+    (re.compile(r"гунигтай|гуниглан|гуниглав|гунигт",re.I), "[sad]"),
+    (re.compile(r"уйлан|нулимстай|уйл(ж|ах|ав)",re.I), "[crying]"),
+    (re.compile(r"догдлон|догдолж|хөөрөн|сэтгэл хөөр",re.I), "[excited]"),
+    (re.compile(r"баярлан|баяртайгаар|аз жаргалтай|инээмсэглэн",re.I), "[happy]"),
+)
+STAGE_TAG = re.compile(r"^\[[a-z][a-z \-]{1,35}\]",re.I)
+
 MAX_BOOK_CHARS = 80000
 MAX_BOOK_CHAPTERS = 20
 
@@ -35,6 +47,11 @@ def direct_script(text, style="storytelling"):
         # One stage direction per sentence. This is creative prompting, not
         # guaranteed prosody, and does not infer mood from private user data.
         tag=tags[min(i,len(tags)-1)] if i<3 else tags[1]
+        if STAGE_TAG.match(sentence):
+            # User-provided v4 direction is authoritative, not duplicated.
+            tag=""
+        else:
+            tag=next((stage for pattern,stage in MN_EMOTION_CUES if pattern.search(sentence)),tag)
         lines.append((tag+" " if tag else "")+sentence)
     script="\n".join(lines)
     if len(script)>12000:
