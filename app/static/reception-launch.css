@@ -90,3 +90,10 @@
  #reception .rl-price-report{padding:18px}
 }
 @media(prefers-reduced-motion:reduce){#reception .rl-main-action,#reception .rl-outline-action,#reception #rl-progress-fill{transition:none}}
+
+#reception .rl-agent-steps{border-radius:12px;border:1px solid #d8e9e8;background:#f0f9f6;padding:14px;margin-top:14px}
+#reception .rl-agent-steps strong{color:#1e4847;font-size:12px}
+#reception .rl-agent-steps p{color:#4b6971;font-size:11px;line-height:1.65;margin:7px 0}
+#reception .rl-agent-steps a{color:#117a74!important;font-weight:850;text-decoration:none}
+#reception .rl-sub-action{border:1px solid #b1dcd1;background:white;color:#14655b;font-size:11px;font-weight:800;border-radius:9px;padding:11px 13px;cursor:pointer}
+#reception .rl-agent-steps small{font-size:10px;color:#35716b;display:block;margin-top:8px;line-height:1.5}
