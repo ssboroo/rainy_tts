@@ -54,9 +54,11 @@ tools=ElevenTools()
 @app.on_event("startup")
 async def startup():
     core.init()
+    reception_knowledge.ensure_schema()
     durable_jobs.ensure_schema()
     app.state.catalog_task=asyncio.create_task(provider_catalog.refresh(tools))
     app.state.provider_cost_task=asyncio.create_task(refresh_provider_cost_loop())
+    app.state.reception_sheet_task=asyncio.create_task(reception_knowledge.periodic_sheet_sync())
 
 async def refresh_provider_cost_loop():
     while True:
@@ -65,6 +67,11 @@ async def refresh_provider_cost_loop():
 
 @app.on_event('shutdown')
 async def stop_provider_cost_loop():
+    sheet_task=getattr(app.state,"reception_sheet_task",None)
+    if sheet_task:
+        sheet_task.cancel()
+        try:await sheet_task
+        except asyncio.CancelledError:pass
     task=getattr(app.state,'provider_cost_task',None)
     if task:
         task.cancel()
@@ -1735,6 +1742,13 @@ def reception_config(request:Request):
             {"key":"service_id","type":"string","required":True},
             {"key":"date","type":"string","required":True}
         ]),
+        ("get_business","Байгууллагын баталгаатай нэр, хаяг, холбоо барих мэдээллийг авна.",[]),
+        ("search_knowledge","Үйлчилгээ, үнэ, заавар, FAQ-ийн хариуг эх сурвалжтай хайна. Олдохгүй бол зохиож болохгүй.",[
+            {"key":"query","type":"string","required":True}
+        ]),
+        ("interpret_time","Монгол хэлний өдөр, цагийг тодруулна. Тодорхойгүй бол дахин асуу.",[
+            {"key":"text","type":"string","required":True}
+        ]),
         ("book_appointment","Үйлчлүүлэгч үйлчилгээ, өдөр, цаг, нэр, утсаа БАТАЛГААЖУУЛСНЫ дараа бодит календарьд захиална.",[
             {"key":"service_id","type":"string","required":True},
             {"key":"date","type":"string","required":True},
@@ -1754,7 +1768,7 @@ def reception_config(request:Request):
 
 @app.post("/api/reception/hooks/{token}/{tool_name}")
 async def reception_hook(token:str,tool_name:str,request:Request):
-    allowed={"create_lead","take_message","request_quote","create_order","list_services","check_availability","book_appointment"}
+    allowed={"create_lead","take_message","request_quote","create_order","list_services","check_availability","book_appointment","get_business","search_knowledge","interpret_time"}
     if tool_name not in allowed:
         raise HTTPException(404,"Reception tool олдсонгүй.")
     throttle("reception:"+token,120,60)
@@ -1782,6 +1796,12 @@ async def reception_hook(token:str,tool_name:str,request:Request):
     if tool_name=="book_appointment":
         result=reception_booking.book(integration["user_id"],payload)
         return result
+    if tool_name=="get_business":
+        return reception_knowledge.read_business(integration["user_id"])
+    if tool_name=="search_knowledge":
+        return reception_knowledge.search(integration["user_id"],payload.get("query"))
+    if tool_name=="interpret_time":
+        return reception_knowledge.interpret_time(payload.get("text"))
     event_id=core.uid()
     with core.db() as db:
         db.execute(
@@ -1903,9 +1923,10 @@ verify_email.register_routes(app,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
 from . import production_suite
 production_suite.register_routes(app,session,mutation_guard,throttle,allowed_voice_ids,voice_cost_multiplier)
-from . import voice_agent_preview, reception_booking
+from . import voice_agent_preview, reception_booking, reception_knowledge
 voice_agent_preview.register_routes(app,admin_user,mutation_guard,throttle)
 reception_booking.register_routes(app,admin_user,mutation_guard,json_body,throttle)
+reception_knowledge.register_routes(app,admin_user,mutation_guard,json_body,throttle)
 realtime_proxy.register_routes(app,session,allowed_origins)
 
 if __name__=="__main__":
