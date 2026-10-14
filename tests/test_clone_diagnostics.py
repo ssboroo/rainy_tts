@@ -26,26 +26,49 @@ class Clone422DiagnosticsTests(unittest.TestCase):
         self.assertIn("шалтгаан",msg)
         self.assertNotIn("private-recording",msg)
 
-    def test_real_multipart_field_is_unchanged_and_upstream_array_detail_is_read(self):
+    def test_multipart_matches_official_elevenlabs_sdk_files_field_and_upload_bytes(self):
+        """The provider expects file parts named files (without []), not files[]."""
         import asyncio
         from io import BytesIO
         from unittest.mock import patch
-        from app.eleven_tools import ElevenAPIError, ElevenTools
-        received=[]
-        def fake_upstream(request):
-            received.append((request.method,request.url.path,request.content))
-            return httpx.Response(422,json={"detail":[{"loc":["body","files"],"type":"missing","msg":"Field required"}]})
-        client=httpx.AsyncClient(transport=httpx.MockTransport(fake_upstream))
-        upload=UploadFile(filename="sample.wav",file=BytesIO(b"RIFF"+b"0"*1000),size=1004)
+        from app.eleven_tools import ElevenTools
+        bodies=[]
+        def validate_upstream(request):
+            raw=request.content
+            bodies.append(raw)
+            if b'name="files"; filename="voice-1.wav"' not in raw or b'name="files"; filename="voice-2.wav"' not in raw:
+                return httpx.Response(422,json={"detail":[{"loc":["body","files"],"type":"missing","msg":"Field required"}]})
+            if b'audio-one-data' not in raw or b'audio-two-data' not in raw:
+                return httpx.Response(422,json={"detail":{"status":"invalid_audio","message":"No sample body"}})
+            return httpx.Response(200,json={"voice_id":"test-id","requires_verification":False})
+        client=httpx.AsyncClient(transport=httpx.MockTransport(validate_upstream))
+        uploads=[
+            UploadFile(filename="voice-1.wav",file=BytesIO(b"audio-one-data"),size=14),
+            UploadFile(filename="voice-2.wav",file=BytesIO(b"audio-two-data"),size=14),
+        ]
         with patch('app.eleven_tools.httpx.AsyncClient',return_value=client):
-            with self.assertRaises(ElevenAPIError) as caught:
-                asyncio.run(ElevenTools(api_key="test-key").clone_voice("test",[upload]))
-        self.assertEqual(caught.exception.status,422)
-        self.assertIn("аудио",str(caught.exception).lower())
-        self.assertEqual(received[0][0],"POST")
-        self.assertEqual(received[0][1],"/v1/voices/add")
-        self.assertIn(b'name="files[]"',received[0][2])
-        self.assertIn(b'name="name"',received[0][2])
+            result=asyncio.run(ElevenTools(api_key="test-key").clone_voice("Миний хоолой",uploads))
+        self.assertEqual(result["voice_id"],"test-id")
+        self.assertEqual(len(bodies),1)
+        self.assertNotIn(b'name="files[]"',bodies[0])
+        self.assertIn(b'name="name"',bodies[0])
+
+    def test_provider_rejects_bad_audio_even_with_correct_field(self):
+        import asyncio
+        from io import BytesIO
+        from unittest.mock import patch
+        from app.eleven_tools import ElevenAPIError,ElevenTools
+        def reject_audio(request):
+            assert b'name="files";' in request.content
+            return httpx.Response(422,json={"detail":{"status":"invalid_audio","message":"invalid recording"}})
+        client=httpx.AsyncClient(transport=httpx.MockTransport(reject_audio))
+        upload=UploadFile(filename="broken.wav",file=BytesIO(b"invalid audio bytes"),size=19)
+        with patch('app.eleven_tools.httpx.AsyncClient',return_value=client):
+            with self.assertRaises(ElevenAPIError) as raised:
+                asyncio.run(ElevenTools(api_key="test-key").clone_voice("Миний хоолой",[upload]))
+        self.assertEqual(raised.exception.status,422)
+        self.assertIn("Аудио",str(raised.exception))
+        self.assertNotIn("invalid recording",str(raised.exception))
 
     def test_empty_samples_rejected_locally_before_billable_provider_request(self):
         from io import BytesIO
