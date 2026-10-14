@@ -33,13 +33,21 @@ class ReceptionBookingTests(unittest.TestCase):
     def setUp(self):
         self.client.cookies.clear()
         self.email="reception-"+str(time.time_ns())+"@example.com"
-        self.admin=patch.dict(os.environ,{"ADMIN_EMAILS":self.email,"ALLOW_REGISTRATION":"true","BILLING_ENABLED":"false"})
-        self.admin.start()
-        self.addCleanup(self.admin.stop)
+        self.env=patch.dict(os.environ,{"ALLOW_REGISTRATION":"true","BILLING_ENABLED":"false"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
         server.ORIGIN="http://testserver"
+        # Admin emails cannot be registered publicly; elevate ONLY after signup.
+        with server.RATE_LOCK:server.RATE.clear()
         signup=self.client.post("/api/register",json={"email":self.email,"password":"strong-password-123"},headers={"Origin":"http://testserver"})
         self.assertEqual(signup.status_code,200,signup.text)
         self.headers={"Origin":"http://testserver","X-CSRF-Token":signup.json()["user"]["csrf"]}
+        self.admin=patch.dict(os.environ,{"ADMIN_EMAILS":self.email})
+        self.admin.start()
+        self.addCleanup(self.admin.stop)
+    def tearDown(self):
+        # Avoid exhausting the shared registration limiter in existing tests.
+        with server.RATE_LOCK:server.RATE.clear()
     def service(self):
         services=self.client.get("/api/reception/services")
         self.assertEqual(services.status_code,200,services.text)
