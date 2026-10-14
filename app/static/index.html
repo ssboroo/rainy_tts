@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
-  <script src="/app.js?v=rainy-clone-errors-9" defer></script>
+  <script src="/app.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -262,13 +262,47 @@
       </section>
 
       <section id="reception" class="page tool-page" hidden>
-        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">☎️</span><p class="kicker"><span></span>RECEPTION.AI ХОЛБОЛТ</p><h1>Утасны туслахаа <em>RAINY-тай холбоно.</em></h1><p>Reception.ai холболтын хэсэгт доорх хаягуудыг нэмнэ. Харилцагчийн хүсэлт, зурвас, үнийн санал, захиалга RAINY-д хадгалагдана.</p></div>
+        <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">☎️</span><p class="kicker"><span></span>RAINY AI RECEPTIONIST · МОНГОЛ</p><h1>Монгол AI <em>ресепшн.</em></h1><p>Бодит цаг захиалгын календарь, веб дээр дуут агентын холболт, байгууллагын үйлчилгээний сан. Утасны SIP холболт одоогоор идэвхгүй.</p></div>
         <div class="tool-form">
-          <button id="reception-load" class="generate" type="button"><span>Холболтын хаяг авах</span><span>↗</span></button>
+          <h3>Монгол хэлний шууд дуут туршилт</h3>
+          <p class="field-help">ElevenLabs Conversational AI Agent ID болон туршилтын эрх тохируулагдсан үед микрофоноор бодитоор ярилцах боломжтой. Ярианы минутын төлбөр тусдаа; зөвшөөрөлгүйгээр дуудлага эхлэхгүй.</p>
+          <div id="reception-agent-target"></div>
+          <p id="reception-agent-availability" class="field-help" role="status">AI агентын холболтыг шалгаж байна.</p>
+        </div>
+        <div class="tool-form">
+          <h3>Үйлчилгээний сан · Байгууллагын тохиргоо</h3>
+          <p class="field-help">Улаанбаатарын цаг (UTC+8) · Даваа–Бямба 09:00–18:00. Эхний хувилбарт нэг бизнесийн нийт нэг календарь ашиглана.</p>
+          <form id="reception-service-form">
+            <div class="field"><label>Үйлчилгээний нэр</label><input name="name" class="field-input" maxlength="100" required placeholder="Жишээ: Үс засалт"></div>
+            <div class="field"><label>Үргэлжлэх хугацаа</label><select name="duration_minutes" class="field-input"><option value="30">30 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="120">120 минут</option></select></div>
+            <div class="field"><label>Үнэ · ₮</label><input name="price_mnt" class="field-input" type="number" min="0" max="100000000" step="1000" value="0"></div>
+            <button type="submit" class="secondary">Үйлчилгээ нэмэх</button>
+          </form>
+          <div id="reception-services-list" class="ledger-list" aria-live="polite"></div>
+        </div>
+        <div class="tool-form">
+          <h3>Бодит сул цаг · Захиалгын туршилт</h3>
+          <p class="field-help">Энд үүссэн захиалга Railway-ийн байнгын хадгалалттай календарьд бүртгэгдэнэ. Давхардсан цагийг сервер автоматаар хориглоно.</p>
+          <form id="reception-booking-form">
+            <div class="field"><label>Үйлчилгээ</label><select id="reception-service-select" class="field-input" required></select></div>
+            <div class="field"><label>Өдөр</label><input id="reception-book-date" type="date" class="field-input" required></div>
+            <div class="field"><label>Сул цаг</label><select id="reception-book-time" class="field-input" required></select></div>
+            <p id="reception-slot-status" class="field-help" role="status"></p>
+            <div class="field"><label>Үйлчлүүлэгчийн нэр</label><input id="reception-book-name" class="field-input" maxlength="120" required placeholder="Бат"></div>
+            <div class="field"><label>Утасны дугаар</label><input id="reception-book-phone" class="field-input" maxlength="20" required inputmode="tel" placeholder="99112233"></div>
+            <button type="submit" class="generate"><span>Цагийг баталгаажуулж захиалах</span><span>↗</span></button>
+          </form>
+          <p id="reception-booking-status" class="field-help" role="status"></p>
+        </div>
+        <div class="ledger-wrap"><h3>Цаг захиалгын календарь</h3><button id="reception-bookings-refresh" class="secondary" type="button">Захиалга шинэчлэх ↻</button><div id="reception-bookings-list" class="ledger-list" aria-live="polite"></div></div>
+        <div class="tool-form">
+          <h3>ElevenAgents / Reception.ai · API холболт</h3>
+          <p class="field-help">Agent системийн tool/webhook тохиргоонд доорх хаягуудыг хэрэглэнэ. <b>list_services → check_availability → book_appointment</b> дарааллаар ажиллах ба зөвхөн амжилттай хариу авсны дараа цаг захиалсан гэж баталгаажуулна. Хаяг нь нууц токентой тул бусдад тараахгүй.</p>
+          <button id="reception-load" class="generate" type="button"><span>Агентын tool URL авах</span><span>↗</span></button>
           <button id="reception-rotate" class="secondary" type="button">Холболтын эрх шинэчлэх</button>
           <div id="reception-tools" class="reception-tools"></div>
         </div>
-        <div class="ledger-wrap"><h3>Reception.ai үйлдлийн түүх</h3><button id="reception-refresh" class="secondary" type="button">Шинэчлэх ↻</button><div id="reception-events" class="ledger-list"></div></div>
+        <div class="ledger-wrap"><h3>Reception.ai webhook түүх</h3><button id="reception-refresh" class="secondary" type="button">Шинэчлэх ↻</button><div id="reception-events" class="ledger-list"></div></div>
       </section>
 
       <section id="voices" class="page tool-page" hidden>
