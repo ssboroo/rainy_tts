@@ -17,12 +17,12 @@
   <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
   <link rel="stylesheet" href="/reception-launch.css?v=1">
-  <link rel="stylesheet" href="/reception-visual.css?v=1">
+  <link rel="stylesheet" href="/reception-visual.css?v=2">
   <script src="/app.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception-knowledge.js?v=rainy-knowledge-1" defer></script>
   <script src="/reception-launch.js?v=1" defer></script>
-  <script src="/reception-visual.js?v=1" defer></script>
+  <script src="/reception-visual.js?v=2" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -410,6 +410,8 @@
           <div class="rv-stage-heading"><div><span class="rv-eyebrow">REAL-TIME VOICE LAB</span><h2>AI-тай ярилцах</h2><p>Монгол хэлээр асууж, AI-ийн хариултыг сонсоорой.</p></div>
             <div class="rv-modes" role="group" aria-label="Дүрслэл"><button type="button" id="rv-view-orb" aria-pressed="true">✺ Voice</button><button type="button" id="rv-view-avatar" aria-pressed="false">◉ Avatar</button></div>
           </div>
+          <div class="rv-console-frame">
+            <div class="rv-signal-path" aria-label="Бодит ярианы технологийн урсгал"><span><i class="rv-signal-led"></i> AUDIO INPUT</span><b aria-hidden="true">→</b><span>STT</span><b aria-hidden="true">→</b><span>AI</span><b aria-hidden="true">→</b><span>VOICE OUTPUT</span></div>
           <div id="rv-stage" class="rv-visual" data-state="idle" data-view="orb">
             <div class="rv-halo rv-halo-a" aria-hidden="true"></div><div class="rv-halo rv-halo-b" aria-hidden="true"></div>
             <div id="rv-orb" class="rv-orb" role="img" aria-label="AI-ийн дуут хөдөлгөөнт дүрслэл">
@@ -427,14 +429,17 @@
               </svg>
               <div class="rv-avatar-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
             </div>
-            <span class="rv-visual-note rv-note-left">VOICE · MN</span><span class="rv-visual-note rv-note-right">01 / LIVE</span>
+            <span class="rv-hud-corner rv-hud-tl" aria-hidden="true"></span><span class="rv-hud-corner rv-hud-tr" aria-hidden="true"></span><span class="rv-hud-corner rv-hud-bl" aria-hidden="true"></span><span class="rv-hud-corner rv-hud-br" aria-hidden="true"></span>
+            <span class="rv-visual-note rv-note-left">RAINY / MN</span><span class="rv-visual-note rv-note-right">SIGNAL · 01</span>
           </div>
           <div class="rv-status" aria-live="polite"><span class="rv-status-indicator" aria-hidden="true"></span><strong id="rv-state-label">Холболтыг шалгаж байна</strong><small id="rv-state-sub">Агент холбогдсоны дараа яриа эхэлнэ.</small></div>
           <div id="rv-transcript" class="rv-transcript" aria-label="Ярианы бичвэр" role="log" aria-live="polite"><span class="rv-muted">Ярианы текст энд харагдана.</span></div>
           <div class="rv-actions"><button type="button" id="rv-start-btn" class="rv-primary" disabled>◉ Яриа эхлүүлэх</button><button type="button" id="rv-stop-btn" class="rv-stop" hidden>■ Зогсоох</button><button type="button" id="rv-setup-btn" class="rv-secondary">Агент холбох ↗</button></div>
           <p class="rv-footnote">Админы бодит ElevenLabs туршилт · Микрофоны зөвшөөрөл · Ярианы минут төлбөртэй.</p>
+          <div class="rv-session-info"><span class="rv-session-pulse" aria-hidden="true"></span><span id="rv-session-meta" role="status">AI агентын идэвхжүүлэлтийг шалгаж байна.</span></div>
           <div id="reception-agent-target" class="rv-original-agent"></div>
           <p id="reception-agent-availability" class="rv-connection-status" role="status">AI агентын холболтыг шалгаж байна.</p>
+          </div>
         </section>
         <div class="tool-form rl-panel" id="rl-services">
           <h3>Үйлчилгээний сан · Байгууллагын тохиргоо</h3>
