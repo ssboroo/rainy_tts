@@ -1429,12 +1429,51 @@ let agentPreview=null;
 let agentPreviewEpoch=0; // Cancel pending signed URL / microphone operations on navigation.
 function agentVisual(state){document.dispatchEvent(new CustomEvent('rainy:agent-state',{detail:{state}}));}
 function agentText(role,text){document.dispatchEvent(new CustomEvent('rainy:agent-transcript',{detail:{role,text}}));}
+function agentOutputLevel(level){
+  document.dispatchEvent(new CustomEvent('rainy:agent-output-level',{detail:{level}}));
+}
+function playAgentLipFrames(runtime,start,buffer){
+  // PCM playback time is ground truth; energy segments are matched to
+  // AudioContext.currentTime, NOT the time the WebSocket chunk arrived.
+  const channel=buffer.getChannelData(0);
+  const seconds=Math.max(.001,buffer.duration),count=Math.max(1,Math.ceil(seconds/.035));
+  const slice=Math.max(1,Math.floor(channel.length/count));
+  const levels=[];
+  for(let i=0;i<count;i++){
+    const first=i*slice,last=Math.min(channel.length,first+slice);
+    let sum=0,n=0;
+    for(let j=first;j<last;j+=Math.max(1,Math.floor(slice/180))){sum+=channel[j]*channel[j];n++;}
+    levels.push(Math.min(1,Math.sqrt(sum/Math.max(1,n))*5));
+  }
+  runtime.outputEnvelopes.push({start,end:start+buffer.duration,levels});
+  if(runtime.outputEnvelopes.length>130)runtime.outputEnvelopes.shift();
+  if(runtime.outputRaf)return;
+  function animation(){
+    if(agentPreview!==runtime||!runtime.context){runtime.outputRaf=0;return;}
+    const current=runtime.context.currentTime;
+    while(runtime.outputEnvelopes.length&&runtime.outputEnvelopes[0].end<current-.04)
+      runtime.outputEnvelopes.shift();
+    let amplitude=0;
+    for(const e of runtime.outputEnvelopes){
+      if(current<e.start||current>=e.end)continue;
+      const idx=Math.min(e.levels.length-1,Math.floor((current-e.start)/(e.end-e.start)*e.levels.length));
+      amplitude=e.levels[idx];break;
+    }
+    agentOutputLevel(amplitude);
+    if(runtime.outputEnvelopes.length||current<runtime.playingAt+.15)
+      runtime.outputRaf=requestAnimationFrame(animation);
+    else{runtime.outputRaf=0;agentOutputLevel(0);}
+  }
+  runtime.outputRaf=requestAnimationFrame(animation);
+}
 function agentStatus(message){if($('voice-agent-status'))$('voice-agent-status').textContent=message;}
 async function stopAgentPreview(reason='ready'){
   ++agentPreviewEpoch;
   const running=agentPreview;agentPreview=null;
   if(running){
     clearTimeout(running.speakingTimer);
+    cancelAnimationFrame(running.outputRaf||0);
+    agentOutputLevel(0);
     try{running.socket?.close();}catch{}
     try{running.node?.disconnect();}catch{}
     try{running.mic?.disconnect();}catch{}
@@ -1470,7 +1509,7 @@ $('voice-agent-start').onclick=async()=>{
     const token=await api('/production/agent-session',{method:'POST',body:{}});
     if(epoch!==agentPreviewEpoch)return; // User left the tab before the signed URL arrived.
     if(!token.signed_url)throw new Error('Live agent холболт нээгдээгүй.');
-    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0,speakingTimer:null,lastLevelAt:0};
+    const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0,speakingTimer:null,lastLevelAt:0,outputEnvelopes:[],outputRaf:0};
     agentPreview=runtime;$('voice-agent-stop').disabled=false;
     socket.onmessage=async event=>{
       if(agentPreview!==runtime)return;
@@ -1507,10 +1546,11 @@ $('voice-agent-start').onclick=async()=>{
         if(agentPreview!==runtime)return;
         const player=runtime.context.createBufferSource();player.buffer=buffer;player.connect(runtime.context.destination);
         const at=Math.max(runtime.context.currentTime+.03,runtime.playingAt);player.start(at);runtime.playingAt=at+buffer.duration;
+        playAgentLipFrames(runtime,at,buffer);
         agentVisual('speaking');
         clearTimeout(runtime.speakingTimer);
         const remaining=Math.min(12000,Math.max(250,(runtime.playingAt-runtime.context.currentTime)*1000+90));
-        runtime.speakingTimer=setTimeout(()=>{if(agentPreview===runtime)agentVisual('listening');},remaining);
+        runtime.speakingTimer=setTimeout(()=>{if(agentPreview===runtime){agentOutputLevel(0);agentVisual('listening');}},remaining);
       }catch{agentStatus('AI-ийн аудио тоглуулах формат дэмжигдэхгүй байна.');}
     };
     socket.onclose=()=>{if(agentPreview===runtime){agentStatus('AI холболт хаагдлаа.');stopAgentPreview();}};
