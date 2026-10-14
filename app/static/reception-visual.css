@@ -81,14 +81,14 @@
   --rv-surface:rgba(18,22,28,.89);
   --rv-surface-muted:rgba(24,29,37,.86);
   --rv-surface-raised:rgba(32,38,47,.94);
-  --rv-border:rgba(255,255,255,.11);
+  --rv-border:var(--line);
   --rv-ink:var(--text);
   --rv-muted:var(--muted);
   --rv-accent:var(--lime);
   --rv-aura:rgba(183,255,74,.15);
   --rv-soft-accent:rgba(183,255,74,.075);
   color:var(--text);
-  background:radial-gradient(ellipse 56% 28% at 87% 4%,rgba(169,140,255,.055),transparent 75%);
+  background:radial-gradient(ellipse 56% 28% at 87% 4%,rgba(169,140,255,.055),transparent 75%),var(--bg);
   font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
 :root[data-theme="light"] #reception{
