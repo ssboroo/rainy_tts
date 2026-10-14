@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/brand.css?v=5">
   <script src="/app.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception.js?v=rainy-reception-calendar-10" defer></script>
+  <script src="/reception-knowledge.js?v=rainy-knowledge-1" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -264,6 +265,52 @@
 
       <section id="reception" class="page tool-page" hidden>
         <div class="tool-hero"><span class="hero-tool-icon" aria-hidden="true">☎️</span><p class="kicker"><span></span>RAINY AI RECEPTIONIST · МОНГОЛ</p><h1>Монгол AI <em>ресепшн.</em></h1><p>Бодит цаг захиалгын календарь, веб дээр дуут агентын холболт, байгууллагын үйлчилгээний сан. Утасны SIP холболт одоогоор идэвхгүй.</p></div>
+        <div class="tool-form">
+          <h3>Байгууллагын мэдээлэл</h3>
+          <p class="field-help">Нэг удаа тохируулна. AI агент get_business хэрэгслээр зөвхөн таны байгууллагын нэр, хаяг, холбоо барих мэдээллийг авна.</p>
+          <form id="reception-business-form">
+            <div class="field"><label>Байгууллагын нэр</label><input id="reception-business-name" class="field-input" maxlength="120" required placeholder="Жишээ: RAINY Beauty Center"></div>
+            <div class="field"><label>Хаяг</label><input id="reception-business-address" class="field-input" maxlength="500" placeholder="Улаанбаатар, БЗД"></div>
+            <div class="field"><label>Утас</label><input id="reception-business-phone" class="field-input" maxlength="30" inputmode="tel" placeholder="99112233"></div>
+            <div class="field"><label>Мэндчилгээ / бизнесийн товч танилцуулга</label><textarea id="reception-business-intro" class="field-input" maxlength="1000" rows="3" placeholder="Сайн байна уу, манай байгууллагад тавтай морил."></textarea></div>
+            <button class="secondary" type="submit">Байгууллагын тохиргоо хадгалах</button>
+          </form>
+          <p id="reception-business-status" class="field-help" role="status"></p>
+        </div>
+        <div class="tool-form">
+          <h3>Мэдлэгийн сан · PDF, Word, Excel, CSV, TXT</h3>
+          <p class="field-help">Компьютероос баримтаа оруулна. AI зөвхөн баримтаас олдсон мэдээллийг эх сурвалжтай ашиглана. Зурагтай буюу scan PDF-д OCR хийгдэхгүй. Хувийн мэдээлэл, нууц үг агуулаагүй баримт ашиглаарай.</p>
+          <form id="reception-knowledge-file-form">
+            <div class="field"><label>Байгууллагын файл · 5 MB хүртэл</label><input id="reception-knowledge-file" class="field-input" type="file" accept=".pdf,.docx,.xlsx,.csv,.txt,.md" required></div>
+            <button class="secondary" type="submit">Мэдлэгийн санд оруулах</button>
+          </form>
+          <p id="reception-knowledge-upload-status" class="field-help" role="status"></p>
+          <h3>Google Sheets · Автомат шинэчлэл</h3>
+          <p class="field-help">Google Sheets-ийн хуваалцах холбоосыг оруулна. Нийтэлсэн CSV эсвэл админы тохируулсан service account-ийн эрх шаардлагатай. Систем 6 цаг тутам шинэчлэл шалгана.</p>
+          <form id="reception-sheet-form">
+            <div class="field"><label>Google Sheets URL</label><input id="reception-sheet-url" class="field-input" type="url" required placeholder="https://docs.google.com/spreadsheets/d/.../edit"></div>
+            <button class="secondary" type="submit">Google Sheets холбох</button>
+          </form>
+          <p id="reception-sheet-status" class="field-help" role="status"></p>
+          <h3>Нэмсэн баримтууд</h3>
+          <button class="secondary" id="reception-knowledge-refresh" type="button">Баримтын жагсаалт шинэчлэх</button>
+          <div class="ledger-list" id="reception-knowledge-sources" aria-live="polite"></div>
+          <h3>AI ямар хариулт олохыг шалгах</h3>
+          <form id="reception-knowledge-search-form">
+            <div class="field"><label>Асуулт</label><input id="reception-knowledge-query" class="field-input" maxlength="350" required placeholder="Танай байгууллага ямар үйлчилгээ үзүүлдэг вэ?"></div>
+            <button class="secondary" type="submit">Эх сурвалжаас хайх</button>
+          </form>
+          <div id="reception-knowledge-results" class="ledger-list" aria-live="polite"></div>
+        </div>
+        <div class="tool-form">
+          <h3>Монгол цаг таних · Зохицуулагчийн туршилт</h3>
+          <p class="field-help">“Маргааш 15:30 цагт” гэх мэт хэллэгээс өдөр, цаг ялгана. “Маргааш 3 цагт” гэх мэт хоёрдмол тохиолдолд заавал тодруулна.</p>
+          <form id="reception-time-form">
+            <div class="field"><label>Хүний хэлсэн өдөр, цаг</label><input id="reception-time-query" class="field-input" required maxlength="500" placeholder="маргааш 15:30 цагт"></div>
+            <button type="submit" class="secondary">Цаг таних</button>
+          </form>
+          <p id="reception-time-result" class="field-help" role="status"></p>
+        </div>
         <div class="tool-form">
           <h3>Монгол хэлний шууд дуут туршилт</h3>
           <p class="field-help">ElevenLabs Conversational AI Agent ID болон туршилтын эрх тохируулагдсан үед микрофоноор бодитоор ярилцах боломжтой. Ярианы минутын төлбөр тусдаа; зөвшөөрөлгүйгээр дуудлага эхлэхгүй.</p>
