@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
-  <script src="/app.js?v=rainy-expressive-8" defer></script>
+  <script src="/app.js?v=rainy-clone-errors-9" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -164,7 +164,7 @@
         <form id="clone-form" class="tool-form">
           <div class="field"><label>Хоолойн нэр</label><input name="name" required maxlength="100" placeholder="Миний Монгол хоолой"></div>
           <div class="field"><label>Тайлбар</label><input name="description" maxlength="500" placeholder="Дулаан өнгөтэй өгүүлэгч"></div>
-          <div class="field"><label>Дууны дээж</label><input name="files" type="file" accept="audio/*,.mp4" multiple required></div>
+          <div class="field"><label>Дууны дээж</label><input name="files" type="file" accept=".mp3,.wav,.m4a,.flac,.ogg,.aac,.webm,audio/*" multiple required><small class="field-help">Зөвлөмж: нийт 1–2 минутын, нэг хүний тод яриатай MP3 (192 kbps+) файл сонго. Хөгжим, давхар хоолой, хэт нам дуу, урт чимээгүй хэсэггүй байх нь тохиромжтой. Үүсгэхээс өмнө файлаа сонсож шалгаарай.</small></div>
           <label class="check"><input name="remove_background_noise" type="checkbox"> Ар талын шуугианыг цэвэрлэх</label>
           <label class="check consent"><input name="consent" type="checkbox" required> Би энэ хоолойг ашиглах эрх/зөвшөөрөлтэй.</label>
           <button class="generate" type="submit"><span>Хувилбар үүсгэх</span><span>↗</span></button>
