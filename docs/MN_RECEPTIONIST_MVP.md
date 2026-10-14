@@ -55,3 +55,52 @@ Agent tool URL нь нууц bearer token агуулдаг; зөвхөн тох�
 - Холбоосыг зогсоовол шинэ зочдын хүсэлт `404`; өмнө бүртгэсэн захиалгууд админ календарьд үлдэнэ. Rate limit: байгууллагад цагт 50, нэг сүлжээний IP-д цагт 12 захиалгын оролдлого.
 - Public endpoint-ээс үйлчлүүлэгчдийн утас, бүртгэл, эх баримт, нууц webhook токен **авч болохгүй**.
 - Мессеж/SMS/имэйл сануулга, хүний дуудлага, төлбөрийн автомат суутгал энэ хувилбарт байхгүй. Үйлчлүүлэгчийн эхлүүлэх зөвшөөрөл шаардана; spam хамгаалалтад нэмэлт CAPTCHA болон verification-г production SaaS түвшинд төлөвлөх шаардлагатай.
+
+
+## RAINY Receptionist launch console & pricing / 2026-10-14
+
+### Холболтын бодит байдлыг ялгах нь
+- RAINY calendar/public booking: RAINY дотор ажилладаг. Нийтийн захиалгын холбоосыг эзэн идэвхжүүлнэ; үйлчилгээ, цагийн хуваарь, файл/Sheet тусдаа.
+- ElevenLabs **ElevenAgents**: байгууллага бүрийн admin Agent ID-ийг RAINY-ийн Launch console-д оруулна. Admin POST /api/reception/launch/agent нь provider GET /v1/convai/agents/{id} ашиглан энэ server API key агент руу нэвтрэхийг *бодитоор* шалгаж хадгална. Реквест нь яриа эхлүүлэхгүй, voice минут зарцуулахгүй. Буруу эрхийг холбогдсон гэж мэдээлэхгүй.
+- Agent-ийг вебээр туршихын өмнө Railway-д ELEVENLABS_API_KEY, LIVE_AGENT_ADMIN_PREVIEW_ENABLED=true хэрэгтэй. Энэ нь админы гарын товшилтоор минутын **тусдаа provider** төлбөртэй яриа эхлүүлнэ. Вебээр нэвтрээгүй гаднын хэрэглэгч agent нээж чадахгүй.
+- Монгол утас: Монголын дугаарын эзэмшигч оператороос бодит SIP trunk / дуудлага дамжуулах API нөхцөлийг батлуулж, ElevenLabs agent-ийн Phone интеграцад E.164 дугаар холбоно, PBX/SIP чиглүүлэлт хийнэ. Provider API response-ийн phone_numbers жагсаалт байна гэдэг нь техникийн тохиргооны дохио **болохоос бодит дуудлага хүлээн авсан нотолгоо биш**. Хэрэглэгч дугаар руу тест дуудлага хийнэ.
+- Google Sheets: мэдлэгийн сан импорт, private Sheet-ийн Viewer share, 6 цаг тутмын background refresh. Google Calendar-ийн хоёр талын синк, SMS, email, CRM writeback **хараахан тохируулагдаагүй**, холбоос нээгдэхээс өмнө бусад байгууллагын API эрх шаардлагатай.
+- ElevenLabs-ийн тусдаа **Reception.ai hosted product** бол өөр багц, өөр гэрээ/лимиттэй. RAINY-ийн ElevenAgents direct gateway зардалд тэр бүтээгдэхүүний багцыг **нэмж давхар тооцохгүй**.
+
+### Албан ElevenAgents monthly plan (2026-10-14)
+| Plan | Төлбөр USD/сар | Орсон call минут | Нэг мөчид дуудлага |
+| --- | ---: | ---: | ---: |
+| Free | 0 | 15 | 4 |
+| Starter | 6 | 75 | 6 |
+| Creator | 22 | 275 | 10 |
+| Pro | 99 | 1238 | 20 |
+| Scale | 299 | 3738 | 30 |
+| Business | 990 | 12375 | 40 |
+
+Өндөр plan-ийн минутыг агент, бизнес бүрд тусад нь амласан гэж үзэхгүй: нэг provider workspace-д хуваалцаж болно. Нэмэлт voice minute USD 0.08; burst minute USD 0.16; LLM ба phone operator **тусдаа**. Албан баталгаажуулалт: https://elevenlabs.io/pricing/agents
+
+**Тооцооны томъёо:**
+
+`usage_minutes = monthly_calls * average_minutes`
+
+`monthly_agent_usd = selected_plan_monthly_fee + max(0, usage_minutes - included_minutes) * 0.08`
+
+`monthly_total_usd = monthly_agent_usd + usage_minutes * llm_cost_per_minute + usage_minutes * telecom_cost_per_minute + hosting_usd`
+
+`monthly_total_mnt = round(monthly_total_usd * adjustable_usd_mnt_rate)`
+
+`profit_mnt = sales_price_per_month_mnt - monthly_total_mnt`
+
+Энэ нь жишиг төсөв. Одоогийн USD/MNT live FX rate гэж үзэхгүй. Хэрэглэгч өөрийн банкны ханшийг оруулна. НӨАТ, SMS, OTP, дуудлага шилжүүлэх, ажлын хүчний өртөг, төлбөрийн gateway, цуцлалт, минутын rounding, LLM загварын өөрчлөлт, burst allowance, operator inbound/outbound тарифт нөлөөлнө. Хэрэглээг provider dashboard-аас баталгаажуулна.
+
+### Одоогийн backend API
+- GET /api/reception/launch — бизнес бүрийн ready чеклист, sheet, link, agent, phone мэдээлэл (админ auth, нууц key-гүй)
+- POST /api/reception/launch/agent {agent_id} — provider API GET баталгаажуулалт; user_id-т scoped agency link
+- POST /api/reception/launch/estimate {plan,calls,avg_minutes,llm_usd_per_min,telephony_usd_per_min,hosting_usd_per_month,fx_mnt_per_usd,revenue_mnt_per_month} — зөвхөн тооцоо, ямар ч мөнгө зарцуулахгүй.
+
+### Үйлчилгээг нийтэд борлуулахын өмнөх зайлшгүй шалгалт
+1. Монгол хэлний Scribe/STT: хүний нэр, дугаар, өдөр, цаг, аялгын ярианы бодит e2e тест. Хоёрдмол цагийг баталгаагүйгээр захиалахгүй.
+2. Provider agent-д **get_business, search_knowledge, list_services, check_availability, book_appointment** webhook tool-уудыг холбож, verify 200, capture 409 conflict, retry/idempotency.
+3. SIP carrier-тэй inbound DID, E.164, TLS, firewall, хүн рүү шилжүүлэх, dead-line, тасарсан дуудлага, recording consent policy.
+4. Хувийн мэдээллийн retention, data deletion, audit, backups, customer auth/tenant onboarding & recurring billing, minutes ceiling, outages alerting.
+5. CRM/Google Calendar хоёр талын бодит эрх/ID mapping, concurrency conflict ийн тест; зөвшөөрөгдсөн API байхгүй үед холбогдсон гэж харуулахгүй.
