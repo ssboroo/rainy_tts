@@ -66,19 +66,29 @@ def local_start(date_text,time_text):
         day_diff=(date-datetime.now(TZ).date()).days
         if day_diff<0 or day_diff>MAX_DAYS:
             raise HTTPException(422,"Өнөөдрөөс хойш 90 хоногийн дотор цаг сонгоно уу.")
-        if date.weekday()==6:
-            raise HTTPException(422,"Ням гарагт захиалга авахгүй.")
         return datetime(date.year,date.month,date.day,hh,mm,tzinfo=TZ)
     except ValueError:
         raise HTTPException(422,"Огноо эсвэл цаг буруу байна.")
 
-def validate_slot(start,duration):
+def business_hours(db,user_id):
+    try:
+        row=db.execute("SELECT open_hour,close_hour,closed_weekdays FROM reception_business WHERE user_id=?",(user_id,)).fetchone()
+    except sqlite3.OperationalError:
+        row=None  # Existing tests without the optional receptionist profile schema
+    if not row:return {"open_hour":9,"close_hour":18,"closed_weekdays":[6]}
+    return {"open_hour":row["open_hour"],"close_hour":row["close_hour"],
+            "closed_weekdays":json.loads(row["closed_weekdays"])}
+
+def validate_slot(start,duration,hours=None):
+    hours=hours or {"open_hour":OPEN_HOUR,"close_hour":CLOSE_HOUR,"closed_weekdays":[6]}
     if start <= datetime.now(TZ)+timedelta(minutes=1):
         raise HTTPException(422,"Өнгөрсөн эсвэл хэт ойрын цаг захиалах боломжгүй.")
-    opening=start.replace(hour=OPEN_HOUR,minute=0)
-    closing=start.replace(hour=CLOSE_HOUR,minute=0)
+    if start.weekday() in hours["closed_weekdays"]:
+        raise HTTPException(422,"Тухайн өдөр байгууллага амарна.")
+    opening=start.replace(hour=hours["open_hour"],minute=0)
+    closing=start.replace(hour=hours["close_hour"],minute=0)
     if start<opening or start+timedelta(minutes=duration)>closing:
-        raise HTTPException(422,"Ажиллах цаг 09:00–18:00, Даваа–Бямба.")
+        raise HTTPException(422,"Байгууллагын ажиллах цагийн гадна байна.")
 
 def get_service(db,user_id,service_id):
     if not isinstance(service_id,str) or len(service_id)>120:
@@ -96,10 +106,11 @@ def availability(user_id,service_id,date_text):
     with core.db() as db:
         service=get_service(db,user_id,service_id)
         date_start=local_start(date_text,"09:00")
+        hours=business_hours(db,user_id)
         slots=[]
-        for minutes in range(9*60,18*60,30):
+        for minutes in range(hours["open_hour"]*60,hours["close_hour"]*60,30):
             start=date_start.replace(hour=minutes//60,minute=minutes%60)
-            try:validate_slot(start,service["duration_minutes"])
+            try:validate_slot(start,service["duration_minutes"],hours)
             except HTTPException:continue
             t=int(start.timestamp());end=t+service["duration_minutes"]*60
             exists=db.execute(
@@ -144,7 +155,7 @@ def book(user_id,payload):
                 raise HTTPException(409,"request_id өөр захиалгад аль хэдийн ашиглагдсан.")
             return public_appointment(previous)
         service=get_service(db,user_id,service_id)
-        validate_slot(start,service["duration_minutes"])
+        validate_slot(start,service["duration_minutes"],business_hours(db,user_id))
         start_utc=int(start.timestamp());end_utc=start_utc+service["duration_minutes"]*60
         conflicting=db.execute(
             "SELECT 1 FROM reception_appointments WHERE user_id=? AND status='booked' AND start_utc<? AND end_utc>? LIMIT 1",
