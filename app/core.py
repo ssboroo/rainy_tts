@@ -168,6 +168,31 @@ def init():
             created REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS reception_events_user ON reception_events(user_id,created DESC);
+        CREATE TABLE IF NOT EXISTS reception_services(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            duration_minutes INTEGER NOT NULL CHECK(duration_minutes IN (30,60,90,120)),
+            price_mnt INTEGER NOT NULL DEFAULT 0 CHECK(price_mnt>=0),
+            active INTEGER NOT NULL DEFAULT 1,
+            created REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS reception_services_user ON reception_services(user_id,active);
+        CREATE TABLE IF NOT EXISTS reception_appointments(
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            service_id TEXT NOT NULL REFERENCES reception_services(id),
+            start_utc INTEGER NOT NULL,
+            end_utc INTEGER NOT NULL,
+            caller_name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('booked','cancelled')),
+            request_id TEXT NOT NULL,
+            request_hash TEXT NOT NULL,
+            created REAL NOT NULL,
+            UNIQUE(user_id,request_id)
+        );
+        CREATE INDEX IF NOT EXISTS reception_appointments_calendar ON reception_appointments(user_id,status,start_utc,end_utc);
         CREATE TABLE IF NOT EXISTS support_requests(
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
