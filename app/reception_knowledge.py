@@ -8,7 +8,9 @@ import asyncio
 import csv
 import io
 import json
+import os
 import re
+from zipfile import ZipFile,BadZipFile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -76,6 +78,16 @@ def extract_document(filename,data):
         raise HTTPException(422,"TXT, CSV, XLSX, DOCX, PDF дэмжинэ. Хуучин DOC/XLS-г шинэ форматаар хадгална уу.")
     if not data or len(data)>MAX_BYTES:
         raise HTTPException(413 if len(data)>MAX_BYTES else 422,"Файлын хэмжээ 5 MB-аас их эсвэл хоосон байна.")
+    # Reject compressed XML bombs before DOCX/XLSX parsers expand archives.
+    if suffix in (".xlsx",".docx"):
+        try:
+            with ZipFile(io.BytesIO(data)) as archive:
+                infos=archive.infolist()
+                if len(infos)>5000 or sum(item.file_size for item in infos)>20*1024*1024:
+                    raise HTTPException(413,"Баримтын задлагдах хэмжээ хэтэрсэн байна.")
+        except HTTPException:raise
+        except BadZipFile as exc:
+            raise HTTPException(422,"DOCX/XLSX архив гэмтсэн байна.") from exc
     try:
         if suffix in (".txt",".md"):
             lines=data.decode("utf-8-sig").splitlines()
@@ -199,20 +211,78 @@ def sheet_csv_url(url):
         raise HTTPException(422,"Google Sheets gid буруу байна.")
     return "https://docs.google.com/spreadsheets/d/"+match.group(1)+"/export?format=csv&gid="+g
 
+def sheet_account():
+    """Operator-supplied service account (private JSON env var, never returned)."""
+    raw=os.getenv("GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON","").strip()
+    if not raw:return None
+    try:
+        obj=json.loads(raw)
+        if not isinstance(obj,dict) or obj.get("type")!="service_account" or not obj.get("client_email"):
+            return None
+        return obj
+    except (ValueError,TypeError):
+        return None
+
+def google_status():
+    account=sheet_account()
+    return {"mode":"service_account" if account else "published_csv",
+            "account_email":account["client_email"] if account else None,
+            "sync_every_hours":6}
+
+def private_sheet_csv(export_url,account):
+    """Read privately shared Sheet with Google Sheets read-only API."""
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+    sheet_id=export_url.split("/d/")[1].split("/")[0]
+    creds=service_account.Credentials.from_service_account_info(
+        account,scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"])
+    creds.refresh(Request())
+    api="https://sheets.googleapis.com/v4/spreadsheets/"+sheet_id+"/values/A1%3AZ2000"
+    try:
+        with httpx.Client(timeout=20,trust_env=False,follow_redirects=False) as client:
+            response=client.get(api,headers={"Authorization":"Bearer "+creds.token})
+            if response.status_code!=200:
+                raise HTTPException(422,"Google Sheet-г service account имэйлд Viewer эрхээр хуваалцана уу.")
+            values=response.json().get("values",[])
+        out=io.StringIO()
+        writer=csv.writer(out)
+        for row in values[:2000]:writer.writerow([str(v)[:500] for v in row[:26]])
+        raw=out.getvalue().encode("utf-8")
+        if len(raw)>MAX_BYTES:raise HTTPException(413,"Google Sheets хэмжээ 5 MB-аас их.")
+        return raw
+    except HTTPException:raise
+    except (ValueError,TypeError,httpx.HTTPError,Exception) as exc:
+        raise HTTPException(502,"Google Sheets service account холболтыг шалгана уу.") from exc
+
 def download_sheet(export_url):
     # Never allow arbitrary URLs or redirects: prevents user-controlled SSRF.
     if not export_url.startswith("https://docs.google.com/spreadsheets/d/") or sheet_csv_url(export_url)!=export_url:
         raise HTTPException(422,"Google Sheets холбоос зөвшөөрөгдөөгүй.")
+    account=sheet_account()
+    if account:
+        return private_sheet_csv(export_url,account)
     try:
         with httpx.Client(timeout=20,follow_redirects=False,trust_env=False) as client:
-            with client.stream("GET",export_url,headers={"Accept":"text/csv"}) as response:
-                if response.status_code!=200:
-                    raise HTTPException(422,"Google Sheets CSV нийтлэх эрх болон файлын хандалтыг шалгана уу.")
-                raw=bytearray()
-                for chunk in response.iter_bytes():
-                    raw.extend(chunk)
-                    if len(raw)>MAX_BYTES:raise HTTPException(413,"Google Sheets 5 MB хязгаараас хэтэрлээ.")
-        return bytes(raw)
+            url=export_url
+            # Google may redirect the CSV export to its own googleusercontent host.
+            for hop in range(3):
+                with client.stream("GET",url,headers={"Accept":"text/csv"}) as response:
+                    if response.status_code in (301,302,303,307,308):
+                        location=response.headers.get("location","")
+                        next_url=urlsplit(httpx.URL(url).join(location).__str__())
+                        host=next_url.hostname or ""
+                        if next_url.scheme!="https" or not (host=="docs.google.com" or host=="googleusercontent.com" or host.endswith(".googleusercontent.com")):
+                            raise HTTPException(422,"Google Sheets-ийн таталтын чиглүүлэлт зөвшөөрөгдөөгүй.")
+                        url=next_url.geturl()
+                        continue
+                    if response.status_code!=200:
+                        raise HTTPException(422,"Google Sheets CSV нийтлэх эрх болон файлын хандалтыг шалгана уу.")
+                    raw=bytearray()
+                    for chunk in response.iter_bytes():
+                        raw.extend(chunk)
+                        if len(raw)>MAX_BYTES:raise HTTPException(413,"Google Sheets 5 MB хязгаараас хэтэрлээ.")
+                    return bytes(raw)
+            raise HTTPException(422,"Google Sheets-ийн таталтын хаяг хэт олон удаа өөрчлөгдлөө.")
     except HTTPException:raise
     except httpx.HTTPError as exc:
         raise HTTPException(502,"Google Sheets холболт амжилтгүй. Нийтэлсэн CSV хаягийг шалгана уу.") from exc
@@ -304,6 +374,10 @@ def register_routes(app,admin_user,mutation_guard,json_body,throttle):
         throttle("reception-sheet:"+user["user_id"],10,3600)
         body=await json_body(request)
         return await asyncio.to_thread(import_sheet,user["user_id"],body.get("url"))
+    @app.get("/api/reception/knowledge/google-status")
+    def knowledge_google_status(request:Request):
+        admin_user(request)
+        return google_status()
     @app.get("/api/reception/knowledge/sources")
     def knowledge_sources(request:Request):
         return list_sources(admin_user(request)["user_id"])
