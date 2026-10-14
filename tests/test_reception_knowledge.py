@@ -66,6 +66,29 @@ class ReceptionKnowledgeTests(unittest.TestCase):
         with patch.dict(os.environ,{"ADMIN_EMAILS":"other@example.com"}):
             self.assertEqual(self.client.get("/api/reception/business").status_code,403)
             self.assertEqual(self.post_file(b"secret","secret.txt").status_code,403)
+    def test_configurable_business_hours_affect_real_calendar(self):
+        from datetime import datetime,timedelta
+        from zoneinfo import ZoneInfo
+        data={"name":"Нарны төв","address":"UB","contact_phone":"99112233",
+              "intro":"Сайн байна уу","open_hour":11,"close_hour":16,"closed_weekdays":[6]}
+        saved=self.client.post("/api/reception/business",json=data,headers=self.headers)
+        self.assertEqual(saved.status_code,200,saved.text)
+        self.assertEqual(saved.json()["open_hour"],11)
+        from app import reception_booking
+        services=self.client.get("/api/reception/services").json()["items"]
+        day=datetime.now(ZoneInfo("Asia/Ulaanbaatar")).date()+timedelta(days=3)
+        while day.weekday()==6:day+=timedelta(days=1)
+        free=self.client.get("/api/reception/availability",params={"service_id":services[0]["id"],"date":day.isoformat()})
+        self.assertEqual(free.status_code,200,free.text)
+        self.assertIn("11:00",free.json()["slots"])
+        self.assertNotIn("10:00",free.json()["slots"])
+        self.assertNotIn("16:00",free.json()["slots"])
+        invalid=self.client.post("/api/reception/appointments",json={
+            "service_id":services[0]["id"],"date":day.isoformat(),"time":"10:00",
+            "caller_name":"Бат","phone":"99112233","request_id":"hours-test-0001"
+        },headers=self.headers)
+        self.assertEqual(invalid.status_code,422,invalid.text)
+
     def test_docx_and_xlsx_import(self):
         from docx import Document
         from openpyxl import Workbook
