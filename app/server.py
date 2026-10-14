@@ -1729,6 +1729,21 @@ def reception_config(request:Request):
             {"key":"notes","type":"string","required":False},
         ]),
     ]
+    specs.extend([
+        ("list_services","Дэмжигдсэн үйлчилгээ, үйлчилгээний ID, үргэлжлэх минутыг авна.",[]),
+        ("check_availability","Тухайн үйлчилгээ, өдөрт сул цагуудыг шалгана. Баталгаажаагүй цагийг битгий амла.",[
+            {"key":"service_id","type":"string","required":True},
+            {"key":"date","type":"string","required":True}
+        ]),
+        ("book_appointment","Үйлчлүүлэгч үйлчилгээ, өдөр, цаг, нэр, утсаа БАТАЛГААЖУУЛСНЫ дараа бодит календарьд захиална.",[
+            {"key":"service_id","type":"string","required":True},
+            {"key":"date","type":"string","required":True},
+            {"key":"time","type":"string","required":True},
+            {"key":"caller_name","type":"string","required":True},
+            {"key":"phone","type":"string","required":True},
+            {"key":"request_id","type":"string","required":True}
+        ])
+    ])
     tools_config=[]
     for name,description,parameters in specs:
         tools_config.append({
@@ -1739,7 +1754,7 @@ def reception_config(request:Request):
 
 @app.post("/api/reception/hooks/{token}/{tool_name}")
 async def reception_hook(token:str,tool_name:str,request:Request):
-    allowed={"create_lead","take_message","request_quote","create_order"}
+    allowed={"create_lead","take_message","request_quote","create_order","list_services","check_availability","book_appointment"}
     if tool_name not in allowed:
         raise HTTPException(404,"Reception tool олдсонгүй.")
     throttle("reception:"+token,120,60)
@@ -1758,6 +1773,15 @@ async def reception_hook(token:str,tool_name:str,request:Request):
     raw=json.dumps(payload,ensure_ascii=False)
     if len(raw)>20000:
         raise HTTPException(413,"Reception payload хэт том байна.")
+    # Calendar tools return verified data, never a fictitious booking confirmation.
+    # Old Reception.ai webhooks remain backward compatible.
+    if tool_name=="list_services":
+        return {"services":reception_booking.list_services(integration["user_id"]),"timezone":"Asia/Ulaanbaatar"}
+    if tool_name=="check_availability":
+        return reception_booking.availability(integration["user_id"],payload.get("service_id"),payload.get("date"))
+    if tool_name=="book_appointment":
+        result=reception_booking.book(integration["user_id"],payload)
+        return result
     event_id=core.uid()
     with core.db() as db:
         db.execute(
@@ -1879,8 +1903,9 @@ verify_email.register_routes(app,mutation_guard,throttle)
 audio_extensions.register_routes(app,session,mutation_guard,throttle,tools,allowed_voice_ids,charge,create_artifact_bytes,create_artifact_text)
 from . import production_suite
 production_suite.register_routes(app,session,mutation_guard,throttle,allowed_voice_ids,voice_cost_multiplier)
-from . import voice_agent_preview
+from . import voice_agent_preview, reception_booking
 voice_agent_preview.register_routes(app,admin_user,mutation_guard,throttle)
+reception_booking.register_routes(app,admin_user,mutation_guard,json_body,throttle)
 realtime_proxy.register_routes(app,session,allowed_origins)
 
 if __name__=="__main__":
