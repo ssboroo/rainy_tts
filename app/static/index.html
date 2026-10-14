@@ -273,6 +273,13 @@
             <div class="field"><label>Хаяг</label><input id="reception-business-address" class="field-input" maxlength="500" placeholder="Улаанбаатар, БЗД"></div>
             <div class="field"><label>Утас</label><input id="reception-business-phone" class="field-input" maxlength="30" inputmode="tel" placeholder="99112233"></div>
             <div class="field"><label>Мэндчилгээ / бизнесийн товч танилцуулга</label><textarea id="reception-business-intro" class="field-input" maxlength="1000" rows="3" placeholder="Сайн байна уу, манай байгууллагад тавтай морил."></textarea></div>
+            <div class="field"><label>Ажил эхлэх цаг</label><select id="reception-business-open" class="field-input"></select></div>
+            <div class="field"><label>Ажил дуусах цаг</label><select id="reception-business-close" class="field-input"></select></div>
+            <fieldset class="field">
+              <legend>Амрах гаргууд</legend>
+              <div id="reception-closed-days" class="reception-param-list"></div>
+              <p class="field-help">Ням гараг анхдагчаар амарна. Та байгууллагын амралтын өдрүүдийг өөрчилж болно.</p>
+            </fieldset>
             <button class="secondary" type="submit">Байгууллагын тохиргоо хадгалах</button>
           </form>
           <p id="reception-business-status" class="field-help" role="status"></p>
@@ -319,7 +326,7 @@
         </div>
         <div class="tool-form">
           <h3>Үйлчилгээний сан · Байгууллагын тохиргоо</h3>
-          <p class="field-help">Улаанбаатарын цаг (UTC+8) · Даваа–Бямба 09:00–18:00. Эхний хувилбарт нэг бизнесийн нийт нэг календарь ашиглана.</p>
+          <p class="field-help">Улаанбаатарын цаг (UTC+8) · Байгууллагын тохиргоонд оруулсан цаг, амралтын өдрүүдээр ажиллана. Эхний хувилбарт нэг бизнесийн нийт нэг календарь ашиглана.</p>
           <form id="reception-service-form">
             <div class="field"><label>Үйлчилгээний нэр</label><input name="name" class="field-input" maxlength="100" required placeholder="Жишээ: Үс засалт"></div>
             <div class="field"><label>Үргэлжлэх хугацаа</label><select name="duration_minutes" class="field-input"><option value="30">30 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="120">120 минут</option></select></div>
