@@ -1423,10 +1423,12 @@ $('patch-apply').onclick=async()=>{
  * an agent and separately approves upstream conversation-minute costs.
  */
 let agentPreview=null;
+let agentPreviewEpoch=0; // Cancel pending signed URL / microphone operations on navigation.
 function agentVisual(state){document.dispatchEvent(new CustomEvent('rainy:agent-state',{detail:{state}}));}
 function agentText(role,text){document.dispatchEvent(new CustomEvent('rainy:agent-transcript',{detail:{role,text}}));}
 function agentStatus(message){if($('voice-agent-status'))$('voice-agent-status').textContent=message;}
 async function stopAgentPreview(reason='ready'){
+  ++agentPreviewEpoch;
   const running=agentPreview;agentPreview=null;
   if(running){
     clearTimeout(running.speakingTimer);
@@ -1458,10 +1460,12 @@ $('voice-agent-stop').onclick=stopAgentPreview;
 $('voice-agent-start').onclick=async()=>{
   if(!ensureUser()||!state.user?.admin)return;
   $('voice-agent-start').disabled=true;
+  const epoch=++agentPreviewEpoch;
   agentVisual('connecting');
   agentStatus('ElevenAgents баталгаатай холболт нээж байна…');
   try{
     const token=await api('/production/agent-session',{method:'POST',body:{}});
+    if(epoch!==agentPreviewEpoch)return; // User left the tab before the signed URL arrived.
     if(!token.signed_url)throw new Error('Live agent холболт нээгдээгүй.');
     const socket=new WebSocket(token.signed_url),runtime={socket,context:null,stream:null,node:null,mic:null,outputFormat:'pcm_16000',playingAt:0,speakingTimer:null,lastLevelAt:0};
     agentPreview=runtime;$('voice-agent-stop').disabled=false;
@@ -1512,8 +1516,13 @@ $('voice-agent-start').onclick=async()=>{
       socket.addEventListener('open',resolve,{once:true});
       socket.addEventListener('error',()=>reject(new Error('Live агент руу холбогдох боломжгүй.')),{once:true});
     });
+    if(epoch!==agentPreviewEpoch){socket.close();return;}
     runtime.context=new(window.AudioContext||window.webkitAudioContext)();await runtime.context.resume();
     runtime.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    if(epoch!==agentPreviewEpoch){
+      for(const t of runtime.stream.getTracks())t.stop();
+      socket.close();await runtime.context.close();return;
+    }
     runtime.mic=runtime.context.createMediaStreamSource(runtime.stream);
     runtime.node=runtime.context.createScriptProcessor(4096,1,1);
     runtime.node.onaudioprocess=event=>{
@@ -1538,7 +1547,10 @@ $('voice-agent-start').onclick=async()=>{
     runtime.mic.connect(runtime.node);runtime.node.connect(runtime.context.destination);
     agentVisual('listening');
     agentStatus('Микрофон холбогдлоо. Монгол хэлээр ярьж үзнэ үү. Минутын зардал provider дээр бодитоор тооцогдоно.');
-  }catch(e){agentStatus(customerMessage(e.message));await stopAgentPreview('error');}
+  }catch(e){
+    if(epoch!==agentPreviewEpoch)return;
+    agentStatus(customerMessage(e.message));await stopAgentPreview('error');
+  }
 };
 
 buildToolWorkspaces();
