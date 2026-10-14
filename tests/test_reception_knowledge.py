@@ -134,6 +134,44 @@ class ReceptionKnowledgeTests(unittest.TestCase):
         result2=self.client.get("/api/reception/knowledge/search",params={"query":"Parking"})
         self.assertEqual(result2.status_code,200)
         self.assertIn("covered parking",result2.json()["matches"][0]["text"])
+    def test_public_booking_link_is_opt_in_and_idempotent(self):
+        admin=self.client.get("/api/reception/public-link")
+        self.assertEqual(admin.status_code,200,admin.text)
+        self.assertFalse(admin.json()["enabled"])
+        enabled=self.client.post("/api/reception/public-link",json={"enabled":True},headers=self.headers)
+        self.assertEqual(enabled.status_code,200,enabled.text)
+        token=enabled.json()["token"]
+        self.assertTrue(token)
+        self.assertIn("/appointment?key=",enabled.json()["url"])
+        self.client.cookies.clear()
+        page=self.client.get("/appointment")
+        self.assertEqual(page.status_code,200,page.text[:200])
+        config=self.client.get("/api/public/reception/"+token)
+        self.assertEqual(config.status_code,200,config.text)
+        services=config.json()["services"]
+        self.assertTrue(services)
+        from datetime import datetime,timedelta
+        from zoneinfo import ZoneInfo
+        day=datetime.now(ZoneInfo("Asia/Ulaanbaatar")).date()+timedelta(days=3)
+        while day.weekday()==6:day+=timedelta(days=1)
+        slots=self.client.get("/api/public/reception/"+token+"/availability",
+            params={"service_id":services[0]["id"],"date":day.isoformat()})
+        self.assertEqual(slots.status_code,200,slots.text)
+        self.assertIn("15:00",slots.json()["slots"])
+        payload={"service_id":services[0]["id"],"date":day.isoformat(),"time":"15:00",
+                 "caller_name":"Энх","phone":"99112233","request_id":"public-confirm-123","confirmed":True}
+        first=self.client.post("/api/public/reception/"+token+"/book",json=payload,headers={"Origin":"http://testserver"})
+        self.assertEqual(first.status_code,200,first.text)
+        repeat=self.client.post("/api/public/reception/"+token+"/book",json=payload,headers={"Origin":"http://testserver"})
+        self.assertEqual(repeat.status_code,200,repeat.text)
+        self.assertEqual(repeat.json()["id"],first.json()["id"])
+        self.assertNotIn("phone",first.json())
+        conflicting=self.client.post("/api/public/reception/"+token+"/book",
+            json={**payload,"request_id":"another-public-456"},headers={"Origin":"http://testserver"})
+        self.assertEqual(conflicting.status_code,409,conflicting.text)
+        self.assertEqual(self.client.get("/api/public/reception/invalid").status_code,404)
+        self.assertEqual(self.client.get("/api/public/reception/"+token+"/appointments").status_code,404)
+
     def test_disable_or_delete_source_removes_answer(self):
         uploaded=self.post_file(b"service,Wheel alignment offered","service.csv")
         self.assertEqual(uploaded.status_code,200,uploaded.text)
