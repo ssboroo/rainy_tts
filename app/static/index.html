@@ -17,10 +17,12 @@
   <link rel="stylesheet" href="/style.css?v=rainy-signal-4">
   <link rel="stylesheet" href="/brand.css?v=5">
   <link rel="stylesheet" href="/reception-launch.css?v=1">
+  <link rel="stylesheet" href="/reception-visual.css?v=1">
   <script src="/app.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception.js?v=rainy-reception-calendar-10" defer></script>
   <script src="/reception-knowledge.js?v=rainy-knowledge-1" defer></script>
   <script src="/reception-launch.js?v=1" defer></script>
+  <script src="/reception-visual.js?v=1" defer></script>
   <script src="/brand.js?v=3" defer></script>
 </head>
 <body>
@@ -266,16 +268,18 @@
       </section>
 
       <section id="reception" class="page tool-page" hidden>
-      <div class="rl-header">
-        <div class="rl-header-orb" aria-hidden="true"></div>
-        <div class="rl-header-top"><span class="rl-header-label">RAINY / BUSINESS AUTOMATION</span><span class="rl-header-marker">● RECEPTION PLATFORM</span></div>
-        <h1>Таны байгууллагын <em>AI ресепшн.</em></h1>
-        <p>Нэг удаа тохируулна. Мэдлэгийн сан, үйлчлүүлэгчийн цаг захиалга, AI дуут агент, утасны холболтын бэлэн байдал, ашигт ажиллагааг нэг дор удирдана.</p>
-        <div class="rl-hero-controls"><a href="#rl-console" class="rl-main-action">Холболтоо шалгах →</a><a class="rl-outline-action" href="#rl-pricing">Сарын өртөг тооцох ↗</a></div>
-        <div class="rl-header-metrics"><span>🔒 Байгууллага тус бүрийн өгөгдөл</span><span>📅 Бодит, давхардалгүй захиалга</span><span>🇲🇳 Монгол хэлээр</span></div>
-      </div>
-      <nav class="rl-tabs" aria-label="Receptionist-ийн тохиргоо">
-        <a href="#rl-console">Тойм</a><a href="#rl-connect">Холболт</a><a href="#rl-pricing">Зардал</a><a href="#rl-business">Байгууллага</a><a href="#rl-knowledge">Мэдлэг</a><a href="#rl-services">Үйлчилгээ</a><a href="#rl-public">Онлайн захиалга</a><a href="#rl-voice">Дуут AI</a>
+      <header class="rv-header">
+        <div class="rv-brand"><span class="rv-brand-icon">✳</span><span>RAINY <small>RECEPTIONIST</small></span><span class="rv-build-tag">VOICE WORKSPACE</span></div>
+        <h1>Таны <em>AI ресепшн.</em></h1>
+        <p>Яриаг турш. Захиалгаа удирд. Бүх тохиргоо нэг дор.</p>
+      </header>
+      <nav class="rv-nav" role="tablist" aria-label="AI ресепшний цэс">
+        <button type="button" role="tab" id="rv-tab-voice" data-reception-tab="voice" aria-selected="true">✺ AI турших</button>
+        <button type="button" role="tab" id="rv-tab-overview" data-reception-tab="overview" aria-selected="false">◫ Тойм</button>
+        <button type="button" role="tab" id="rv-tab-booking" data-reception-tab="booking" aria-selected="false">▦ Захиалга</button>
+        <button type="button" role="tab" id="rv-tab-knowledge" data-reception-tab="knowledge" aria-selected="false">▤ Мэдлэг</button>
+        <button type="button" role="tab" id="rv-tab-setup" data-reception-tab="setup" aria-selected="false">⚙ Тохиргоо</button>
+        <button type="button" role="tab" id="rv-tab-pricing" data-reception-tab="pricing" aria-selected="false">↗ Зардал</button>
       </nav>
       <section class="rl-dashboard" id="rl-console" aria-labelledby="rl-overview-title">
         <div class="rl-section-heading"><div><span class="rl-kicker">01 / LAUNCH OVERVIEW</span><h2 id="rl-overview-title">Ажиллуулахад бэлэн байдал</h2><p>Жинхэнэ холболт, API эрх, файлын сан, календарийг тус бүрээр шалгана.</p></div><button class="rl-refresh" type="button" id="rl-refresh">↻ Шинэчлэх</button></div>
@@ -402,12 +406,36 @@
           </form>
           <p id="reception-time-result" class="field-help" role="status"></p>
         </div>
-        <div class="tool-form rl-panel" id="rl-voice">
-          <h3>Монгол хэлний шууд дуут туршилт</h3>
-          <p class="field-help">ElevenLabs Conversational AI Agent ID болон туршилтын эрх тохируулагдсан үед микрофоноор бодитоор ярилцах боломжтой. Ярианы минутын төлбөр тусдаа; зөвшөөрөлгүйгээр дуудлага эхлэхгүй.</p>
-          <div id="reception-agent-target"></div>
-          <p id="reception-agent-availability" class="field-help" role="status">AI агентын холболтыг шалгаж байна.</p>
-        </div>
+        <section class="rv-stage" id="rl-voice" aria-label="AI дуут туршилт">
+          <div class="rv-stage-heading"><div><span class="rv-eyebrow">REAL-TIME VOICE LAB</span><h2>AI-тай ярилцах</h2><p>Монгол хэлээр асууж, AI-ийн хариултыг сонсоорой.</p></div>
+            <div class="rv-modes" role="group" aria-label="Дүрслэл"><button type="button" id="rv-view-orb" aria-pressed="true">✺ Voice</button><button type="button" id="rv-view-avatar" aria-pressed="false">◉ Avatar</button></div>
+          </div>
+          <div id="rv-stage" class="rv-visual" data-state="idle" data-view="orb">
+            <div class="rv-halo rv-halo-a" aria-hidden="true"></div><div class="rv-halo rv-halo-b" aria-hidden="true"></div>
+            <div id="rv-orb" class="rv-orb" role="img" aria-label="AI-ийн дуут хөдөлгөөнт дүрслэл">
+              <div class="rv-orb-inner"></div><div class="rv-orb-light"></div>
+              <div class="rv-sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div id="rv-avatar" class="rv-avatar" role="img" aria-label="AI ресепшний хийсвэр хүний дүрс" hidden>
+              <svg viewBox="0 0 220 230" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="rv-face" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#d9fff0"/><stop offset="1" stop-color="#56a2c3"/></linearGradient></defs>
+                <path d="M31 230c4-43 33-65 79-65s75 22 79 65" fill="#83d8d8" opacity=".28" stroke="#b8fff1" stroke-width="2"/>
+                <path d="M88 156l-4 31 26 18 26-18-4-31" fill="#6cacc4"/>
+                <path d="M62 89c0-45 16-67 48-67s48 22 48 67c0 52-23 78-48 78s-48-26-48-78z" fill="url(#rv-face)" stroke="#ddfff6" stroke-width="2"/>
+                <path d="M59 88c-3-43 19-77 54-76 35 1 54 33 51 72-17-6-27-19-34-32-20 17-41 22-71 23z" fill="#194760" stroke="#92dcd3" stroke-width="2"/>
+                <path d="M78 98q10-6 20 0m24 0q10-6 20 0M105 109l-4 21 9 2M95 148q15 10 30 0" fill="none" stroke="#2b667e" stroke-linecap="round" stroke-width="3"/>
+                <circle cx="65" cy="105" r="7" fill="#7ef8dc" opacity=".6"/><circle cx="155" cy="105" r="7" fill="#7ef8dc" opacity=".6"/>
+              </svg>
+              <div class="rv-avatar-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <span class="rv-visual-note rv-note-left">VOICE · MN</span><span class="rv-visual-note rv-note-right">01 / LIVE</span>
+          </div>
+          <div class="rv-status" aria-live="polite"><span class="rv-status-indicator" aria-hidden="true"></span><strong id="rv-state-label">Холболтыг шалгаж байна</strong><small id="rv-state-sub">Агент холбогдсоны дараа яриа эхэлнэ.</small></div>
+          <div id="rv-transcript" class="rv-transcript" aria-label="Ярианы бичвэр" role="log" aria-live="polite"><span class="rv-muted">Ярианы текст энд харагдана.</span></div>
+          <div class="rv-actions"><button type="button" id="rv-start-btn" class="rv-primary" disabled>◉ Яриа эхлүүлэх</button><button type="button" id="rv-stop-btn" class="rv-stop" hidden>■ Зогсоох</button><button type="button" id="rv-setup-btn" class="rv-secondary">Агент холбох ↗</button></div>
+          <p class="rv-footnote">Админы бодит ElevenLabs туршилт · Микрофоны зөвшөөрөл · Ярианы минут төлбөртэй.</p>
+          <div id="reception-agent-target" class="rv-original-agent"></div>
+          <p id="reception-agent-availability" class="rv-connection-status" role="status">AI агентын холболтыг шалгаж байна.</p>
+        </section>
         <div class="tool-form rl-panel" id="rl-services">
           <h3>Үйлчилгээний сан · Байгууллагын тохиргоо</h3>
           <p class="field-help">Улаанбаатарын цаг (UTC+8) · Байгууллагын тохиргоонд оруулсан цаг, амралтын өдрүүдээр ажиллана. Эхний хувилбарт нэг бизнесийн нийт нэг календарь ашиглана.</p>
