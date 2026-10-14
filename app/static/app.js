@@ -273,8 +273,10 @@ function renderVoiceLibrary(){
     const actions=document.createElement('div');actions.className='voice-actions';
     const use=document.createElement('button');use.type='button';use.className='secondary voice-use';use.textContent='Энэ хоолойг ашиглах';use.onclick=()=>selectVoice(voice);
     const listen=document.createElement('button');listen.type='button';listen.className='secondary voice-listen';listen.textContent='Дээж сонсох';
-    const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.hidden=true;
+    const audio=document.createElement('audio');audio.controls=false;audio.preload='none';audio.hidden=true;
     const feedback=document.createElement('p');feedback.className='field-help';feedback.setAttribute('role','status');feedback.hidden=true;
+    const player=createVoicePreviewPlayer({audio,listen,feedback,voiceName:voiceDisplayName(voice)});
+    listen.hidden=true;
     let previewUrl;
     listen.onclick=async()=>{
       if(listen.disabled)return;listen.disabled=true;listen.textContent='Дээж ачаалж байна…';feedback.hidden=true;
@@ -285,14 +287,15 @@ function renderVoiceLibrary(){
           const blob=await response.blob();if(!blob.size)throw new Error('Дээж хоосон байна. Дараа дахин оролдоно уу.');
           if(!card.isConnected)return;
           previewUrl=URL.createObjectURL(blob);audio.src=previewUrl;
+          player.prepareWaveform(blob).catch(()=>{});
         }
-        audio.hidden=false;await audio.play();
+        await audio.play();
       }catch(e){feedback.textContent=customerMessage(e.message);feedback.hidden=false;}
       finally{listen.disabled=false;listen.textContent='Дээж сонсох';}
     };
-    audio.onerror=()=>{feedback.textContent='Дээжийг тоглуулах боломжгүй байна. Дараа дахин оролдоно уу.';feedback.hidden=false;audio.hidden=true;};
-    actions.append(use,listen);card.append(actions,audio,feedback);
-    card.releasePreview=()=>{audio.pause();if(previewUrl)URL.revokeObjectURL(previewUrl);};
+    audio.onerror=()=>{feedback.textContent='Дээжийг тоглуулах боломжгүй байна. Дараа дахин оролдоно уу.';feedback.hidden=false;};
+    actions.append(use,listen);card.append(actions,player.root,audio,feedback);
+    card.releasePreview=()=>{player.dispose();if(previewUrl)URL.revokeObjectURL(previewUrl);};
     if(!voice.builtin&&state.user){
       const remove=document.createElement('button');remove.className='danger-link';remove.textContent='Хоолой устгах';
       remove.onclick=async()=>{if(!confirm('Энэ хоолойн хувилбарыг устгах уу?'))return;try{await api('/voices/'+encodeURIComponent(voice.id),{method:'DELETE',body:{}});await refreshVoices(true);}catch(e){notice(customerMessage(e.message));}};
