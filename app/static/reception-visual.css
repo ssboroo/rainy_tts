@@ -294,3 +294,31 @@
 @media(prefers-reduced-motion:reduce){
   #reception .rv-header,#reception .rv-stage,#reception .rl-panel{transition:none}
 }
+
+
+/* Tiny friendly RAINY robot — keep the exact voice state, no simulated talk. */
+#reception .rv-robot{transform-origin:50% 80%;filter:drop-shadow(0 15px 31px rgba(169,140,255,.28))}
+#reception .rv-robot svg{overflow:visible}
+#reception .rv-robot-head{transform-origin:110px 140px;animation:rv-robot-float 5.2s ease-in-out infinite}
+#reception .rv-robot-antenna{transform-origin:110px 43px;animation:rv-robot-antenna-wiggle 4s ease-in-out infinite}
+#reception .rv-robot-eye{transform-origin:110px 96px;animation:rv-robot-blink 6.2s linear infinite}
+#reception .rv-robot-mouth{transform-origin:110px 121px}
+#reception .rv-robot-heart{filter:drop-shadow(0 0 4px rgba(183,255,74,.8))}
+#reception .rv-visual[data-state="listening"] .rv-robot-eye{filter:drop-shadow(0 0 5px rgba(183,255,74,.5))}
+#reception .rv-visual[data-state="connecting"] .rv-robot-antenna{animation-duration:1.2s}
+#reception .rv-visual[data-state="speaking"] .rv-robot-mouth{animation:rv-robot-talk .35s ease-in-out infinite alternate;filter:drop-shadow(0 0 5px rgba(183,255,74,.55))}
+#reception .rv-visual[data-state="speaking"] .rv-robot-heart{animation:rv-robot-heartbeat .9s ease-in-out infinite alternate}
+#reception .rv-visual[data-state="speaking"] .rv-robot-head{animation:rv-robot-float 1.7s ease-in-out infinite}
+#reception .rv-visual[data-state="error"] .rv-robot{filter:grayscale(.7)}
+@keyframes rv-robot-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes rv-robot-blink{0%,5%,7%,56%,58%,100%{transform:scaleY(1)}6%,57%{transform:scaleY(.12)}}
+@keyframes rv-robot-antenna-wiggle{0%,100%{transform:rotate(0deg)}45%{transform:rotate(7deg)}70%{transform:rotate(-5deg)}}
+@keyframes rv-robot-talk{from{transform:scaleY(.75) translateY(-2px)}to{transform:scaleY(1.35) translateY(2px)}}
+@keyframes rv-robot-heartbeat{from{opacity:.55}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  #reception .rv-robot-head,
+  #reception .rv-robot-eye,
+  #reception .rv-robot-antenna,
+  #reception .rv-robot-heart,
+  #reception .rv-robot-mouth{animation:none!important}
+}
