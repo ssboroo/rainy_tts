@@ -13,6 +13,37 @@ for(let day=0;day<7;day++){
   label.append(input,document.createTextNode(' '+workDays[day]+' '));
   $('reception-closed-days').append(label);
 }
+const publicBooking={
+  async refresh(){
+    if(!state.user?.admin)return;
+    try{
+      const result=await api('/reception/public-link');
+      $('reception-public-status').textContent=result.enabled?
+        'Нийтийн захиалга идэвхтэй. Холбоосыг үйлчлүүлэгчид түгээнэ.':'Нийтийн захиалга идэвхгүй. Идэвхжүүлэх үед нууц санамсаргүй холбоос үүснэ.';
+      $('reception-public-enable').disabled=result.enabled;
+      $('reception-public-disable').disabled=!result.enabled;
+      const target=$('reception-public-url');target.replaceChildren();
+      if(result.url){
+        const address=document.createElement('code');address.textContent=result.url;
+        const copy=document.createElement('button');copy.type='button';copy.className='secondary';copy.textContent='Холбоос хуулах';
+        copy.onclick=async()=>{await navigator.clipboard.writeText(result.url);notice('Захиалгын холбоос хуулагдлаа.');};
+        const link=document.createElement('a');link.href=result.url;link.textContent='Захиалгын хуудас нээх';link.target='_blank';link.rel='noopener noreferrer';
+        target.append(address,copy,link);
+      }
+    }catch(e){$('reception-public-status').textContent=customerMessage(e.message);}
+  },
+  async set(enabled){
+    try{
+      const result=await api('/reception/public-link',{method:'POST',body:{enabled}});
+      await this.refresh();
+      notice(result.enabled?'Захиалгын нийтийн холбоос идэвхтэй.':'Захиалгын холбоос зогслоо.');
+    }catch(e){notice(customerMessage(e.message));}
+  }
+};
+$('reception-public-enable').onclick=()=>publicBooking.set(true);
+$('reception-public-disable').onclick=()=>{
+  if(confirm('Нийтийн захиалгын холбоосыг идэвхгүй болгох уу?'))publicBooking.set(false);
+};
 const kbUI={
   async business(){
     if(!state.user?.admin)return;
@@ -56,7 +87,7 @@ const kbUI={
     }catch(e){$('reception-knowledge-sources').textContent=customerMessage(e.message);}
   },
   async load(){
-    await Promise.all([this.business(),this.sources()]);
+    await Promise.all([this.business(),this.sources(),publicBooking.refresh()]);
   }
 };
 document.addEventListener('rainy:page',event=>{
