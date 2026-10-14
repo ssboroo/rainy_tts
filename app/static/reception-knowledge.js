@@ -1,11 +1,27 @@
 'use strict';
 // Admin-only RAINY knowledge management. All document excerpts are rendered as
 // text nodes: uploaded untrusted HTML/script can never execute in the browser.
+const workDays=['Даваа','Мягмар','Лхагва','Пүрэв','Баасан','Бямба','Ням'];
+for(let hour=0;hour<=23;hour++){
+  const label=String(hour).padStart(2,'0')+':00';
+  if(hour<=22)$('reception-business-open').add(new Option(label,String(hour)));
+  if(hour>=1)$('reception-business-close').add(new Option(label,String(hour)));
+}
+for(let day=0;day<7;day++){
+  const label=document.createElement('label');label.className='field-help';
+  const input=document.createElement('input');input.type='checkbox';input.value=String(day);input.checked=day===6;
+  label.append(input,document.createTextNode(' '+workDays[day]+' '));
+  $('reception-closed-days').append(label);
+}
 const kbUI={
   async business(){
     if(!state.user?.admin)return;
     try{
       const b=await api('/reception/business');
+      $('reception-business-open').value=String(b.open_hour??9);
+      $('reception-business-close').value=String(b.close_hour??18);
+      for(const input of $('reception-closed-days').querySelectorAll('input[type=checkbox]'))
+        input.checked=(b.closed_weekdays||[6]).includes(Number(input.value));
       for(const [key,id] of [
         ['name','reception-business-name'],['address','reception-business-address'],
         ['contact_phone','reception-business-phone'],['intro','reception-business-intro']]){
@@ -16,6 +32,10 @@ const kbUI={
   async sources(){
     if(!state.user?.admin)return;
     try{
+      const google=await api('/reception/knowledge/google-status');
+      $('reception-sheet-status').textContent=google.mode==='service_account'?
+        'Private Google Sheets идэвхтэй: '+google.account_email+' имэйлд Sheet-ийн Viewer эрх олгоно. 6 цагийн синк.':
+        'Нийтэлсэн CSV холбоос ашиглана. Хувийн Sheet бол админ Google service account тохируулна. 6 цагийн синк.';
       const data=await api('/reception/knowledge/sources');
       const list=$('reception-knowledge-sources');list.replaceChildren();
       if(!data.items.length){list.textContent='Одоогоор баримт оруулаагүй байна.';return;}
@@ -49,7 +69,9 @@ $('reception-business-form').onsubmit=async event=>{
   try{
     await api('/reception/business',{method:'POST',body:{
       name:$('reception-business-name').value,address:$('reception-business-address').value,
-      contact_phone:$('reception-business-phone').value,intro:$('reception-business-intro').value
+      contact_phone:$('reception-business-phone').value,intro:$('reception-business-intro').value,
+      open_hour:Number($('reception-business-open').value),close_hour:Number($('reception-business-close').value),
+      closed_weekdays:[...$('reception-closed-days').querySelectorAll('input[type=checkbox]:checked')].map(x=>Number(x.value))
     }});
     $('reception-business-status').textContent='Байгууллагын мэдээлэл хадгалагдлаа.';
   }catch(e){$('reception-business-status').textContent=customerMessage(e.message);}
