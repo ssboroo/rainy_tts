@@ -93,7 +93,8 @@ class ElevenTools:
         files=[]
         for upload in uploads:
             await upload.seek(0)
-            files.append(("files[]",(upload.filename,upload.file,upload.content_type or "audio/mpeg")))
+            # ElevenLabs official SDK uses the `files` multipart field (not `files[]`).
+            files.append(("files",(upload.filename,upload.file,upload.content_type or "audio/mpeg")))
         data={
             "name":name[:100],
             "description":description[:500],
