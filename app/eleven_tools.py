@@ -10,6 +10,43 @@ class ElevenAPIError(RuntimeError):
         super().__init__(message)
         self.status = status
 
+def explain_clone_rejection(status, payload):
+    """Only show whitelisted, actionable Mongolian guidance; no raw provider PII."""
+    detail=payload.get("detail") if isinstance(payload,dict) else None
+    fields=[]
+    text_parts=[]
+    if isinstance(detail,list):
+        for error in detail[:15]:
+            if isinstance(error,dict):
+                fields.extend(str(part).lower() for part in (error.get("loc") or []) if isinstance(part,str))
+                text_parts.extend(str(error.get(key) or "").lower()[:160] for key in ("type","msg"))
+    elif isinstance(detail,dict):
+        text_parts.extend(str(detail.get(key) or "").lower()[:160] for key in ("status","message","code","type"))
+        loc=detail.get("loc")
+        if isinstance(loc,list):
+            fields.extend(str(x).lower() for x in loc if isinstance(x,str))
+    elif isinstance(detail,str):
+        text_parts.append(detail.lower()[:180])
+    elif isinstance(payload,dict):
+        text_parts.extend(str(payload.get(key) or "").lower()[:160] for key in ("message","error","status"))
+    reason=" ".join(text_parts)
+    if "files" in fields and any(token in reason for token in ("missing","required","field required","none")):
+        return "Аудио дээж ElevenLabs-д очсонгүй. MP3 эсвэл WAV файлаар дахин оруулна уу."
+    if "name" in fields and any(token in reason for token in ("missing","required","field required")):
+        return "Хоолойн нэр дутуу байна. Нэр оруулаад дахин оролдоно уу."
+    if any(token in reason for token in ("instant_voice_cloning_not_available","voice_cloning_not_available","cloning_not_available","can_not_use_instant_voice_cloning","ivc_not_allowed","not_allowed_to_clone")):
+        return "ElevenLabs дансанд Instant Voice Clone ашиглах эрх идэвхгүй байна. Provider-ийн багц ба эрхээ шалгана уу."
+    if any(token in reason for token in ("voice_limit","too_many_voices","max_voices","voice_slots","voice_quota")):
+        return "ElevenLabs хоолойн тооны хязгаарт хүрсэн байна. Дансны хоолойн сан, багцын хязгаарыг шалгана уу."
+    if any(token in reason for token in ("invalid_audio","audio_too_short","poor_audio","invalid_file","no_speech","not_enough_audio","audio_length","unsupported_audio","audio_format","corrupt","failed_to_process_audio","file_type")):
+        return "Аудио дээжийг хүлээж авсангүй. MP3 (192 kbps буюу түүнээс дээш) хэлбэртэй, 1–2 минутын цэвэр, нэг хүний яриа оруулна уу."
+    if any(token in reason for token in ("verification_required","captcha","verify_voice")):
+        return "Хоолой хувилахын өмнө ElevenLabs-ийн эзэмшигчийг баталгаажуулах шаардлагатай байна."
+    if status==422:
+        return "Хоолой хувилах хүсэлт татгалзагдлаа. Яг ямар шалтгаан болох нь тодорхойгүй байна. Дууны дээжээ цэвэр MP3 (192 kbps+) хэлбэрээр, 1–2 минутын нэг хүний яриагаар бэлдэж дахин шалгана уу. Давтагдвал админ provider-ийн 422 хариуг нягтална."
+    return "Хоолой хувилах үйлчилгээ хүсэлтийг хүлээн авсангүй. Түр дахин шалгана уу."
+
+
 class ElevenTools:
     def __init__(self, api_key=None):
         self.api_key=(api_key or os.getenv("ELEVENLABS_API_KEY","")).strip()
@@ -44,6 +81,11 @@ class ElevenTools:
                     message=detail
             except Exception:
                 pass
+            if path=="/v1/voices/add" and response.status_code in (400,422):
+                try:
+                    message=explain_clone_rejection(response.status_code,response.json())
+                except Exception:
+                    message=explain_clone_rejection(response.status_code,{})
             raise ElevenAPIError(response.status_code,message)
         return response
 

@@ -251,6 +251,8 @@ def validate_upload(upload:UploadFile, extensions, max_mb):
     if ext not in extensions:
         raise HTTPException(422,"Файлын төрөл дэмжигдэхгүй байна.")
     size=getattr(upload,"size",None)
+    if size==0:
+        raise HTTPException(422,"Хоосон аудио файл байна. Дууны бичлэгтэй MP3 эсвэл WAV оруулна уу.")
     if size is not None and size>max_mb*1024*1024:
         raise HTTPException(413,f"Файл {max_mb} MB-аас их байна.")
 
@@ -895,7 +897,6 @@ async def clone_voice(
                 metadata=provider_meta
             )
         result={**result,"credits_used":credits}
-        if provider_meta: result["provider_usage"]=provider_meta
         if provider_meta: result["provider_usage"]=provider_meta
         core.update_tool_job(job_id,"done",result=result)
         return {"job_id":job_id,**result,"balance":billing.wallet(sess["user_id"])["wallet"]["balance"]}
