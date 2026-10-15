@@ -20,7 +20,7 @@ class ReceptionThemeTests(unittest.TestCase):
   self.assertIn('class="rv-signal-path"',html)
   self.assertIn('id="rv-session-meta"',html)
   self.assertIn('class="rv-hud-corner',html)
-  self.assertIn('reception-visual.css?v=2',html)
+  self.assertIn('reception-visual.css?v=3',html)
   self.assertIn('reception-visual.js?v=2',html)
  def test_ai_avatar_is_a_cute_animated_robot_not_human(self):
   html=(STATIC/"index.html").read_text(encoding="utf-8")
