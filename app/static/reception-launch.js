@@ -60,11 +60,13 @@ const launch={
     if(!form.reportValidity())return;
     const data=Object.fromEntries(new FormData(form));
     const payload={plan:data.plan};
-    for(const key of ['calls','avg_minutes','llm_usd_per_min','telephony_usd_per_min','hosting_usd_per_month','fx_mnt_per_usd','revenue_mnt_per_month']){
+    for(const key of ['calls','avg_minutes','llm_usd_per_min','telephony_usd_per_min','hosting_usd_per_month','fx_mnt_per_usd']){
       payload[key]=Number(data[key]);
     }
     try{
       const result=await api('/reception/launch/estimate',{method:'POST',body:payload});
+      if(!state.user?.admin)return;
+      $('rl-sale-price').value=launchMoney(result.sale_price_mnt);
       $('rl-monthly-cost').textContent=launchMoney(result.total_mnt);
       $('rl-profit').textContent=launchMoney(result.profit_mnt);
       $('rl-margin').textContent=result.margin_percent===null?'—':result.margin_percent+'%';

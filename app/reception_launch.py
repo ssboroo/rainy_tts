@@ -22,6 +22,7 @@ PLANS={
 }
 EXTRA_MINUTE_USD=0.08
 BURST_MINUTE_USD=0.16
+MARKUP_PERCENT=70
 DOC_URL="https://elevenlabs.io/pricing/agents"
 
 def ensure_schema():
@@ -105,19 +106,21 @@ def estimate(payload):
     telecom=_number(payload,"telephony_usd_per_min",0,10)
     hosting=_number(payload,"hosting_usd_per_month",0,100000)
     fx=_number(payload,"fx_mnt_per_usd",1,1000000)
-    revenue=_number(payload,"revenue_mnt_per_month",0,1000000000)
     minutes=round(calls*avg,2)
     beyond=max(0,minutes-plan["minutes"])
     ai=round(plan["usd"]+beyond*EXTRA_MINUTE_USD,4)
     llm_cost=round(minutes*llm,4)
     telecom_cost=round(minutes*telecom,4)
     total=round(ai+llm_cost+telecom_cost+hosting,4)
-    mnt=round(total*fx)
+    mnt=math.ceil(total*fx)
+    # Round upward so whole-tugrik pricing never falls below the fixed markup.
+    revenue=(mnt*(100+MARKUP_PERCENT)+99)//100
     return {
         "plan":payload["plan"],"total_minutes":minutes,"included_minutes":plan["minutes"],
         "extra_minutes":round(beyond,2),"agent_usd":ai,"llm_usd":llm_cost,
         "telephony_usd":telecom_cost,"hosting_usd":hosting,
-        "total_usd":total,"total_mnt":mnt,"profit_mnt":round(revenue)-mnt,
+        "total_usd":total,"total_mnt":mnt,"sale_price_mnt":revenue,"markup_percent":MARKUP_PERCENT,
+        "profit_mnt":revenue-mnt,
         "margin_percent":round((round(revenue)-mnt)/revenue*100,1) if revenue>0 else None,
         "illustrative":True,"taxes_included":False,
         "note":"Тооцоолол: 2026-10 ElevenAgents monthly list price + $0.08 нэмэлт минут. Provider LLM/телеком/hosting нь таны оруулсан таамаглал. Багцын дундын хэрэглээг бизнес тус бүрд хуваарилахгүй; burst, FX, татвар, үнэгүй web захиалга, credit cashback ороогүй.",

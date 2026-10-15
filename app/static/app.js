@@ -97,6 +97,9 @@ function renderAccount(){
   if(!state.user)document.querySelectorAll('.tool-output-items').forEach(el=>{const p=document.createElement('p');p.className='field-help';p.textContent='Нэвтэрсний дараа таны үр дүн энд харагдана.';el.replaceChildren(p);});
   if(!state.user?.admin){
     $('admin-content').replaceChildren();
+    $('rl-sale-price').value='— ₮';
+    for(const id of ['rl-monthly-cost','rl-profit','rl-margin','rl-cost-message'])$(id).textContent='';
+    $('rl-cost-breakdown').replaceChildren();
     $('provider-plan').textContent='';$('provider-status-text').textContent='';$('studio-readiness').textContent='';
     if(['admin','reception'].includes(state.page))page('tts');
   }

@@ -60,8 +60,24 @@ class LaunchTests(unittest.TestCase):
   self.assertAlmostEqual(d["telephony_usd"],300*0.02,places=4)
   self.assertAlmostEqual(d["total_usd"],6+225*0.08+4.5+6+5,places=4)
   self.assertEqual(d["total_mnt"],round(d["total_usd"]*3500))
-  self.assertEqual(d["profit_mnt"],199000-d["total_mnt"])
+  self.assertEqual(d["sale_price_mnt"],235025)
+  self.assertEqual(d["markup_percent"],70)
+  self.assertEqual(d["profit_mnt"],d["sale_price_mnt"]-d["total_mnt"])
+  self.assertEqual(d["margin_percent"],41.2)
   self.assertTrue(d["illustrative"])
+ def test_pricing_is_admin_only_and_ignores_client_price(self):
+  payload={"plan":"starter","calls":0,"avg_minutes":1,"llm_usd_per_min":0,
+           "telephony_usd_per_min":0,"hosting_usd_per_month":0,"fx_mnt_per_usd":1,
+           "revenue_mnt_per_month":0,"markup_percent":0}
+  result=self.client.post("/api/reception/launch/estimate",json=payload,headers=self.headers)
+  self.assertEqual(result.status_code,200)
+  self.assertEqual(result.json()["sale_price_mnt"],11)
+  with patch.dict(os.environ,{"ADMIN_EMAILS":"nobody@example.org"}):
+   self.assertEqual(self.client.post("/api/reception/launch/estimate",json=payload,headers=self.headers).status_code,403)
+  self.client.cookies.clear()
+  self.assertEqual(self.client.post("/api/reception/launch/estimate",json=payload,headers=self.headers).status_code,401)
+  html=(Path(server.STATIC)/"index.html").read_text()
+  self.assertIn('id="rl-pricing" class="rl-pricing" hidden data-admin-only',html)
  def test_cost_invalid_and_unknown_plan_fail_closed(self):
   p={"plan":"unknown","calls":10,"avg_minutes":2,"llm_usd_per_min":0,
      "telephony_usd_per_min":0,"hosting_usd_per_month":0,"fx_mnt_per_usd":3500,
